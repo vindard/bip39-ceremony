@@ -1,0 +1,20 @@
+[package]
+name = "bip39-ceremony-core"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.94"
+license = "MIT"
+description = "Inspectable physical-capture to BIP-39 calculations"
+repository = "https://github.com/vindard/bip39-ceremony"
+readme = "README.md"
+keywords = ["bip39", "bitcoin", "dice", "entropy"]
+categories = ["cryptography"]
+publish = true
+
+[dependencies]
+bip39 = { version = "=2.2.2", default-features = false, features = ["zeroize"] }
+bitcoin_hashes = { version = "=0.14.0", default-features = false }
+zeroize = { version = "=1.9.0", default-features = false, features = ["alloc"] }
+
+[lints]
+workspace = true

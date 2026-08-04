@@ -1,0 +1,86 @@
+use crate::domain::bip39::EntropyTarget;
+
+/// A stable, versioned physical-capture-to-entropy protocol.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ConversionProtocol {
+    ExactV1,
+    WordExactV1,
+    NativeHashV1,
+    ColdcardV1,
+    KeystoneLegacyV1,
+    SeedSignerCoinsV1,
+}
+
+impl ConversionProtocol {
+    #[must_use]
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::ExactV1 => "exact-v1",
+            Self::WordExactV1 => "word-exact-v1",
+            Self::NativeHashV1 => "native-hash-v1",
+            Self::ColdcardV1 => "coldcard-v1",
+            Self::KeystoneLegacyV1 => "keystone-legacy-v1",
+            Self::SeedSignerCoinsV1 => "seedsigner-coins-v1",
+        }
+    }
+
+    #[must_use]
+    pub const fn minimum_observations(self, target: EntropyTarget) -> usize {
+        match (self, target) {
+            (Self::WordExactV1, EntropyTarget::Words12) => 70,
+            (Self::WordExactV1, EntropyTarget::Words24) => 140,
+            (Self::ColdcardV1 | Self::KeystoneLegacyV1, EntropyTarget::Words24) => 99,
+            (Self::SeedSignerCoinsV1, target) => target.entropy_bits(),
+            (_, target) => target.strict_roll_count(),
+        }
+    }
+
+    #[must_use]
+    pub const fn supports_target(self, target: EntropyTarget) -> bool {
+        !matches!(
+            (self, target),
+            (Self::KeystoneLegacyV1, EntropyTarget::Words12)
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn protocols_define_stable_ids_and_capture_requirements() {
+        let cases = [
+            (ConversionProtocol::ExactV1, "exact-v1", 50, 100),
+            (ConversionProtocol::WordExactV1, "word-exact-v1", 70, 140),
+            (ConversionProtocol::NativeHashV1, "native-hash-v1", 50, 100),
+            (ConversionProtocol::ColdcardV1, "coldcard-v1", 50, 99),
+            (
+                ConversionProtocol::KeystoneLegacyV1,
+                "keystone-legacy-v1",
+                50,
+                99,
+            ),
+            (
+                ConversionProtocol::SeedSignerCoinsV1,
+                "seedsigner-coins-v1",
+                128,
+                256,
+            ),
+        ];
+
+        for (protocol, id, rolls12, rolls24) in cases {
+            assert_eq!(protocol.id(), id);
+            assert_eq!(
+                protocol.minimum_observations(EntropyTarget::Words12),
+                rolls12
+            );
+            assert_eq!(
+                protocol.minimum_observations(EntropyTarget::Words24),
+                rolls24
+            );
+        }
+        assert!(!ConversionProtocol::KeystoneLegacyV1.supports_target(EntropyTarget::Words12));
+        assert!(ConversionProtocol::KeystoneLegacyV1.supports_target(EntropyTarget::Words24));
+    }
+}
