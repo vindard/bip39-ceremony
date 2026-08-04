@@ -3,7 +3,11 @@ use core::fmt;
 use zeroize::Zeroize;
 
 use crate::domain::{
-    bip39::EntropyTarget, coin::CoinFlip, dice::DieFace, protocol::ConversionProtocol,
+    bip39::EntropyTarget,
+    coin::CoinFlip,
+    dice::DieFace,
+    jade::{D8Face, D16Face},
+    protocol::ConversionProtocol,
 };
 
 /// An accepted domain fact. Secret-bearing variants redact their debug output.
@@ -16,8 +20,11 @@ pub(crate) enum Event {
     SafetyAcknowledged,
     RollRecorded(DieFace),
     FlipRecorded(CoinFlip),
+    JadeD16Recorded(D16Face),
+    JadeD8Recorded(D8Face),
     RollUndone,
     FlipUndone,
+    JadeUndone,
     RollsConfirmed,
     GenerationSucceeded,
     ExactAttemptRejected,
@@ -32,6 +39,8 @@ impl Zeroize for Event {
         match self {
             Self::RollRecorded(face) => face.zeroize(),
             Self::FlipRecorded(flip) => flip.zeroize(),
+            Self::JadeD16Recorded(face) => face.zeroize(),
+            Self::JadeD8Recorded(face) => face.zeroize(),
             _ => {}
         }
         *self = Self::CeremonyCancelled;
@@ -54,8 +63,11 @@ impl fmt::Debug for Event {
             Self::SafetyAcknowledged => formatter.write_str("SafetyAcknowledged"),
             Self::RollRecorded(_) => formatter.write_str("RollRecorded([REDACTED])"),
             Self::FlipRecorded(_) => formatter.write_str("FlipRecorded([REDACTED])"),
+            Self::JadeD16Recorded(_) => formatter.write_str("JadeD16Recorded([REDACTED])"),
+            Self::JadeD8Recorded(_) => formatter.write_str("JadeD8Recorded([REDACTED])"),
             Self::RollUndone => formatter.write_str("RollUndone"),
             Self::FlipUndone => formatter.write_str("FlipUndone"),
+            Self::JadeUndone => formatter.write_str("JadeUndone"),
             Self::RollsConfirmed => formatter.write_str("RollsConfirmed"),
             Self::GenerationSucceeded => formatter.write_str("GenerationSucceeded"),
             Self::ExactAttemptRejected => formatter.write_str("ExactAttemptRejected"),

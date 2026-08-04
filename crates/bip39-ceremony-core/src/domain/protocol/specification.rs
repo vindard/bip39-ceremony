@@ -9,6 +9,7 @@ pub enum CanonicalInputKind {
     VersionedBinary,
     AsciiFaceDigits,
     AsciiFacesWithSixAsZero,
+    TypedMixedDice,
     AsciiCoinFlips,
 }
 
@@ -29,6 +30,7 @@ pub enum Compatibility {
     Bip39Ceremony,
     Coldcard,
     KeystoneLegacy,
+    JadeTable,
     SeedSigner,
 }
 
@@ -116,6 +118,12 @@ impl ConversionProtocol {
                 Compatibility::KeystoneLegacy,
                 true,
             ),
+            Self::JadeDirectV1 => (
+                CanonicalInputKind::TypedMixedDice,
+                RejectionPolicy::None,
+                Compatibility::JadeTable,
+                false,
+            ),
             Self::SeedSignerCoinsV1 => (
                 CanonicalInputKind::AsciiCoinFlips,
                 RejectionPolicy::None,
@@ -165,6 +173,17 @@ mod tests {
             CanonicalInputKind::AsciiFaceDigits
         );
         assert_eq!(coldcard.compatibility(), Compatibility::Coldcard);
+    }
+
+    #[test]
+    fn jade_specification_exposes_typed_mixed_dice() {
+        let specification = ConversionProtocol::JadeDirectV1.specification(EntropyTarget::Words12);
+        assert_eq!(specification.minimum_observations(), 35);
+        assert_eq!(
+            specification.canonical_input(),
+            CanonicalInputKind::TypedMixedDice
+        );
+        assert_eq!(specification.compatibility(), Compatibility::JadeTable);
     }
 
     #[test]

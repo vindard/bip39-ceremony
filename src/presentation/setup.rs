@@ -76,11 +76,9 @@ impl ProtocolMenuChoice {
             Self::KeystoneLegacyDice if matches!(target, EntropyTarget::Words24) => {
                 Some(ConversionProtocol::KeystoneLegacyV1)
             }
+            Self::JadeDirectWords => Some(ConversionProtocol::JadeDirectV1),
             Self::SeedSignerCoins => Some(ConversionProtocol::SeedSignerCoinsV1),
-            Self::KeystoneLegacyDice
-            | Self::JadeDirectWords
-            | Self::BitBoxDiceware
-            | Self::KruxD20 => None,
+            Self::KeystoneLegacyDice | Self::BitBoxDiceware | Self::KruxD20 => None,
         }
     }
 
@@ -122,6 +120,10 @@ pub fn capture_protocol_context(protocol: ConversionProtocol) -> ChoiceContent {
             "Keystone legacy dice",
             "map face 6 to ASCII 0 → SHA-256 → 256-bit BIP-39 entropy",
         ),
+        ConversionProtocol::JadeDirectV1 => (
+            "Jade direct words",
+            "D16/D16/D8 direct indices + physical entropy tail → BIP-39",
+        ),
         ConversionProtocol::SeedSignerCoinsV1 => (
             "SeedSigner coin flips",
             "ASCII 0/1 flip string → SHA-256 → target-width BIP-39 entropy",
@@ -151,6 +153,9 @@ pub fn protocol_choices(target: EntropyTarget) -> Vec<ChoiceContent> {
                         ProtocolMenuChoice::KeystoneLegacyDice => {
                             "Legacy compatibility · face 6 maps to ASCII 0"
                         }
+                        ProtocolMenuChoice::JadeDirectWords => {
+                            "Published Jade table · physical final entropy selector"
+                        }
                         ProtocolMenuChoice::SeedSignerCoins => {
                             "Coin compatibility · fixed ASCII binary capture"
                         }
@@ -158,6 +163,11 @@ pub fn protocol_choices(target: EntropyTarget) -> Vec<ChoiceContent> {
                     };
                     let roll_requirement = if protocol == ConversionProtocol::SeedSignerCoinsV1 {
                         format!("exactly {} flips", specification.minimum_observations())
+                    } else if protocol == ConversionProtocol::JadeDirectV1 {
+                        format!(
+                            "exactly {} mixed-die rolls",
+                            specification.minimum_observations()
+                        )
                     } else if protocol == ConversionProtocol::ExactV1 {
                         format!("exactly {} rolls", specification.minimum_observations())
                     } else {
@@ -211,5 +221,17 @@ mod tests {
         assert_eq!(protocols[3].name(), "Keystone legacy dice");
         assert!(protocols[3].detail().contains("Legacy compatibility"));
         assert!(protocols[7].detail().contains("exactly 256 flips"));
+    }
+
+    #[test]
+    fn jade_choice_exposes_target_specific_mixed_dice_count() {
+        let twelve = protocol_choices(EntropyTarget::Words12);
+        let twenty_four = protocol_choices(EntropyTarget::Words24);
+        assert!(twelve[4].detail().contains("exactly 35 mixed-die rolls"));
+        assert!(
+            twenty_four[4]
+                .detail()
+                .contains("exactly 70 mixed-die rolls")
+        );
     }
 }

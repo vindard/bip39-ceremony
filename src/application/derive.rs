@@ -107,6 +107,16 @@ fn render_canonical_input(input: &CanonicalInput) -> String {
         CanonicalInput::AsciiFacesWithSixAsZero(digits) => {
             format!("ascii-faces-6-as-0:{}", ascii(digits))
         }
+        CanonicalInput::TypedMixedDice(observations) => {
+            let mut output = String::from("typed-mixed-dice:");
+            for (index, pair) in observations.chunks_exact(2).enumerate() {
+                if index > 0 {
+                    output.push(',');
+                }
+                write!(output, "D{}={}", pair[0], pair[1]).expect("writing to String cannot fail");
+            }
+            output
+        }
         CanonicalInput::AsciiCoinFlips(flips) => format!("ascii-coin-flips:{}", ascii(flips)),
     }
 }

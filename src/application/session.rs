@@ -107,10 +107,10 @@ impl CeremonySession {
         let state = self.ceremony.state();
         let target = state.target().ok_or(SessionError::IncompleteSelection)?;
         let protocol = state.protocol().ok_or(SessionError::IncompleteSelection)?;
-        let capture = if protocol == ConversionProtocol::SeedSignerCoinsV1 {
-            Capture::Coins(state.flips())
-        } else {
-            Capture::Dice(state.rolls())
+        let capture = match protocol {
+            ConversionProtocol::SeedSignerCoinsV1 => Capture::Coins(state.flips()),
+            ConversionProtocol::JadeDirectV1 => Capture::Jade(state.jade()),
+            _ => Capture::Dice(state.rolls()),
         };
         let outcome = calculate(target, protocol, capture)?;
 

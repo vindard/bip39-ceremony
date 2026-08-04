@@ -1,7 +1,11 @@
 use core::fmt;
 
 use crate::domain::{
-    bip39::EntropyTarget, coin::CoinFlip, dice::DieFace, protocol::ConversionProtocol,
+    bip39::EntropyTarget,
+    coin::CoinFlip,
+    dice::DieFace,
+    jade::{D8Face, D16Face},
+    protocol::ConversionProtocol,
 };
 
 /// Semantic intent accepted by the ceremony aggregate.
@@ -14,8 +18,11 @@ pub enum Command {
     AcknowledgeSafety,
     RecordRoll(DieFace),
     RecordFlip(CoinFlip),
+    RecordJadeD16(D16Face),
+    RecordJadeD8(D8Face),
     UndoRoll,
     UndoFlip,
+    UndoJade,
     ConfirmRolls,
     RestartExactAttempt,
     RevealMnemonic,
@@ -36,8 +43,11 @@ impl fmt::Debug for Command {
             Self::AcknowledgeSafety => formatter.write_str("AcknowledgeSafety"),
             Self::RecordRoll(_) => formatter.write_str("RecordRoll([REDACTED])"),
             Self::RecordFlip(_) => formatter.write_str("RecordFlip([REDACTED])"),
+            Self::RecordJadeD16(_) => formatter.write_str("RecordJadeD16([REDACTED])"),
+            Self::RecordJadeD8(_) => formatter.write_str("RecordJadeD8([REDACTED])"),
             Self::UndoRoll => formatter.write_str("UndoRoll"),
             Self::UndoFlip => formatter.write_str("UndoFlip"),
+            Self::UndoJade => formatter.write_str("UndoJade"),
             Self::ConfirmRolls => formatter.write_str("ConfirmRolls"),
             Self::RestartExactAttempt => formatter.write_str("RestartExactAttempt"),
             Self::RevealMnemonic => formatter.write_str("RevealMnemonic"),
@@ -55,5 +65,9 @@ mod tests {
         let debug = format!("{command:?}");
         assert_eq!(debug, "RecordRoll([REDACTED])");
         assert!(!debug.contains('4'));
+
+        let jade = format!("{:?}", Command::RecordJadeD16(D16Face::new(10).unwrap()));
+        assert_eq!(jade, "RecordJadeD16([REDACTED])");
+        assert!(!jade.contains("10"));
     }
 }

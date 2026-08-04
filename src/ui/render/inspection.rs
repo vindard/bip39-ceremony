@@ -129,11 +129,14 @@ fn render_snapshot_rolls(snapshot: &InspectionSnapshot, width: usize) -> Lines {
             protocol.minimum_observations(target)
         });
     let coin_capture = snapshot.protocol() == Some(ConversionProtocol::SeedSignerCoinsV1);
+    let jade_capture = snapshot.protocol() == Some(ConversionProtocol::JadeDirectV1);
     let mut output = Lines::new(Vec::new());
     push(
         &mut output,
         if coin_capture {
             "PHYSICAL COIN SNAPSHOT"
+        } else if jade_capture {
+            "PHYSICAL MIXED-DICE SNAPSHOT"
         } else {
             "PHYSICAL D6 SNAPSHOT"
         },
@@ -143,6 +146,8 @@ fn render_snapshot_rolls(snapshot: &InspectionSnapshot, width: usize) -> Lines {
         &mut output,
         if coin_capture {
             "◆ FLIP VALUES CONCEALED"
+        } else if jade_capture {
+            "◆ D16/D8 VALUES CONCEALED"
         } else {
             "◆ ROLL VALUES CONCEALED"
         },
@@ -169,6 +174,8 @@ fn render_snapshot_rolls(snapshot: &InspectionSnapshot, width: usize) -> Lines {
         &mut output,
         if coin_capture {
             "Snapshots show ceremony structure, not secret flip values."
+        } else if jade_capture {
+            "Snapshots show structure, not secret mixed-dice values."
         } else {
             "Snapshots show ceremony structure, not secret roll values."
         },

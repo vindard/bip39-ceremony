@@ -51,6 +51,25 @@ pub fn protocol_explanation(protocol: ConversionProtocol, target: EntropyTarget)
         ConversionProtocol::KeystoneLegacyV1 => {
             keystone_legacy_explanation(specification, target)
         }
+        ConversionProtocol::JadeDirectV1 => Document::new(
+            "JADE DIRECT WORDS".to_owned(),
+            vec![
+                B::Heading("JADE DIRECT WORDS · MIXED PHYSICAL DICE".to_owned()),
+                B::Heading("PURPOSE".to_owned()),
+                B::Paragraph("Use Blockstream Jade's published D16/D16/D8 table order for each complete entropy word position, then physically select the remaining entropy bits before calculating the checksum.".to_owned()),
+                B::Heading("DIRECT WORD POSITIONS".to_owned()),
+                B::Verbatim("index = 128 × (D16₁ - 1)\n      +   8 × (D16₂ - 1)\n      +       (D8 - 1)".to_owned()),
+                B::Paragraph(format!("Repeat for the first {} positions. The published example 10, 9, 8 selects index 1,223: ocean.", target.word_count() - 1)),
+                B::Heading("FINAL ENTROPY TAIL".to_owned()),
+                B::Paragraph(if target == EntropyTarget::Words12 {
+                    "Roll one D16 and one D8 to select the remaining seven entropy bits uniformly. BIP-39 then calculates four checksum bits and the final word.".to_owned()
+                } else {
+                    "Roll one D8 to select the remaining three entropy bits uniformly. BIP-39 then calculates eight checksum bits and the final word.".to_owned()
+                }),
+                B::Paragraph("Jade uses device-assisted random selection among valid final words. This ceremony replaces that random choice with explicit physical dice; it matches Jade's table and valid final-word set, not its complete interaction.".to_owned()),
+                B::Paragraph(format!("The selected target requires exactly {} typed mixed-die observations. No hashing or rejection occurs.", specification.minimum_observations())),
+            ],
+        ),
         ConversionProtocol::SeedSignerCoinsV1 => Document::new(
             "SEEDSIGNER COIN FLIPS".to_owned(),
             vec![
@@ -83,11 +102,6 @@ pub fn protocol_menu_explanation(choice: ProtocolMenuChoice, target: EntropyTarg
             "The published source establishes a 24-word workflow but does not establish how a legacy Keystone device produced 12 words from dice.",
             "Choose 24 words to use the implemented, vector-tested profile. A guessed 12-word adaptation would not be a compatibility protocol.",
         ),
-        ProtocolMenuChoice::JadeDirectWords => (
-            "Generate BIP-39 words with Blockstream Jade's published lookup-table workflow.",
-            "For each of the first 11 or 23 positions, two D16 results and one D8 result select one of 2,048 words directly. Jade then provides checksum-valid final-word choices.",
-            "This needs mixed-die capture, direct word-index state, and explicit random selection of the remaining entropy in the final word.",
-        ),
         ProtocolMenuChoice::BitBoxDiceware => (
             "Generate BIP-39 words with the BitBox02 Diceware workflow.",
             "Reroll D6 faces 5 and 6 to obtain base-4 digits; combine five accepted digits with one coin flip to select each direct word position. For 24 words, choose randomly among eight checksum-valid final words.",
@@ -98,7 +112,8 @@ pub fn protocol_menu_explanation(choice: ProtocolMenuChoice, target: EntropyTarg
             "Krux documents hashing the cumulative D20 outcome string with SHA-256, then encoding the target-width digest material as BIP-39.",
             "Exact outcome serialization, roll completion, and versioned vectors must be pinned before implementation. Krux D20 is not its COLDCARD-compatible D6 mode.",
         ),
-        ProtocolMenuChoice::SeedSignerCoins
+        ProtocolMenuChoice::JadeDirectWords
+        | ProtocolMenuChoice::SeedSignerCoins
         | ProtocolMenuChoice::Coldcard
         | ProtocolMenuChoice::WordExact
         | ProtocolMenuChoice::Exact => unreachable!(),
@@ -330,6 +345,18 @@ mod tests {
         );
         assert!(unsupported.contains("NOT IMPLEMENTED"));
         assert!(unsupported.contains("available only for 24-word output"));
+    }
+
+    #[test]
+    fn jade_document_scopes_table_compatibility_and_physical_tail() {
+        let text = format!(
+            "{:?}",
+            protocol_explanation(ConversionProtocol::JadeDirectV1, EntropyTarget::Words12).blocks()
+        );
+        assert!(text.contains("10, 9, 8 selects index 1,223: ocean"));
+        assert!(text.contains("remaining seven entropy bits"));
+        assert!(text.contains("replaces that random choice with explicit physical dice"));
+        assert!(text.contains("exactly 35 typed mixed-die observations"));
     }
 
     #[test]

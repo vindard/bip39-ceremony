@@ -2,7 +2,11 @@ use crate::domain::{
     bip39::EntropyTarget,
     coin::FlipSequence,
     dice::RollSequence,
-    protocol::{ConversionProtocol, WordExactParse, WordExactProgress, parse_word_exact},
+    jade::{JadeCapture, JadeObservation},
+    protocol::{
+        ConversionProtocol, JadeDieKind, JadeProgress, WordExactParse, WordExactProgress,
+        jade_expected_die, jade_progress, parse_word_exact,
+    },
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -15,6 +19,7 @@ pub enum CaptureProgress {
         recorded: usize,
         minimum: usize,
     },
+    Jade(JadeProgress),
     WordExact(WordExactProgress),
     WordExactComplete {
         accepted_words: usize,
@@ -115,10 +120,12 @@ impl ConversionProtocol {
                     CaptureAssessment::Collecting(progress)
                 }
             }
-            Self::SeedSignerCoinsV1 => CaptureAssessment::Invalid(CaptureProgress::Fixed {
-                recorded,
-                required: self.minimum_observations(target),
-            }),
+            Self::JadeDirectV1 | Self::SeedSignerCoinsV1 => {
+                CaptureAssessment::Invalid(CaptureProgress::Fixed {
+                    recorded,
+                    required: self.minimum_observations(target),
+                })
+            }
             Self::ExactV1 | Self::NativeHashV1 => {
                 let required = self.minimum_observations(target);
                 let progress = CaptureProgress::Fixed { recorded, required };
@@ -131,6 +138,40 @@ impl ConversionProtocol {
                     core::cmp::Ordering::Greater => CaptureAssessment::Invalid(progress),
                 }
             }
+        }
+    }
+
+    #[must_use]
+    pub fn assess_jade_capture(
+        self,
+        target: EntropyTarget,
+        capture: &JadeCapture,
+    ) -> CaptureAssessment {
+        let progress = CaptureProgress::Jade(jade_progress(target, capture));
+        if self != Self::JadeDirectV1 {
+            return CaptureAssessment::Invalid(progress);
+        }
+        let kinds_valid = capture
+            .observations()
+            .iter()
+            .enumerate()
+            .all(|(offset, observation)| {
+                let kind = match observation {
+                    JadeObservation::D16(_) => JadeDieKind::D16,
+                    JadeObservation::D8(_) => JadeDieKind::D8,
+                };
+                jade_expected_die(target, offset) == Some(kind)
+            });
+        if !kinds_valid {
+            return CaptureAssessment::Invalid(progress);
+        }
+        match capture.len().cmp(&self.minimum_observations(target)) {
+            core::cmp::Ordering::Less => CaptureAssessment::Collecting(progress),
+            core::cmp::Ordering::Equal => CaptureAssessment::Complete {
+                progress,
+                accepts_optional_rolls: false,
+            },
+            core::cmp::Ordering::Greater => CaptureAssessment::Invalid(progress),
         }
     }
 
@@ -191,6 +232,41 @@ mod tests {
             .assess_capture(EntropyTarget::Words12, &repeated_rolls(1, 70));
         assert!(localized.is_complete());
         assert!(!localized.can_record_more());
+    }
+
+    #[test]
+    fn jade_capture_enforces_kind_order_and_target_count() {
+        use crate::domain::jade::{D8Face, D16Face, JadeCapture};
+
+        let mut capture = JadeCapture::new();
+        capture.push_d16(D16Face::new(1).unwrap());
+        assert!(matches!(
+            ConversionProtocol::JadeDirectV1.assess_jade_capture(EntropyTarget::Words12, &capture),
+            CaptureAssessment::Collecting(_)
+        ));
+        capture.push_d16(D16Face::new(1).unwrap());
+        capture.push_d16(D16Face::new(1).unwrap());
+        assert!(matches!(
+            ConversionProtocol::JadeDirectV1.assess_jade_capture(EntropyTarget::Words12, &capture),
+            CaptureAssessment::Invalid(_)
+        ));
+
+        let mut complete = JadeCapture::new();
+        for offset in 0..35 {
+            match jade_expected_die(EntropyTarget::Words12, offset).unwrap() {
+                JadeDieKind::D16 => complete.push_d16(D16Face::new(1).unwrap()),
+                JadeDieKind::D8 => complete.push_d8(D8Face::new(1).unwrap()),
+            }
+        }
+        assert!(
+            ConversionProtocol::JadeDirectV1
+                .assess_jade_capture(EntropyTarget::Words12, &complete)
+                .is_complete()
+        );
+        assert_eq!(
+            complete.observations().last(),
+            Some(&JadeObservation::D8(D8Face::new(1).unwrap()))
+        );
     }
 
     #[test]

@@ -78,10 +78,10 @@ pub(super) fn scroll_limit(app: &App, width: u16, height: u16) -> usize {
         return body.len().saturating_sub(rows.saturating_sub(1));
     }
     if app.ceremony().state().phase() == Phase::EnterRolls {
-        let word_exact_assignments = app.ceremony().state().protocol()
-            == Some(ConversionProtocol::WordExactV1)
-            && !app.word_exact_raw_ledger();
-        if word_exact_assignments {
+        let protocol = app.ceremony().state().protocol();
+        let word_exact_assignments =
+            protocol == Some(ConversionProtocol::WordExactV1) && !app.word_exact_raw_ledger();
+        if word_exact_assignments || protocol == Some(ConversionProtocol::JadeDirectV1) {
             let body = render_live(app, width.saturating_sub(4));
             return body.len().saturating_sub(rows.saturating_sub(1));
         }
@@ -535,6 +535,13 @@ fn inspector_footer(view: InspectorView, derivation_available: bool, phase: Phas
 
 fn roll_footer(app: &App) -> String {
     let state = app.ceremony().state();
+    if state.protocol() == Some(ConversionProtocol::JadeDirectV1) {
+        return if state.can_confirm_rolls() {
+            "[q] cancel  [h] ledger  [Enter] generate  [⌫] undo".to_owned()
+        } else {
+            "[q] cancel  [h] ledger  [keys] roll  [⌫] undo".to_owned()
+        };
+    }
     if state.protocol() == Some(ConversionProtocol::WordExactV1) {
         let visibility = if app.rolls_hidden() {
             "[h] show faces"
@@ -1052,6 +1059,69 @@ mod tests {
         assert!(details.contains("available only for 24-word output"));
         app.update(Key::PageDown);
         assert!(render(&app, 80, 40).contains("cannot be selected for a ceremony"));
+    }
+
+    #[test]
+    fn jade_protocol_uses_typed_mixed_dice_workspace() {
+        let mut app = App::default();
+        app.update(Key::Char('\n'));
+        for _ in 0..4 {
+            app.update(Key::Down);
+        }
+        app.update(Key::Char('\n'));
+        app.update(Key::Char('c'));
+        app.update(Key::Char('\n'));
+        app.update(Key::Char('A'));
+        let capture = render(&app, 80, 40);
+        assert!(capture.contains("PHYSICAL MIXED-DICE CAPTURE · ROLLS ARE SECRET"));
+        assert!(capture.contains("D16 FACE 10"));
+        assert!(capture.contains("uppercase [A–G]"));
+        assert!(capture.contains("DIRECT WORD 01 OF 11"));
+        assert!(capture.contains("34 remaining"));
+
+        let minimum = render(&app, 52, 40);
+        assert_eq!(minimum.lines().count(), 40);
+        assert!(minimum.contains("PHYSICAL MIXED-DICE CAPTURE"));
+    }
+
+    #[test]
+    fn jade_choice_is_operational_in_protocol_menu() {
+        let mut app = App::default();
+        app.update(Key::Char('\n'));
+        for _ in 0..4 {
+            app.update(Key::Down);
+        }
+        let menu = render(&app, 80, 40);
+        assert!(menu.contains("▶ Jade direct words"));
+        assert!(menu.contains("[Enter] next"));
+    }
+
+    #[test]
+    fn jade_twenty_four_word_ledger_scrolls_at_minimum_size() {
+        let mut app = App::default();
+        app.update(Key::Down);
+        app.update(Key::Char('\n'));
+        for _ in 0..4 {
+            app.update(Key::Down);
+        }
+        app.update(Key::Char('\n'));
+        app.update(Key::Char('c'));
+        app.update(Key::Char('\n'));
+        for _ in 0..70 {
+            app.update(Key::Char('1'));
+        }
+        app.update(Key::Char('h'));
+
+        let limit = scroll_limit(&app, 52, 40);
+        assert!(limit > 0);
+        let top = render(&app, 52, 40);
+        assert!(top.contains("[⌫] undo"));
+        for _ in 0..limit.div_ceil(4) {
+            app.update_bounded(Key::PageUp, limit);
+        }
+        let bottom = render(&app, 52, 40);
+        assert!(bottom.contains("ALL DIRECT POSITIONS + ENTROPY TAIL"));
+        assert!(bottom.contains("[Enter] confirm and generate"));
     }
 
     #[test]

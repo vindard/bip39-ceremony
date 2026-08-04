@@ -1,3 +1,4 @@
+mod jade;
 mod word_exact;
 
 use crate::{
@@ -11,6 +12,9 @@ use super::{App, Lines, lines, push, push_owned, push_wrapped};
 
 pub(super) fn render_roll_entry(app: &App, width: usize) -> Lines {
     let state = app.ceremony().state();
+    if state.protocol() == Some(ConversionProtocol::JadeDirectV1) {
+        return jade::render_jade_entry(app, width);
+    }
     let count = state.capture_count();
     let required = state.required_rolls().unwrap_or(0);
     let coin_capture = state.protocol() == Some(ConversionProtocol::SeedSignerCoinsV1);
@@ -288,6 +292,12 @@ pub(super) fn roll_count_status(count: usize, assessment: Option<CaptureAssessme
         CaptureProgress::OpenEnded { recorded, .. } => {
             format!("{recorded} recorded · documented minimum met")
         }
+        CaptureProgress::Jade(progress) => format!(
+            "{} recorded · {}/{} direct positions complete",
+            progress.recorded(),
+            progress.completed_words(),
+            progress.required_words()
+        ),
         CaptureProgress::WordExact(progress) => format!(
             "{count} recorded · {}/{} word positions accepted",
             progress.accepted_words(),

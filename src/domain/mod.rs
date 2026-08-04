@@ -5,4 +5,5 @@ pub mod ceremony;
 pub mod coin;
 pub mod dice;
 pub mod inspection;
+pub mod jade;
 pub mod protocol;

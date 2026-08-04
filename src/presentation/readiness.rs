@@ -63,6 +63,16 @@ pub fn readiness_document(readiness: CaptureReadiness) -> Document {
             B::Paragraph("✓ Face 6 maps to ASCII 0 before SHA-256.".to_owned()),
             B::Paragraph("Additional mapped D6 rolls are optional.".to_owned()),
         ],
+        ReadinessKind::JadeDirect => vec![
+            B::Paragraph(format!(
+                "✓ ALL DIRECT POSITIONS + ENTROPY TAIL · {} rolls recorded",
+                readiness.recorded()
+            )),
+            B::Paragraph("✓ D16/D16/D8 triples map directly to BIP-39 indices.".to_owned()),
+            B::Paragraph(
+                "○ The checksum and final word will be calculated, not rolled.".to_owned(),
+            ),
+        ],
         ReadinessKind::SeedSignerCoins => vec![
             B::Paragraph(format!(
                 "✓ EXACT SEEDSIGNER COUNT · {} flips recorded",

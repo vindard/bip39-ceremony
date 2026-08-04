@@ -5,6 +5,7 @@ pub enum ProtocolError {
     WrongObservationCount { expected: usize, actual: usize },
     UnsupportedTarget,
     IncompleteWordExact,
+    WrongObservationKind,
 }
 
 impl fmt::Display for ProtocolError {
@@ -21,6 +22,9 @@ impl fmt::Display for ProtocolError {
             }
             Self::IncompleteWordExact => {
                 formatter.write_str("word-by-word exact conversion needs more rolls")
+            }
+            Self::WrongObservationKind => {
+                formatter.write_str("observation die does not match the protocol position")
             }
         }
     }

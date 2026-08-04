@@ -2,8 +2,9 @@ use std::fmt::Write;
 
 use bip39::{Language, Mnemonic};
 use bip39_ceremony_core::{
-    CalculationOutcome, Capture, CoinFlip, ConversionProtocol, DieFace, Entropy, EntropyTarget,
-    FlipSequence, RollSequence, calculate,
+    CalculationError, CalculationOutcome, Capture, CoinFlip, ConversionProtocol, D8Face, D16Face,
+    DieFace, Entropy, EntropyTarget, FlipSequence, JadeCapture, JadeDieKind, ProtocolError,
+    RollSequence, calculate, jade_expected_die, jade_required_observations,
 };
 use bitcoin_hashes::{Hash, sha256};
 
@@ -13,6 +14,28 @@ fn flips(value: &str) -> FlipSequence {
         flips.push(CoinFlip::try_from(character).unwrap());
     }
     flips
+}
+
+fn jade_all_ones(target: EntropyTarget) -> JadeCapture {
+    let mut capture = JadeCapture::new();
+    for offset in 0..jade_required_observations(target) {
+        match jade_expected_die(target, offset).unwrap() {
+            JadeDieKind::D16 => capture.push_d16(D16Face::new(1).unwrap()),
+            JadeDieKind::D8 => capture.push_d8(D8Face::new(1).unwrap()),
+        }
+    }
+    capture
+}
+
+fn jade_all_max(target: EntropyTarget) -> JadeCapture {
+    let mut capture = JadeCapture::new();
+    for offset in 0..jade_required_observations(target) {
+        match jade_expected_die(target, offset).unwrap() {
+            JadeDieKind::D16 => capture.push_d16(D16Face::new(16).unwrap()),
+            JadeDieKind::D8 => capture.push_d8(D8Face::new(8).unwrap()),
+        }
+    }
+    capture
 }
 
 fn rolls(value: &str) -> RollSequence {
@@ -138,6 +161,97 @@ fn keystone_legacy_generation_crosses_all_boundaries() {
     assert_eq!(
         calculation.mnemonic().words().join(" "),
         "dash october say head omit away pipe result entire junior episode noodle meadow round young rather fat orphan enable helmet panel blame unable joy"
+    );
+}
+
+#[test]
+fn jade_published_example_crosses_table_and_bip39_boundaries() {
+    let target = EntropyTarget::Words12;
+    let mut capture = JadeCapture::new();
+    capture.push_d16(D16Face::new(10).unwrap());
+    capture.push_d16(D16Face::new(9).unwrap());
+    capture.push_d8(D8Face::new(8).unwrap());
+    for offset in 3..jade_required_observations(target) {
+        match jade_expected_die(target, offset).unwrap() {
+            JadeDieKind::D16 => capture.push_d16(D16Face::new(1).unwrap()),
+            JadeDieKind::D8 => capture.push_d8(D8Face::new(1).unwrap()),
+        }
+    }
+    let calculation = accepted(
+        target,
+        ConversionProtocol::JadeDirectV1,
+        Capture::Jade(&capture),
+    );
+    assert_eq!(calculation.mnemonic().words()[0], "ocean");
+    assert_eq!(
+        entropy_hex(calculation.entropy()),
+        "98e00000000000000000000000000000"
+    );
+}
+
+#[test]
+fn jade_direct_words_cross_mixed_dice_and_bip39_boundaries() {
+    for target in [EntropyTarget::Words12, EntropyTarget::Words24] {
+        let capture = jade_all_ones(target);
+        let calculation = accepted(
+            target,
+            ConversionProtocol::JadeDirectV1,
+            Capture::Jade(&capture),
+        );
+        assert_eq!(
+            calculation.entropy().bytes(),
+            vec![0; target.entropy_bytes()]
+        );
+        assert_eq!(calculation.mnemonic().words()[0], "abandon");
+        assert_eq!(
+            calculation.mnemonic().words()[target.word_count() - 1],
+            if target == EntropyTarget::Words12 {
+                "about"
+            } else {
+                "art"
+            }
+        );
+    }
+}
+
+#[test]
+fn jade_max_faces_fix_tail_and_byte_boundaries() {
+    for (target, final_word) in [
+        (EntropyTarget::Words12, "wrong"),
+        (EntropyTarget::Words24, "vote"),
+    ] {
+        let capture = jade_all_max(target);
+        let calculation = accepted(
+            target,
+            ConversionProtocol::JadeDirectV1,
+            Capture::Jade(&capture),
+        );
+        assert_eq!(
+            calculation.entropy().bytes(),
+            vec![u8::MAX; target.entropy_bytes()]
+        );
+        assert_eq!(calculation.mnemonic().words()[0], "zoo");
+        assert_eq!(
+            calculation.mnemonic().words()[target.word_count() - 1],
+            final_word
+        );
+    }
+}
+
+#[test]
+fn jade_wrong_die_order_is_rejected() {
+    let mut capture = JadeCapture::new();
+    for _ in 0..35 {
+        capture.push_d8(D8Face::new(1).unwrap());
+    }
+    assert_eq!(
+        calculate(
+            EntropyTarget::Words12,
+            ConversionProtocol::JadeDirectV1,
+            Capture::Jade(&capture),
+        )
+        .unwrap_err(),
+        CalculationError::Protocol(ProtocolError::WrongObservationKind)
     );
 }
 

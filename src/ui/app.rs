@@ -13,7 +13,8 @@ use crate::{
         coin::CoinFlip,
         dice::DieFace,
         inspection::InspectionSnapshot,
-        protocol::ConversionProtocol,
+        jade::{D8Face, D16Face},
+        protocol::{ConversionProtocol, JadeDieKind, jade_expected_die},
     },
     presentation::ProtocolMenuChoice,
 };
@@ -466,6 +467,10 @@ impl App {
     }
 
     fn enter_roll(&mut self, key: Key) {
+        if self.ceremony().state().protocol() == Some(ConversionProtocol::JadeDirectV1) {
+            self.enter_jade_roll(key);
+            return;
+        }
         if self.ceremony().state().protocol() == Some(ConversionProtocol::SeedSignerCoinsV1) {
             self.enter_flip(key);
             return;
@@ -480,6 +485,50 @@ impl App {
             _ if self.enter_capture_control(key) => {}
             Key::Char(_) => {
                 self.message = Some("Only digits 1–6 are valid rolls.".to_owned());
+            }
+            _ => {}
+        }
+    }
+
+    fn enter_jade_roll(&mut self, key: Key) {
+        if matches!(key, Key::Backspace | Key::Delete) {
+            self.handle(Command::UndoJade);
+            return;
+        }
+        if self.enter_capture_control(key) {
+            return;
+        }
+        let state = self.ceremony().state();
+        let Some(target) = state.target() else { return };
+        let Some(expected) = jade_expected_die(target, state.jade().len()) else {
+            return;
+        };
+        match (expected, key) {
+            (JadeDieKind::D16, Key::Char(character)) => {
+                let value = match character {
+                    '1'..='9' => character
+                        .to_digit(10)
+                        .and_then(|value| u8::try_from(value).ok()),
+                    'A'..='G' => Some(10 + (character as u8 - b'A')),
+                    _ => None,
+                };
+                if let Some(face) = value.and_then(|value| D16Face::new(value).ok()) {
+                    self.handle(Command::RecordJadeD16(face));
+                } else {
+                    self.message =
+                        Some("D16: use 1–9 or uppercase A–G for faces 10–16.".to_owned());
+                }
+            }
+            (JadeDieKind::D8, Key::Char(character @ '1'..='8')) => {
+                let value = character
+                    .to_digit(10)
+                    .and_then(|value| u8::try_from(value).ok());
+                if let Some(face) = value.and_then(|value| D8Face::new(value).ok()) {
+                    self.handle(Command::RecordJadeD8(face));
+                }
+            }
+            (JadeDieKind::D8, Key::Char(_)) => {
+                self.message = Some("D8: only faces 1–8 are valid.".to_owned());
             }
             _ => {}
         }
@@ -788,6 +837,7 @@ mod tests {
                 ConversionProtocol::ColdcardV1 => 0,
                 ConversionProtocol::WordExactV1 => 1,
                 ConversionProtocol::ExactV1 => 2,
+                ConversionProtocol::JadeDirectV1 => 4,
                 ConversionProtocol::SeedSignerCoinsV1 => 7,
                 ConversionProtocol::NativeHashV1 | ConversionProtocol::KeystoneLegacyV1 => {
                     unreachable!()
@@ -1043,6 +1093,26 @@ mod tests {
             app.inspector().map(|inspector| inspector.view),
             Some(InspectorView::ProtocolExplanation)
         );
+    }
+
+    #[test]
+    fn jade_mixed_dice_capture_accepts_expected_die_and_generates() {
+        let mut app = App::default();
+        configure(&mut app, ConversionProtocol::JadeDirectV1);
+
+        app.update(Key::Char('0'));
+        assert!(app.message().is_some_and(|message| message.contains("D16")));
+        app.update(Key::Char('A'));
+        assert_eq!(app.ceremony().state().jade().observations()[0].face(), 10);
+        app.update(Key::Backspace);
+
+        for _ in 0..35 {
+            app.update(Key::Char('1'));
+        }
+        assert_eq!(app.ceremony().state().jade().len(), 35);
+        app.update(Key::Char('\n'));
+        assert_eq!(app.ceremony().state().phase(), Phase::Result);
+        assert_eq!(app.generation().unwrap().mnemonic().words()[11], "about");
     }
 
     #[test]

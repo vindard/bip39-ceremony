@@ -8,9 +8,11 @@ use crate::domain::{
     bip39::{Bip39Error, EnglishMnemonic, Entropy, EntropyTarget},
     coin::FlipSequence,
     dice::RollSequence,
+    jade::JadeCapture,
     protocol::{
         CanonicalInput, ConversionProtocol, ExactOutcome, ProtocolError, coldcard_ascii_rolls,
-        exact_entropy, keystone_legacy_ascii_rolls, native_hash_header, word_exact_entropy,
+        exact_entropy, jade_entropy, keystone_legacy_ascii_rolls, native_hash_header,
+        word_exact_entropy,
     },
 };
 
@@ -18,6 +20,7 @@ use crate::domain::{
 #[derive(Clone, Copy)]
 pub enum Capture<'a> {
     Dice(&'a RollSequence),
+    Jade(&'a JadeCapture),
     Coins(&'a FlipSequence),
 }
 
@@ -25,6 +28,7 @@ impl fmt::Debug for Capture<'_> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         let (kind, count) = match self {
             Self::Dice(rolls) => ("dice", rolls.len()),
+            Self::Jade(capture) => ("jade-mixed-dice", capture.len()),
             Self::Coins(flips) => ("coins", flips.len()),
         };
         formatter
@@ -168,10 +172,15 @@ pub fn calculate(
     capture: Capture<'_>,
 ) -> Result<CalculationOutcome, CalculationError> {
     let entropy = match (protocol, capture) {
+        (ConversionProtocol::JadeDirectV1, Capture::Jade(capture)) => {
+            jade_entropy(target, capture)?
+        }
         (ConversionProtocol::SeedSignerCoinsV1, Capture::Coins(flips)) => {
             seedsigner_coin_entropy(target, flips)?
         }
-        (ConversionProtocol::SeedSignerCoinsV1, Capture::Dice(_)) | (_, Capture::Coins(_)) => {
+        (ConversionProtocol::JadeDirectV1, Capture::Dice(_) | Capture::Coins(_))
+        | (ConversionProtocol::SeedSignerCoinsV1, Capture::Dice(_) | Capture::Jade(_))
+        | (_, Capture::Coins(_) | Capture::Jade(_)) => {
             return Err(CalculationError::CaptureKind);
         }
         (ConversionProtocol::ExactV1, Capture::Dice(rolls)) => {
@@ -282,11 +291,13 @@ fn evidence(
 ) -> CalculationEvidence {
     let empty_rolls = RollSequence::new();
     let empty_flips = FlipSequence::new();
-    let (rolls, flips) = match capture {
-        Capture::Dice(rolls) => (rolls, &empty_flips),
-        Capture::Coins(flips) => (&empty_rolls, flips),
+    let empty_jade = JadeCapture::new();
+    let (rolls, flips, jade) = match capture {
+        Capture::Dice(rolls) => (rolls, &empty_flips, &empty_jade),
+        Capture::Jade(jade) => (&empty_rolls, &empty_flips, jade),
+        Capture::Coins(flips) => (&empty_rolls, flips, &empty_jade),
     };
-    let canonical_input = CanonicalInput::from_capture(protocol, target, rolls, flips);
+    let canonical_input = CanonicalInput::from_capture(protocol, target, rolls, flips, jade);
     let mut digest = sha256(&[entropy.bytes()]);
     let checksum_length = target.entropy_bits() / 32;
     let checksum_bits = (0..checksum_length)

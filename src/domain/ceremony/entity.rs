@@ -3,7 +3,11 @@ use core::fmt;
 use zeroize::Zeroize;
 
 use crate::domain::{
-    bip39::EntropyTarget, coin::CoinFlip, dice::DieFace, protocol::ConversionProtocol,
+    bip39::EntropyTarget,
+    coin::CoinFlip,
+    dice::DieFace,
+    jade::{D8Face, D16Face},
+    protocol::{ConversionProtocol, JadeDieKind, jade_expected_die},
 };
 
 use super::{CeremonyError, CeremonyState, Command, Event, Phase};
@@ -90,8 +94,11 @@ impl Ceremony {
             Command::AcknowledgeSafety => Self::acknowledge_safety(state),
             Command::RecordRoll(face) => Self::record_roll(state, face),
             Command::RecordFlip(flip) => Self::record_flip(state, flip),
+            Command::RecordJadeD16(face) => Self::record_jade_d16(state, face),
+            Command::RecordJadeD8(face) => Self::record_jade_d8(state, face),
             Command::UndoRoll => Self::undo_roll(state),
             Command::UndoFlip => Self::undo_flip(state),
+            Command::UndoJade => Self::undo_jade(state),
             Command::ConfirmRolls => Self::confirm_rolls(state),
             Command::RestartExactAttempt => Self::restart_exact_attempt(state),
             Command::RevealMnemonic => Self::reveal_mnemonic(state),
@@ -146,7 +153,10 @@ impl Ceremony {
 
     fn record_roll(state: &CeremonyState, face: DieFace) -> Result<Event, CeremonyError> {
         if state.phase() != Phase::EnterRolls
-            || state.protocol() == Some(ConversionProtocol::SeedSignerCoinsV1)
+            || matches!(
+                state.protocol(),
+                Some(ConversionProtocol::SeedSignerCoinsV1 | ConversionProtocol::JadeDirectV1)
+            )
         {
             return Err(CeremonyError::WrongPhase);
         }
@@ -174,8 +184,35 @@ impl Ceremony {
         Ok(Event::FlipRecorded(flip))
     }
 
+    fn record_jade_d16(state: &CeremonyState, face: D16Face) -> Result<Event, CeremonyError> {
+        Self::validate_jade_record(state, JadeDieKind::D16)?;
+        Ok(Event::JadeD16Recorded(face))
+    }
+
+    fn record_jade_d8(state: &CeremonyState, face: D8Face) -> Result<Event, CeremonyError> {
+        Self::validate_jade_record(state, JadeDieKind::D8)?;
+        Ok(Event::JadeD8Recorded(face))
+    }
+
+    fn validate_jade_record(state: &CeremonyState, kind: JadeDieKind) -> Result<(), CeremonyError> {
+        if state.phase() != Phase::EnterRolls
+            || state.protocol() != Some(ConversionProtocol::JadeDirectV1)
+        {
+            return Err(CeremonyError::WrongPhase);
+        }
+        let target = state.target().ok_or(CeremonyError::WrongPhase)?;
+        let expected = jade_expected_die(target, state.jade().len());
+        match expected {
+            Some(expected) if expected == kind => Ok(()),
+            Some(_) => Err(CeremonyError::UnexpectedDie),
+            None => Err(CeremonyError::RollLimitReached),
+        }
+    }
+
     fn undo_roll(state: &CeremonyState) -> Result<Event, CeremonyError> {
-        if state.phase() != Phase::EnterRolls {
+        if state.phase() != Phase::EnterRolls
+            || state.protocol() == Some(ConversionProtocol::JadeDirectV1)
+        {
             return Err(CeremonyError::WrongPhase);
         }
         if state.rolls().is_empty() {
@@ -195,6 +232,19 @@ impl Ceremony {
             Err(CeremonyError::NoRollsToUndo)
         } else {
             Ok(Event::FlipUndone)
+        }
+    }
+
+    fn undo_jade(state: &CeremonyState) -> Result<Event, CeremonyError> {
+        if state.phase() != Phase::EnterRolls
+            || state.protocol() != Some(ConversionProtocol::JadeDirectV1)
+        {
+            return Err(CeremonyError::WrongPhase);
+        }
+        if state.jade().is_empty() {
+            Err(CeremonyError::NoRollsToUndo)
+        } else {
+            Ok(Event::JadeUndone)
         }
     }
 
@@ -286,7 +336,11 @@ mod tests {
         ceremony::{CeremonyError, Command, Event, Phase},
         coin::CoinFlip,
         dice::DieFace,
-        protocol::{CaptureAssessment, CaptureProgress, ConversionProtocol, WordExactProgress},
+        jade::{D8Face, D16Face},
+        protocol::{
+            CaptureAssessment, CaptureProgress, ConversionProtocol, JadeDieKind, WordExactProgress,
+            jade_expected_die,
+        },
     };
 
     fn verified_backup() -> VerifiedMnemonicBackup {
@@ -667,6 +721,33 @@ mod tests {
             ceremony.handle(Command::RecordRoll(six)),
             Err(CeremonyError::RollLimitReached)
         );
+    }
+
+    #[test]
+    fn jade_capture_enforces_die_order_and_undo() {
+        let mut ceremony = configured(ConversionProtocol::JadeDirectV1);
+        assert_eq!(
+            ceremony.handle(Command::RecordJadeD8(D8Face::new(1).unwrap())),
+            Err(CeremonyError::UnexpectedDie)
+        );
+        ceremony
+            .handle(Command::RecordJadeD16(D16Face::new(1).unwrap()))
+            .unwrap();
+        ceremony.handle(Command::UndoJade).unwrap();
+        assert!(ceremony.state().jade().is_empty());
+
+        for offset in 0..35 {
+            match jade_expected_die(EntropyTarget::Words12, offset).unwrap() {
+                JadeDieKind::D16 => ceremony
+                    .handle(Command::RecordJadeD16(D16Face::new(1).unwrap()))
+                    .unwrap(),
+                JadeDieKind::D8 => ceremony
+                    .handle(Command::RecordJadeD8(D8Face::new(1).unwrap()))
+                    .unwrap(),
+            }
+        }
+        assert!(ceremony.state().can_confirm_rolls());
+        assert_eq!(ceremony.state().jade().len(), 35);
     }
 
     #[test]

@@ -8,6 +8,7 @@ pub enum ConversionProtocol {
     NativeHashV1,
     ColdcardV1,
     KeystoneLegacyV1,
+    JadeDirectV1,
     SeedSignerCoinsV1,
 }
 
@@ -20,6 +21,7 @@ impl ConversionProtocol {
             Self::NativeHashV1 => "native-hash-v1",
             Self::ColdcardV1 => "coldcard-v1",
             Self::KeystoneLegacyV1 => "keystone-legacy-v1",
+            Self::JadeDirectV1 => "jade-direct-v1",
             Self::SeedSignerCoinsV1 => "seedsigner-coins-v1",
         }
     }
@@ -27,9 +29,11 @@ impl ConversionProtocol {
     #[must_use]
     pub const fn minimum_observations(self, target: EntropyTarget) -> usize {
         match (self, target) {
-            (Self::WordExactV1, EntropyTarget::Words12) => 70,
+            (Self::WordExactV1, EntropyTarget::Words12)
+            | (Self::JadeDirectV1, EntropyTarget::Words24) => 70,
             (Self::WordExactV1, EntropyTarget::Words24) => 140,
             (Self::ColdcardV1 | Self::KeystoneLegacyV1, EntropyTarget::Words24) => 99,
+            (Self::JadeDirectV1, EntropyTarget::Words12) => 35,
             (Self::SeedSignerCoinsV1, target) => target.entropy_bits(),
             (_, target) => target.strict_roll_count(),
         }
@@ -61,6 +65,7 @@ mod tests {
                 50,
                 99,
             ),
+            (ConversionProtocol::JadeDirectV1, "jade-direct-v1", 35, 70),
             (
                 ConversionProtocol::SeedSignerCoinsV1,
                 "seedsigner-coins-v1",

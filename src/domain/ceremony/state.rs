@@ -2,6 +2,7 @@ use crate::domain::{
     bip39::EntropyTarget,
     coin::FlipSequence,
     dice::RollSequence,
+    jade::JadeCapture,
     protocol::{CaptureAssessment, ConversionProtocol},
 };
 
@@ -29,6 +30,7 @@ pub struct CeremonyState {
     protocol: Option<ConversionProtocol>,
     rolls: RollSequence,
     flips: FlipSequence,
+    jade: JadeCapture,
     safety_acknowledged: bool,
     generation_succeeded: bool,
     mnemonic_backup_verified: bool,
@@ -42,6 +44,7 @@ impl Default for CeremonyState {
             protocol: None,
             rolls: RollSequence::new(),
             flips: FlipSequence::new(),
+            jade: JadeCapture::new(),
             safety_acknowledged: false,
             generation_succeeded: false,
             mnemonic_backup_verified: false,
@@ -71,11 +74,16 @@ impl CeremonyState {
     }
 
     #[must_use]
+    pub fn jade(&self) -> &JadeCapture {
+        &self.jade
+    }
+
+    #[must_use]
     pub fn capture_count(&self) -> usize {
-        if self.protocol == Some(ConversionProtocol::SeedSignerCoinsV1) {
-            self.flips.len()
-        } else {
-            self.rolls.len()
+        match self.protocol {
+            Some(ConversionProtocol::SeedSignerCoinsV1) => self.flips.len(),
+            Some(ConversionProtocol::JadeDirectV1) => self.jade.len(),
+            _ => self.rolls.len(),
         }
     }
 
@@ -113,13 +121,17 @@ impl CeremonyState {
 
     #[must_use]
     pub fn capture_assessment(&self) -> Option<CaptureAssessment> {
-        self.target.zip(self.protocol).map(|(target, protocol)| {
-            if protocol == ConversionProtocol::SeedSignerCoinsV1 {
-                protocol.assess_coin_capture(target, &self.flips)
-            } else {
-                protocol.assess_capture(target, &self.rolls)
-            }
-        })
+        self.target
+            .zip(self.protocol)
+            .map(|(target, protocol)| match protocol {
+                ConversionProtocol::SeedSignerCoinsV1 => {
+                    protocol.assess_coin_capture(target, &self.flips)
+                }
+                ConversionProtocol::JadeDirectV1 => {
+                    protocol.assess_jade_capture(target, &self.jade)
+                }
+                _ => protocol.assess_capture(target, &self.rolls),
+            })
     }
 
     #[must_use]
@@ -152,6 +164,8 @@ impl CeremonyState {
             }
             Event::RollRecorded(face) => self.rolls.push(*face),
             Event::FlipRecorded(flip) => self.flips.push(*flip),
+            Event::JadeD16Recorded(face) => self.jade.push_d16(*face),
+            Event::JadeD8Recorded(face) => self.jade.push_d8(*face),
             Event::RollUndone => {
                 let removed = self.rolls.remove_last();
                 assert!(removed, "undo events require an active roll");
@@ -159,6 +173,10 @@ impl CeremonyState {
             Event::FlipUndone => {
                 let removed = self.flips.remove_last();
                 assert!(removed, "undo events require an active flip");
+            }
+            Event::JadeUndone => {
+                let removed = self.jade.remove_last();
+                assert!(removed, "undo events require an active Jade observation");
             }
             Event::RollsConfirmed => self.phase = Phase::ReadyToGenerate,
             Event::GenerationSucceeded => {
@@ -178,6 +196,7 @@ impl CeremonyState {
     fn restart_attempt(&mut self) {
         self.rolls = RollSequence::new();
         self.flips = FlipSequence::new();
+        self.jade = JadeCapture::new();
         self.phase = Phase::EnterRolls;
     }
 }

@@ -58,8 +58,13 @@ just run
   approximately 16% of 50-roll and 11% of 100-roll attempts reject.
 - **Keystone legacy dice:** 24-word compatibility profile that maps face `6` to
   ASCII `0`, hashes at least 99 mapped rolls, and uses the full digest.
+- **Jade direct words:** D16/D16/D8 triples select the first 11 or 23 BIP-39
+  indices using [Blockstream's published table order][jade-guide]. A final D16/D8 or D8 roll
+  supplies the remaining entropy bits before checksum calculation.
 - **SeedSigner coin flips:** exactly 128 or 256 physical flips serialized as
   ASCII `0`/`1`, hashed with SHA-256, then truncated for 12 words when needed.
+
+[jade-guide]: https://help.blockstream.com/blockstream-jade/add-more-security-functionality/create-a-recovery-phrase-using-dice
 
 All selectable protocols produce ordinary BIP-39 output. The protocol matters
 only when reproducing a mnemonic from its original rolls. The frozen
@@ -96,8 +101,10 @@ and `c` to check all; Enter advances after all five are checked. Numeric shortcu
 are intentionally not accepted.
 
 Physical input uses a fixed capture workspace. D6 protocols accept `1` through
-`6`; SeedSigner coin capture accepts `0` for tails and `1` for heads. Backspace
-removes only the latest observation, while the next position and remaining count
+`6`; SeedSigner coin capture accepts `0` for tails and `1` for heads. Jade's
+mixed-dice capture accepts `1`–`9` and uppercase `A`–`G` for D16 faces 1–16,
+then `1`–`8` for D8 faces. Backspace removes only the latest observation, while
+the next position and remaining count
 stay stationary. Inputs are secret, so prior values are hidden by default while
 the numbered latest outcome remains visible; `h` toggles the complete zero-padded
 ledger. Repeats and patterns are explicitly valid. Generation and mnemonic

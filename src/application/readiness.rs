@@ -7,6 +7,7 @@ pub enum ReadinessKind {
     NativeHash,
     Coldcard { strict_capacity_reached: bool },
     KeystoneLegacy,
+    JadeDirect,
     SeedSignerCoins,
 }
 
@@ -35,6 +36,7 @@ impl CaptureReadiness {
                 strict_capacity_reached: recorded >= target.strict_roll_count(),
             },
             ConversionProtocol::KeystoneLegacyV1 => ReadinessKind::KeystoneLegacy,
+            ConversionProtocol::JadeDirectV1 => ReadinessKind::JadeDirect,
             ConversionProtocol::SeedSignerCoinsV1 => ReadinessKind::SeedSignerCoins,
         };
         Some(Self {

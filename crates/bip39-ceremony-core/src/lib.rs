@@ -16,10 +16,12 @@ pub use domain::{
     bip39::{Bip39Error, EnglishMnemonic, Entropy, EntropyTarget},
     coin::{CoinFlip, FlipSequence, InvalidCoinFlip},
     dice::{DieFace, InvalidDieFace, RollSequence},
+    jade::{D8Face, D16Face, InvalidD8Face, InvalidD16Face, JadeCapture, JadeObservation},
     protocol::{
         AssignmentStatus, CandidatePurpose, CandidateStatus, CanonicalInput, CanonicalInputKind,
-        CaptureAssessment, CaptureProgress, Compatibility, ConversionProtocol, ProtocolError,
-        ProtocolSpecification, RejectionPolicy, WordExactCandidate, WordExactProgress,
-        WordExactTrace, trace_word_exact,
+        CaptureAssessment, CaptureProgress, Compatibility, ConversionProtocol, JadeDieKind,
+        JadeProgress, JadeStage, ProtocolError, ProtocolSpecification, RejectionPolicy,
+        WordExactCandidate, WordExactProgress, WordExactTrace, jade_expected_die, jade_progress,
+        jade_required_observations, jade_word_index, trace_word_exact,
     },
 };
