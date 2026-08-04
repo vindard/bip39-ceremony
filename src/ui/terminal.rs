@@ -12,7 +12,7 @@ use crate::{adapters::BitcoinSha256, application::CeremonySession};
 
 use super::{
     app::{App, UpdateOutcome},
-    render::{render, scroll_limit},
+    render::{MIN_HEIGHT, MIN_WIDTH, render, scroll_limit},
     theme::Theme,
 };
 
@@ -58,14 +58,20 @@ fn run_terminal() -> io::Result<()> {
     render_frame(&mut screen, &app, size, theme)?;
     loop {
         match key_receiver.recv_timeout(Duration::from_millis(100)) {
-            Ok(key) => match app.update_bounded(key?, scroll_limit(&app, size.0, size.1)) {
-                UpdateOutcome::Unchanged => {}
-                UpdateOutcome::Changed => {
-                    size = terminal_size();
-                    render_frame(&mut screen, &app, size, theme)?;
+            Ok(key) => {
+                let key = key?;
+                if !input_allowed(size, key) {
+                    continue;
                 }
-                UpdateOutcome::Exit => break,
-            },
+                match app.update_bounded(key, scroll_limit(&app, size.0, size.1)) {
+                    UpdateOutcome::Unchanged => {}
+                    UpdateOutcome::Changed => {
+                        size = terminal_size();
+                        render_frame(&mut screen, &app, size, theme)?;
+                    }
+                    UpdateOutcome::Exit => break,
+                }
+            }
             Err(mpsc::RecvTimeoutError::Timeout) => {
                 let next_size = terminal_size();
                 if next_size != size {
@@ -87,6 +93,14 @@ fn run_terminal() -> io::Result<()> {
     screen.flush()
 }
 
+fn input_allowed(size: (u16, u16), key: termion::event::Key) -> bool {
+    (size.0 >= MIN_WIDTH && size.1 >= MIN_HEIGHT)
+        || matches!(
+            key,
+            termion::event::Key::Char('q') | termion::event::Key::Ctrl('c')
+        )
+}
+
 fn terminal_size() -> (u16, u16) {
     termion::terminal_size().unwrap_or((80, 24))
 }
@@ -106,4 +120,19 @@ fn render_frame(
 
 fn emergency_restore() {
     let _ = write!(io::stderr(), "\x1b[0m\x1b[?25h\x1b[?1049l\r\n");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use termion::event::Key;
+
+    #[test]
+    fn undersized_terminal_blocks_secret_input_but_allows_exit() {
+        assert!(!input_allowed((MIN_WIDTH - 1, MIN_HEIGHT), Key::Char('1')));
+        assert!(!input_allowed((MIN_WIDTH, MIN_HEIGHT - 1), Key::Backspace));
+        assert!(input_allowed((MIN_WIDTH - 1, MIN_HEIGHT), Key::Char('q')));
+        assert!(input_allowed((MIN_WIDTH - 1, MIN_HEIGHT), Key::Ctrl('c')));
+        assert!(input_allowed((MIN_WIDTH, MIN_HEIGHT), Key::Char('1')));
+    }
 }

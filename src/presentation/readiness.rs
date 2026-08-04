@@ -73,6 +73,16 @@ pub fn readiness_document(readiness: CaptureReadiness) -> Document {
                 "○ The checksum and final word will be calculated, not rolled.".to_owned(),
             ),
         ],
+        ReadinessKind::BitBox02Direct => vec![
+            B::Paragraph(format!(
+                "✓ ALL BITBOX TABLE POSITIONS + ENTROPY TAIL · {} outcomes recorded",
+                readiness.recorded()
+            )),
+            B::Paragraph("✓ Rejected D6 faces were retried only at their local digit.".to_owned()),
+            B::Paragraph(
+                "○ The checksum and final word will be calculated, not chosen.".to_owned(),
+            ),
+        ],
         ReadinessKind::SeedSignerCoins => vec![
             B::Paragraph(format!(
                 "✓ EXACT SEEDSIGNER COUNT · {} flips recorded",

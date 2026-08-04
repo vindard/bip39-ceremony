@@ -128,58 +128,49 @@ fn render_snapshot_rolls(snapshot: &InspectionSnapshot, width: usize) -> Lines {
         .map_or(0, |(target, protocol)| {
             protocol.minimum_observations(target)
         });
-    let coin_capture = snapshot.protocol() == Some(ConversionProtocol::SeedSignerCoinsV1);
-    let jade_capture = snapshot.protocol() == Some(ConversionProtocol::JadeDirectV1);
+    let (heading, concealed, empty, noun, boundary) = match snapshot.protocol() {
+        Some(ConversionProtocol::SeedSignerCoinsV1) => (
+            "PHYSICAL COIN SNAPSHOT",
+            "◆ FLIP VALUES CONCEALED",
+            "  No flips recorded at this position.",
+            "outcomes",
+            "Snapshots show ceremony structure, not secret flip values.",
+        ),
+        Some(ConversionProtocol::JadeDirectV1) => (
+            "PHYSICAL MIXED-DICE SNAPSHOT",
+            "◆ D16/D8 VALUES CONCEALED",
+            "  No rolls recorded at this position.",
+            "faces",
+            "Snapshots show structure, not secret mixed-dice values.",
+        ),
+        Some(ConversionProtocol::BitBox02DirectV1) => (
+            "PHYSICAL D6 + COIN SNAPSHOT",
+            "◆ D6/COIN VALUES CONCEALED",
+            "  No outcomes recorded at this position.",
+            "outcomes",
+            "Snapshots show structure, not secret D6 or coin values.",
+        ),
+        _ => (
+            "PHYSICAL D6 SNAPSHOT",
+            "◆ ROLL VALUES CONCEALED",
+            "  No rolls recorded at this position.",
+            "faces",
+            "Snapshots show ceremony structure, not secret roll values.",
+        ),
+    };
     let mut output = Lines::new(Vec::new());
-    push(
-        &mut output,
-        if coin_capture {
-            "PHYSICAL COIN SNAPSHOT"
-        } else if jade_capture {
-            "PHYSICAL MIXED-DICE SNAPSHOT"
-        } else {
-            "PHYSICAL D6 SNAPSHOT"
-        },
-    );
+    push(&mut output, heading);
     push(&mut output, &progress(count, required, width));
-    push(
-        &mut output,
-        if coin_capture {
-            "◆ FLIP VALUES CONCEALED"
-        } else if jade_capture {
-            "◆ D16/D8 VALUES CONCEALED"
-        } else {
-            "◆ ROLL VALUES CONCEALED"
-        },
-    );
+    push(&mut output, concealed);
     if count == 0 {
-        push(
-            &mut output,
-            if coin_capture {
-                "  No flips recorded at this position."
-            } else {
-                "  No rolls recorded at this position."
-            },
-        );
+        push(&mut output, empty);
     } else {
         push(
             &mut output,
-            &format!(
-                "  Positions #001–#{count:03} recorded · {} not drawn",
-                if coin_capture { "sides" } else { "faces" }
-            ),
+            &format!("  Positions #001–#{count:03} recorded · {noun} not drawn"),
         );
     }
-    push(
-        &mut output,
-        if coin_capture {
-            "Snapshots show ceremony structure, not secret flip values."
-        } else if jade_capture {
-            "Snapshots show structure, not secret mixed-dice values."
-        } else {
-            "Snapshots show ceremony structure, not secret roll values."
-        },
-    );
+    push(&mut output, boundary);
     output
 }
 

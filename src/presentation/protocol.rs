@@ -70,6 +70,7 @@ pub fn protocol_explanation(protocol: ConversionProtocol, target: EntropyTarget)
                 B::Paragraph(format!("The selected target requires exactly {} typed mixed-die observations. No hashing or rejection occurs.", specification.minimum_observations())),
             ],
         ),
+        ConversionProtocol::BitBox02DirectV1 => bitbox_explanation(specification, target),
         ConversionProtocol::SeedSignerCoinsV1 => Document::new(
             "SEEDSIGNER COIN FLIPS".to_owned(),
             vec![
@@ -90,6 +91,30 @@ pub fn protocol_explanation(protocol: ConversionProtocol, target: EntropyTarget)
     }
 }
 
+fn bitbox_explanation(specification: ProtocolSpecification, target: EntropyTarget) -> Document {
+    Document::new(
+        "BITBOX02 DIRECT WORDS".to_owned(),
+        vec![
+            B::Heading("BITBOX02 DIRECT WORDS · D6 REJECTION + COIN".to_owned()),
+            B::Heading("PURPOSE".to_owned()),
+            B::Paragraph("Reproduce BitBox02's published Diceware lookup order for complete entropy-word positions, then physically select the remaining entropy bits before calculating the checksum.".to_owned()),
+            B::Heading("DIRECT WORD POSITIONS".to_owned()),
+            B::Paragraph("For each position, accept five D6 faces in 1–4. Record and locally retry every 5 or 6. Then flip one coin.".to_owned()),
+            B::Verbatim("digits = D6₁-1 … D6₅-1 (base 4, MSB first)\nselector = heads:0 · tails:1\nindex = 2 × base4(digits) + selector".to_owned()),
+            B::Paragraph(format!("Repeat for the first {} positions. The table boundaries are all 1 + heads → abandon and all 4 + tails → zoo.", target.word_count() - 1)),
+            B::Heading("FINAL ENTROPY TAIL".to_owned()),
+            B::Paragraph(if target == EntropyTarget::Words12 {
+                "Flip seven additional coins for the remaining seven entropy bits. Heads maps to 0 and tails to 1; BIP-39 then calculates four checksum bits and the final word.".to_owned()
+            } else {
+                "Flip three additional coins for the remaining three entropy bits. Heads maps to 0 and tails to 1; BIP-39 then calculates eight checksum bits and the final word.".to_owned()
+            }),
+            B::Paragraph("Capture keys remain 0 = tails and 1 = heads, so the displayed physical-side key is deliberately opposite the lookup selector bit. Follow the side labels, not an assumed bit value.".to_owned()),
+            B::Paragraph("BitBox02 asks the operator to choose from valid final words and uses autocomplete for 12 words. This ceremony replaces that interaction with explicit tail coins; compatibility is limited to the published table and valid final-word set.".to_owned()),
+            B::Paragraph(format!("The minimum is {} outcomes plus any rejected D6 retries. Rejection does not repair biased dice or coins.", specification.minimum_observations())),
+        ],
+    )
+}
+
 #[must_use]
 pub fn protocol_menu_explanation(choice: ProtocolMenuChoice, target: EntropyTarget) -> Document {
     if let Some(protocol) = choice.implemented_protocol(target) {
@@ -102,17 +127,13 @@ pub fn protocol_menu_explanation(choice: ProtocolMenuChoice, target: EntropyTarg
             "The published source establishes a 24-word workflow but does not establish how a legacy Keystone device produced 12 words from dice.",
             "Choose 24 words to use the implemented, vector-tested profile. A guessed 12-word adaptation would not be a compatibility protocol.",
         ),
-        ProtocolMenuChoice::BitBoxDiceware => (
-            "Generate BIP-39 words with the BitBox02 Diceware workflow.",
-            "Reroll D6 faces 5 and 6 to obtain base-4 digits; combine five accepted digits with one coin flip to select each direct word position. For 24 words, choose randomly among eight checksum-valid final words.",
-            "This needs rejection-aware mixed-input capture and a separately specified 12-word final-word flow.",
-        ),
         ProtocolMenuChoice::KruxD20 => (
             "Reproduce Krux's D20 mnemonic-generation mode.",
             "Krux documents hashing the cumulative D20 outcome string with SHA-256, then encoding the target-width digest material as BIP-39.",
             "Exact outcome serialization, roll completion, and versioned vectors must be pinned before implementation. Krux D20 is not its COLDCARD-compatible D6 mode.",
         ),
         ProtocolMenuChoice::JadeDirectWords
+        | ProtocolMenuChoice::BitBoxDiceware
         | ProtocolMenuChoice::SeedSignerCoins
         | ProtocolMenuChoice::Coldcard
         | ProtocolMenuChoice::WordExact
@@ -357,6 +378,20 @@ mod tests {
         assert!(text.contains("remaining seven entropy bits"));
         assert!(text.contains("replaces that random choice with explicit physical dice"));
         assert!(text.contains("exactly 35 typed mixed-die observations"));
+    }
+
+    #[test]
+    fn bitbox_document_fixes_table_order_and_scoped_tail_extension() {
+        let text = format!(
+            "{:?}",
+            protocol_explanation(ConversionProtocol::BitBox02DirectV1, EntropyTarget::Words24,)
+                .blocks()
+        );
+        assert!(text.contains("heads:0 · tails:1"));
+        assert!(text.contains("all 1 + heads → abandon"));
+        assert!(text.contains("all 4 + tails → zoo"));
+        assert!(text.contains("Flip three additional coins"));
+        assert!(text.contains("compatibility is limited to the published table"));
     }
 
     #[test]

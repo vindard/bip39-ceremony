@@ -1,6 +1,6 @@
 # bip39-ceremony-core
 
-Deterministic, inspectable conversion of typed physical D6 or coin observations
+Deterministic, inspectable conversion of typed physical dice and coin observations
 into English BIP-39 mnemonics.
 
 The crate implements the versioned conversion protocols used by the

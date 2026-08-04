@@ -8,6 +8,7 @@ pub enum ReadinessKind {
     Coldcard { strict_capacity_reached: bool },
     KeystoneLegacy,
     JadeDirect,
+    BitBox02Direct,
     SeedSignerCoins,
 }
 
@@ -37,6 +38,7 @@ impl CaptureReadiness {
             },
             ConversionProtocol::KeystoneLegacyV1 => ReadinessKind::KeystoneLegacy,
             ConversionProtocol::JadeDirectV1 => ReadinessKind::JadeDirect,
+            ConversionProtocol::BitBox02DirectV1 => ReadinessKind::BitBox02Direct,
             ConversionProtocol::SeedSignerCoinsV1 => ReadinessKind::SeedSignerCoins,
         };
         Some(Self {

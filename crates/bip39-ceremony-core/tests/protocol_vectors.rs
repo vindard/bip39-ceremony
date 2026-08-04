@@ -2,9 +2,10 @@ use std::fmt::Write;
 
 use bip39::{Language, Mnemonic};
 use bip39_ceremony_core::{
-    CalculationError, CalculationOutcome, Capture, CoinFlip, ConversionProtocol, D8Face, D16Face,
-    DieFace, Entropy, EntropyTarget, FlipSequence, JadeCapture, JadeDieKind, ProtocolError,
-    RollSequence, calculate, jade_expected_die, jade_required_observations,
+    BitBoxCapture, CalculationError, CalculationOutcome, CanonicalInput, Capture, CoinFlip,
+    ConversionProtocol, D8Face, D16Face, DieFace, Entropy, EntropyTarget, FlipSequence,
+    JadeCapture, JadeDieKind, ProtocolError, RollSequence, bitbox_tail_bits, calculate,
+    jade_expected_die, jade_required_observations,
 };
 use bitcoin_hashes::{Hash, sha256};
 
@@ -34,6 +35,46 @@ fn jade_all_max(target: EntropyTarget) -> JadeCapture {
             JadeDieKind::D16 => capture.push_d16(D16Face::new(16).unwrap()),
             JadeDieKind::D8 => capture.push_d8(D8Face::new(8).unwrap()),
         }
+    }
+    capture
+}
+
+fn bitbox_uniform(target: EntropyTarget, face: u8, flip: u8) -> BitBoxCapture {
+    let mut capture = BitBoxCapture::new();
+    for _ in 0..target.word_count() - 1 {
+        for _ in 0..5 {
+            capture.push_d6(DieFace::new(face).unwrap());
+        }
+        capture.push_coin(CoinFlip::new(flip).unwrap());
+    }
+    for _ in 0..bitbox_tail_bits(target) {
+        capture.push_coin(CoinFlip::new(flip).unwrap());
+    }
+    capture
+}
+
+fn bitbox_asymmetric(target: EntropyTarget) -> BitBoxCapture {
+    let mut capture = BitBoxCapture::new();
+    for position in 0..target.word_count() - 1 {
+        let index = (position * 137 + 217) % 2_048;
+        let mut base4 = index / 2;
+        let mut faces = [1_u8; 5];
+        for offset in (0..5).rev() {
+            faces[offset] = u8::try_from(base4 % 4 + 1).unwrap();
+            base4 /= 4;
+        }
+        for face in faces {
+            capture.push_d6(DieFace::new(face).unwrap());
+        }
+        capture.push_coin(CoinFlip::new(u8::try_from(1 - index % 2).unwrap()).unwrap());
+    }
+    let tail = if target == EntropyTarget::Words12 {
+        [1, 0, 1, 0, 1, 0, 1].as_slice()
+    } else {
+        [1, 0, 1].as_slice()
+    };
+    for selector in tail {
+        capture.push_coin(CoinFlip::new(1 - selector).unwrap());
     }
     capture
 }
@@ -249,6 +290,109 @@ fn jade_wrong_die_order_is_rejected() {
             EntropyTarget::Words12,
             ConversionProtocol::JadeDirectV1,
             Capture::Jade(&capture),
+        )
+        .unwrap_err(),
+        CalculationError::Protocol(ProtocolError::WrongObservationKind)
+    );
+}
+
+#[test]
+fn bitbox_direct_words_cross_rejection_table_and_bip39_boundaries() {
+    for (target, final_word) in [
+        (EntropyTarget::Words12, "about"),
+        (EntropyTarget::Words24, "art"),
+    ] {
+        let mut capture = bitbox_uniform(target, 1, 1);
+        // A rejected face is retained without changing the selected index.
+        let mut with_rejection = BitBoxCapture::new();
+        with_rejection.push_d6(DieFace::new(6).unwrap());
+        for observation in capture.observations() {
+            match observation {
+                bip39_ceremony_core::BitBoxObservation::D6(face) => {
+                    with_rejection.push_d6(*face);
+                }
+                bip39_ceremony_core::BitBoxObservation::Coin(flip) => {
+                    with_rejection.push_coin(*flip);
+                }
+            }
+        }
+        capture = with_rejection;
+        let calculation = accepted(
+            target,
+            ConversionProtocol::BitBox02DirectV1,
+            Capture::BitBox(&capture),
+        );
+        assert_eq!(
+            calculation.entropy().bytes(),
+            vec![0; target.entropy_bytes()]
+        );
+        assert_eq!(calculation.mnemonic().words()[0], "abandon");
+        assert_eq!(
+            calculation.mnemonic().words()[target.word_count() - 1],
+            final_word
+        );
+        let CanonicalInput::TypedD6AndCoins(input) = calculation.evidence().canonical_input()
+        else {
+            panic!("typed BitBox evidence expected");
+        };
+        assert_eq!(&input[..4], &[6, 6, 6, 1]);
+    }
+}
+
+#[test]
+fn bitbox_asymmetric_vectors_fix_word_and_tail_bit_order() {
+    for (target, entropy) in [
+        (EntropyTarget::Words12, "1b2588f5a745fae1a07c98a436ab19d5"),
+        (
+            EntropyTarget::Words24,
+            "1b2588f5a745fae1a07c98a436ab19ebce8bf382b8e02d27c93db0471b05a4fd",
+        ),
+    ] {
+        let capture = bitbox_asymmetric(target);
+        let calculation = accepted(
+            target,
+            ConversionProtocol::BitBox02DirectV1,
+            Capture::BitBox(&capture),
+        );
+        assert_eq!(entropy_hex(calculation.entropy()), entropy);
+        assert_eq!(calculation.evidence().word_indices()[0], 217);
+        assert_eq!(calculation.evidence().word_indices()[1], 354);
+    }
+}
+
+#[test]
+fn bitbox_max_faces_fix_lookup_and_entropy_boundaries() {
+    for (target, final_word) in [
+        (EntropyTarget::Words12, "wrong"),
+        (EntropyTarget::Words24, "vote"),
+    ] {
+        let capture = bitbox_uniform(target, 4, 0);
+        let calculation = accepted(
+            target,
+            ConversionProtocol::BitBox02DirectV1,
+            Capture::BitBox(&capture),
+        );
+        assert_eq!(
+            calculation.entropy().bytes(),
+            vec![u8::MAX; target.entropy_bytes()]
+        );
+        assert_eq!(calculation.mnemonic().words()[0], "zoo");
+        assert_eq!(
+            calculation.mnemonic().words()[target.word_count() - 1],
+            final_word
+        );
+    }
+}
+
+#[test]
+fn bitbox_wrong_observation_kind_is_rejected() {
+    let mut capture = BitBoxCapture::new();
+    capture.push_coin(CoinFlip::new(1).unwrap());
+    assert_eq!(
+        calculate(
+            EntropyTarget::Words12,
+            ConversionProtocol::BitBox02DirectV1,
+            Capture::BitBox(&capture),
         )
         .unwrap_err(),
         CalculationError::Protocol(ProtocolError::WrongObservationKind)

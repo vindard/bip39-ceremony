@@ -9,6 +9,7 @@ pub enum CeremonyError {
     InsufficientRolls,
     UnsupportedTarget,
     UnexpectedDie,
+    UnexpectedObservation,
     InvalidHistoryPosition,
 }
 
@@ -24,6 +25,9 @@ impl fmt::Display for CeremonyError {
                 "the selected protocol does not support this mnemonic length"
             }
             Self::UnexpectedDie => "that die does not match the current mixed-dice position",
+            Self::UnexpectedObservation => {
+                "that physical outcome kind does not match the current position"
+            }
             Self::InvalidHistoryPosition => "history position is beyond the event journal",
         };
         formatter.write_str(message)

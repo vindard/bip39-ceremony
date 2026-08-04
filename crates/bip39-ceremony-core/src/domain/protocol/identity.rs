@@ -9,6 +9,7 @@ pub enum ConversionProtocol {
     ColdcardV1,
     KeystoneLegacyV1,
     JadeDirectV1,
+    BitBox02DirectV1,
     SeedSignerCoinsV1,
 }
 
@@ -22,6 +23,7 @@ impl ConversionProtocol {
             Self::ColdcardV1 => "coldcard-v1",
             Self::KeystoneLegacyV1 => "keystone-legacy-v1",
             Self::JadeDirectV1 => "jade-direct-v1",
+            Self::BitBox02DirectV1 => "bitbox02-direct-v1",
             Self::SeedSignerCoinsV1 => "seedsigner-coins-v1",
         }
     }
@@ -34,6 +36,8 @@ impl ConversionProtocol {
             (Self::WordExactV1, EntropyTarget::Words24) => 140,
             (Self::ColdcardV1 | Self::KeystoneLegacyV1, EntropyTarget::Words24) => 99,
             (Self::JadeDirectV1, EntropyTarget::Words12) => 35,
+            (Self::BitBox02DirectV1, EntropyTarget::Words12) => 73,
+            (Self::BitBox02DirectV1, EntropyTarget::Words24) => 141,
             (Self::SeedSignerCoinsV1, target) => target.entropy_bits(),
             (_, target) => target.strict_roll_count(),
         }
@@ -66,6 +70,12 @@ mod tests {
                 99,
             ),
             (ConversionProtocol::JadeDirectV1, "jade-direct-v1", 35, 70),
+            (
+                ConversionProtocol::BitBox02DirectV1,
+                "bitbox02-direct-v1",
+                73,
+                141,
+            ),
             (
                 ConversionProtocol::SeedSignerCoinsV1,
                 "seedsigner-coins-v1",

@@ -117,6 +117,17 @@ fn render_canonical_input(input: &CanonicalInput) -> String {
             }
             output
         }
+        CanonicalInput::TypedD6AndCoins(observations) => {
+            let mut output = String::from("typed-d6-coins:");
+            for (index, pair) in observations.chunks_exact(2).enumerate() {
+                if index > 0 {
+                    output.push(',');
+                }
+                let kind = if pair[0] == 6 { "D6" } else { "coin" };
+                write!(output, "{kind}={}", pair[1]).expect("writing to String cannot fail");
+            }
+            output
+        }
         CanonicalInput::AsciiCoinFlips(flips) => format!("ascii-coin-flips:{}", ascii(flips)),
     }
 }

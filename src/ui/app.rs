@@ -14,7 +14,10 @@ use crate::{
         dice::DieFace,
         inspection::InspectionSnapshot,
         jade::{D8Face, D16Face},
-        protocol::{ConversionProtocol, JadeDieKind, jade_expected_die},
+        protocol::{
+            BitBoxObservationKind, ConversionProtocol, JadeDieKind, bitbox_progress,
+            jade_expected_die,
+        },
     },
     presentation::ProtocolMenuChoice,
 };
@@ -341,6 +344,8 @@ impl App {
     fn hidden_input_inspection_message(&self) -> &'static str {
         if self.ceremony().state().protocol() == Some(ConversionProtocol::SeedSignerCoinsV1) {
             "Press h to show all flips before opening inspection."
+        } else if self.ceremony().state().protocol() == Some(ConversionProtocol::BitBox02DirectV1) {
+            "Press h to show all D6 and coin outcomes before opening inspection."
         } else {
             "Press h to show all rolls before opening inspection."
         }
@@ -357,13 +362,13 @@ impl App {
         match key {
             Key::PageUp
                 if self.ceremony().state().phase() == Phase::EnterRolls
-                    && self.word_exact_assignments_active() =>
+                    && self.normal_capture_document_scroll() =>
             {
                 self.roll_scroll = self.roll_scroll.saturating_sub(4);
             }
             Key::PageDown
                 if self.ceremony().state().phase() == Phase::EnterRolls
-                    && self.word_exact_assignments_active() =>
+                    && self.normal_capture_document_scroll() =>
             {
                 self.roll_scroll = self.roll_scroll.saturating_add(4).min(self.scroll_limit);
             }
@@ -471,6 +476,10 @@ impl App {
             self.enter_jade_roll(key);
             return;
         }
+        if self.ceremony().state().protocol() == Some(ConversionProtocol::BitBox02DirectV1) {
+            self.enter_bitbox_observation(key);
+            return;
+        }
         if self.ceremony().state().protocol() == Some(ConversionProtocol::SeedSignerCoinsV1) {
             self.enter_flip(key);
             return;
@@ -534,6 +543,38 @@ impl App {
         }
     }
 
+    fn enter_bitbox_observation(&mut self, key: Key) {
+        if matches!(key, Key::Backspace | Key::Delete) {
+            self.handle(Command::UndoBitBox);
+            return;
+        }
+        if self.enter_capture_control(key) {
+            return;
+        }
+        let state = self.ceremony().state();
+        let Some(target) = state.target() else { return };
+        match (bitbox_progress(target, state.bitbox()).expected_kind(), key) {
+            (Some(BitBoxObservationKind::D6), Key::Char(character @ '1'..='6')) => {
+                if let Ok(face) = DieFace::try_from(character) {
+                    self.handle(Command::RecordBitBoxD6(face));
+                }
+            }
+            (Some(BitBoxObservationKind::D6), Key::Char(_)) => {
+                self.message =
+                    Some("D6: use 1–6; faces 5 and 6 are recorded then retried.".to_owned());
+            }
+            (Some(BitBoxObservationKind::Coin), Key::Char(character @ ('0' | '1'))) => {
+                if let Ok(flip) = CoinFlip::try_from(character) {
+                    self.handle(Command::RecordBitBoxCoin(flip));
+                }
+            }
+            (Some(BitBoxObservationKind::Coin), Key::Char(_)) => {
+                self.message = Some("Coin: use 0 for tails or 1 for heads.".to_owned());
+            }
+            _ => {}
+        }
+    }
+
     fn enter_flip(&mut self, key: Key) {
         match key {
             Key::Char(character @ ('0' | '1')) => {
@@ -568,11 +609,17 @@ impl App {
                 };
                 self.roll_scroll = 0;
             }
-            Key::Up if self.word_exact_assignments_active() => {
+            Key::Up if self.normal_capture_document_scroll() => {
                 self.roll_scroll = self.roll_scroll.saturating_sub(1);
             }
-            Key::Down if self.word_exact_assignments_active() => {
+            Key::Down if self.normal_capture_document_scroll() => {
                 self.roll_scroll = self.roll_scroll.saturating_add(1).min(self.scroll_limit);
+            }
+            Key::PageUp if self.normal_capture_document_scroll() => {
+                self.roll_scroll = self.roll_scroll.saturating_sub(4);
+            }
+            Key::PageDown if self.normal_capture_document_scroll() => {
+                self.roll_scroll = self.roll_scroll.saturating_add(4).min(self.scroll_limit);
             }
             Key::Up => {
                 self.roll_scroll = self.roll_scroll.saturating_add(1).min(self.scroll_limit);
@@ -590,6 +637,14 @@ impl App {
             _ => return false,
         }
         true
+    }
+
+    fn normal_capture_document_scroll(&self) -> bool {
+        self.word_exact_assignments_active()
+            || matches!(
+                self.ceremony().state().protocol(),
+                Some(ConversionProtocol::JadeDirectV1 | ConversionProtocol::BitBox02DirectV1)
+            )
     }
 
     fn word_exact_assignments_active(&self) -> bool {
@@ -838,6 +893,7 @@ mod tests {
                 ConversionProtocol::WordExactV1 => 1,
                 ConversionProtocol::ExactV1 => 2,
                 ConversionProtocol::JadeDirectV1 => 4,
+                ConversionProtocol::BitBox02DirectV1 => 5,
                 ConversionProtocol::SeedSignerCoinsV1 => 7,
                 ConversionProtocol::NativeHashV1 | ConversionProtocol::KeystoneLegacyV1 => {
                     unreachable!()
@@ -850,6 +906,18 @@ mod tests {
         }
         app.update(Key::Char('c'));
         app.update(Key::Char('\n'));
+    }
+
+    fn enter_bitbox_zero_remainder(app: &mut App) {
+        for _ in 1..11 {
+            for _ in 0..5 {
+                app.update(Key::Char('1'));
+            }
+            app.update(Key::Char('1'));
+        }
+        for _ in 0..7 {
+            app.update(Key::Char('1'));
+        }
     }
 
     fn verify_mnemonic(app: &mut App) {
@@ -1113,6 +1181,38 @@ mod tests {
         app.update(Key::Char('\n'));
         assert_eq!(app.ceremony().state().phase(), Phase::Result);
         assert_eq!(app.generation().unwrap().mnemonic().words()[11], "about");
+    }
+
+    #[test]
+    fn bitbox_capture_handles_local_rejection_kind_switch_and_generation() {
+        let mut app = App::default();
+        configure(&mut app, ConversionProtocol::BitBox02DirectV1);
+
+        let events = app.ceremony().events().len();
+        app.update(Key::Char('0'));
+        assert_eq!(app.ceremony().events().len(), events);
+        assert!(app.message().is_some_and(|message| message.contains("D6")));
+
+        app.update(Key::Char('6'));
+        for _ in 0..5 {
+            app.update(Key::Char('1'));
+        }
+        let events = app.ceremony().events().len();
+        app.update(Key::Char('2'));
+        assert_eq!(app.ceremony().events().len(), events);
+        assert!(
+            app.message()
+                .is_some_and(|message| message.contains("Coin"))
+        );
+        app.update(Key::Char('1'));
+        app.update(Key::Backspace);
+        app.update(Key::Char('1'));
+
+        enter_bitbox_zero_remainder(&mut app);
+        assert_eq!(app.ceremony().state().bitbox().len(), 74);
+        app.update(Key::Char('\n'));
+        assert_eq!(app.ceremony().state().phase(), Phase::Result);
+        assert_eq!(app.generation().unwrap().mnemonic().words()[0], "abandon");
     }
 
     #[test]

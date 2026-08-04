@@ -10,6 +10,7 @@ pub enum CanonicalInputKind {
     AsciiFaceDigits,
     AsciiFacesWithSixAsZero,
     TypedMixedDice,
+    TypedD6AndCoins,
     AsciiCoinFlips,
 }
 
@@ -17,6 +18,7 @@ pub enum CanonicalInputKind {
 pub enum RejectionPolicy {
     None,
     WholeSequence,
+    LocalizedD6ToBase4,
     Localized {
         word_candidate_rolls: usize,
         word_candidate_limit: u32,
@@ -31,6 +33,7 @@ pub enum Compatibility {
     Coldcard,
     KeystoneLegacy,
     JadeTable,
+    BitBoxTable,
     SeedSigner,
 }
 
@@ -124,6 +127,12 @@ impl ConversionProtocol {
                 Compatibility::JadeTable,
                 false,
             ),
+            Self::BitBox02DirectV1 => (
+                CanonicalInputKind::TypedD6AndCoins,
+                RejectionPolicy::LocalizedD6ToBase4,
+                Compatibility::BitBoxTable,
+                false,
+            ),
             Self::SeedSignerCoinsV1 => (
                 CanonicalInputKind::AsciiCoinFlips,
                 RejectionPolicy::None,
@@ -184,6 +193,22 @@ mod tests {
             CanonicalInputKind::TypedMixedDice
         );
         assert_eq!(specification.compatibility(), Compatibility::JadeTable);
+    }
+
+    #[test]
+    fn bitbox_specification_exposes_local_rejection_and_typed_capture() {
+        let specification =
+            ConversionProtocol::BitBox02DirectV1.specification(EntropyTarget::Words24);
+        assert_eq!(specification.minimum_observations(), 141);
+        assert_eq!(
+            specification.canonical_input(),
+            CanonicalInputKind::TypedD6AndCoins
+        );
+        assert_eq!(
+            specification.rejection(),
+            RejectionPolicy::LocalizedD6ToBase4
+        );
+        assert_eq!(specification.compatibility(), Compatibility::BitBoxTable);
     }
 
     #[test]

@@ -1,3 +1,4 @@
+mod bitbox;
 mod canonical;
 mod capture;
 mod coldcard;
@@ -10,6 +11,10 @@ mod native_hash;
 mod specification;
 mod word_exact;
 
+pub use bitbox::{
+    BitBoxObservationKind, BitBoxProgress, BitBoxStage, bitbox_progress,
+    bitbox_required_observations, bitbox_tail_bits, bitbox_word_index,
+};
 pub use canonical::CanonicalInput;
 pub use capture::{CaptureAssessment, CaptureProgress};
 pub use error::ProtocolError;
@@ -27,6 +32,7 @@ pub use word_exact::{
     WordExactProgress, WordExactTrace,
 };
 
+pub(crate) use bitbox::bitbox_entropy;
 pub(crate) use coldcard::ascii_rolls as coldcard_ascii_rolls;
 pub(crate) use exact::{ExactOutcome, exact_entropy};
 pub(crate) use jade::jade_entropy;

@@ -1,11 +1,12 @@
 use crate::domain::{
     bip39::EntropyTarget,
+    bitbox::BitBoxCapture,
     coin::FlipSequence,
     dice::RollSequence,
     jade::{JadeCapture, JadeObservation},
     protocol::{
-        ConversionProtocol, JadeDieKind, JadeProgress, WordExactParse, WordExactProgress,
-        jade_expected_die, jade_progress, parse_word_exact,
+        BitBoxProgress, BitBoxStage, ConversionProtocol, JadeDieKind, JadeProgress, WordExactParse,
+        WordExactProgress, bitbox_progress, jade_expected_die, jade_progress, parse_word_exact,
     },
 };
 
@@ -20,6 +21,7 @@ pub enum CaptureProgress {
         minimum: usize,
     },
     Jade(JadeProgress),
+    BitBox(BitBoxProgress),
     WordExact(WordExactProgress),
     WordExactComplete {
         accepted_words: usize,
@@ -120,7 +122,7 @@ impl ConversionProtocol {
                     CaptureAssessment::Collecting(progress)
                 }
             }
-            Self::JadeDirectV1 | Self::SeedSignerCoinsV1 => {
+            Self::JadeDirectV1 | Self::BitBox02DirectV1 | Self::SeedSignerCoinsV1 => {
                 CaptureAssessment::Invalid(CaptureProgress::Fixed {
                     recorded,
                     required: self.minimum_observations(target),
@@ -172,6 +174,27 @@ impl ConversionProtocol {
                 accepts_optional_rolls: false,
             },
             core::cmp::Ordering::Greater => CaptureAssessment::Invalid(progress),
+        }
+    }
+
+    #[must_use]
+    pub fn assess_bitbox_capture(
+        self,
+        target: EntropyTarget,
+        capture: &BitBoxCapture,
+    ) -> CaptureAssessment {
+        let bitbox = bitbox_progress(target, capture);
+        let progress = CaptureProgress::BitBox(bitbox);
+        if self != Self::BitBox02DirectV1 || !bitbox.is_valid() {
+            return CaptureAssessment::Invalid(progress);
+        }
+        if bitbox.stage() == BitBoxStage::Complete {
+            CaptureAssessment::Complete {
+                progress,
+                accepts_optional_rolls: false,
+            }
+        } else {
+            CaptureAssessment::Collecting(progress)
         }
     }
 
@@ -267,6 +290,31 @@ mod tests {
             complete.observations().last(),
             Some(&JadeObservation::D8(D8Face::new(1).unwrap()))
         );
+    }
+
+    #[test]
+    fn bitbox_capture_uses_parser_completion_after_local_rejections() {
+        use crate::domain::{bitbox::BitBoxCapture, coin::CoinFlip, dice::DieFace};
+
+        let mut capture = BitBoxCapture::new();
+        capture.push_d6(DieFace::new(6).unwrap());
+        for _ in 0..11 {
+            for _ in 0..5 {
+                capture.push_d6(DieFace::new(1).unwrap());
+            }
+            capture.push_coin(CoinFlip::new(1).unwrap());
+        }
+        for _ in 0..7 {
+            capture.push_coin(CoinFlip::new(1).unwrap());
+        }
+        let assessment = ConversionProtocol::BitBox02DirectV1
+            .assess_bitbox_capture(EntropyTarget::Words12, &capture);
+        assert!(assessment.is_complete());
+        let CaptureProgress::BitBox(progress) = assessment.progress() else {
+            panic!("BitBox progress expected");
+        };
+        assert_eq!(progress.recorded(), 74);
+        assert_eq!(progress.rejected_faces(), 1);
     }
 
     #[test]

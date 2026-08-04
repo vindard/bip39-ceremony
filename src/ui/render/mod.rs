@@ -28,8 +28,8 @@ use crate::{
 
 use super::app::{App, InspectorView, SAFETY_ITEM_COUNT};
 
-const MIN_WIDTH: u16 = 52;
-const MIN_HEIGHT: u16 = 40;
+pub(super) const MIN_WIDTH: u16 = 52;
+pub(super) const MIN_HEIGHT: u16 = 40;
 const MAX_CONTENT_WIDTH: usize = 88;
 
 pub(super) type Lines = Zeroizing<Vec<String>>;
@@ -81,7 +81,12 @@ pub(super) fn scroll_limit(app: &App, width: u16, height: u16) -> usize {
         let protocol = app.ceremony().state().protocol();
         let word_exact_assignments =
             protocol == Some(ConversionProtocol::WordExactV1) && !app.word_exact_raw_ledger();
-        if word_exact_assignments || protocol == Some(ConversionProtocol::JadeDirectV1) {
+        if word_exact_assignments
+            || matches!(
+                protocol,
+                Some(ConversionProtocol::JadeDirectV1 | ConversionProtocol::BitBox02DirectV1)
+            )
+        {
             let body = render_live(app, width.saturating_sub(4));
             return body.len().saturating_sub(rows.saturating_sub(1));
         }
@@ -535,11 +540,14 @@ fn inspector_footer(view: InspectorView, derivation_available: bool, phase: Phas
 
 fn roll_footer(app: &App) -> String {
     let state = app.ceremony().state();
-    if state.protocol() == Some(ConversionProtocol::JadeDirectV1) {
+    if matches!(
+        state.protocol(),
+        Some(ConversionProtocol::JadeDirectV1 | ConversionProtocol::BitBox02DirectV1)
+    ) {
         return if state.can_confirm_rolls() {
-            "[q] cancel  [h] ledger  [Enter] generate  [⌫] undo".to_owned()
+            "[q] cancel  [h] ledger  [↑/↓] scroll  [Enter] generate  [⌫] undo".to_owned()
         } else {
-            "[q] cancel  [h] ledger  [keys] roll  [⌫] undo".to_owned()
+            "[q] cancel  [h] ledger  [↑/↓] scroll  [keys] outcome  [⌫] undo".to_owned()
         };
     }
     if state.protocol() == Some(ConversionProtocol::WordExactV1) {
@@ -1097,6 +1105,33 @@ mod tests {
     }
 
     #[test]
+    fn bitbox_choice_and_rejection_aware_workspace_are_operational() {
+        let mut app = App::default();
+        app.update(Key::Char('\n'));
+        for _ in 0..5 {
+            app.update(Key::Down);
+        }
+        let menu = render(&app, 80, 40);
+        assert!(menu.contains("▶ BitBox02 Diceware"));
+        assert!(menu.contains("[Enter] next"));
+
+        app.update(Key::Char('\n'));
+        app.update(Key::Char('c'));
+        app.update(Key::Char('\n'));
+        app.update(Key::Char('6'));
+        for _ in 0..5 {
+            app.update(Key::Char('1'));
+        }
+        app.update(Key::Char('h'));
+        let capture = render(&app, 80, 40);
+        assert!(capture.contains("PHYSICAL D6 + COIN CAPTURE"));
+        assert!(capture.contains("D6=6X"));
+        assert!(capture.contains("Flip coin, then press [0] tails or [1] heads"));
+        assert!(capture.contains("COIN SELECTOR · heads→0 · tails→1"));
+        assert!(capture.contains("1 rejected D6"));
+    }
+
+    #[test]
     fn jade_twenty_four_word_ledger_scrolls_at_minimum_size() {
         let mut app = App::default();
         app.update(Key::Down);
@@ -1115,12 +1150,44 @@ mod tests {
         let limit = scroll_limit(&app, 52, 40);
         assert!(limit > 0);
         let top = render(&app, 52, 40);
-        assert!(top.contains("[⌫] undo"));
+        assert!(top.contains("[↑/↓] scroll"));
         for _ in 0..limit.div_ceil(4) {
-            app.update_bounded(Key::PageUp, limit);
+            app.update_bounded(Key::PageDown, limit);
         }
         let bottom = render(&app, 52, 40);
         assert!(bottom.contains("ALL DIRECT POSITIONS + ENTROPY TAIL"));
+        assert!(bottom.contains("[Enter] confirm and generate"));
+    }
+
+    #[test]
+    fn bitbox_twenty_four_word_ledger_scrolls_to_tail_completion() {
+        let mut app = App::default();
+        app.update(Key::Down);
+        app.update(Key::Char('\n'));
+        for _ in 0..5 {
+            app.update(Key::Down);
+        }
+        app.update(Key::Char('\n'));
+        app.update(Key::Char('c'));
+        app.update(Key::Char('\n'));
+        for _ in 0..23 {
+            for _ in 0..5 {
+                app.update(Key::Char('1'));
+            }
+            app.update(Key::Char('1'));
+        }
+        for _ in 0..3 {
+            app.update(Key::Char('1'));
+        }
+        app.update(Key::Char('h'));
+
+        let limit = scroll_limit(&app, 52, 40);
+        assert!(limit > 0);
+        for _ in 0..limit.div_ceil(4) {
+            app.update_bounded(Key::PageDown, limit);
+        }
+        let bottom = render(&app, 52, 40);
+        assert!(bottom.contains("ALL BITBOX TABLE POSITIONS + ENTROPY TAIL"));
         assert!(bottom.contains("[Enter] confirm and generate"));
     }
 
@@ -1779,7 +1846,7 @@ mod tests {
         verify_mnemonic(&mut app);
         let output = render(&app, 100, 40);
 
-        assert!(output.contains("REPRODUCTION METADATA · NON-SECRET"));
+        assert!(output.contains("REPRODUCTION METADATA · SECRET VALUES OMITTED"));
         assert!(output.contains("Protocol exact-v1 · Target 24 words · Recorded rolls 100"));
         assert!(output.contains("Secret faces omitted"));
         assert!(output.contains("GENERATION IS NOT VERIFIED WALLET RECOVERY"));

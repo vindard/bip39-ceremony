@@ -22,9 +22,12 @@ pub(crate) enum Event {
     FlipRecorded(CoinFlip),
     JadeD16Recorded(D16Face),
     JadeD8Recorded(D8Face),
+    BitBoxD6Recorded(DieFace),
+    BitBoxCoinRecorded(CoinFlip),
     RollUndone,
     FlipUndone,
     JadeUndone,
+    BitBoxUndone,
     RollsConfirmed,
     GenerationSucceeded,
     ExactAttemptRejected,
@@ -37,8 +40,8 @@ pub(crate) enum Event {
 impl Zeroize for Event {
     fn zeroize(&mut self) {
         match self {
-            Self::RollRecorded(face) => face.zeroize(),
-            Self::FlipRecorded(flip) => flip.zeroize(),
+            Self::RollRecorded(face) | Self::BitBoxD6Recorded(face) => face.zeroize(),
+            Self::FlipRecorded(flip) | Self::BitBoxCoinRecorded(flip) => flip.zeroize(),
             Self::JadeD16Recorded(face) => face.zeroize(),
             Self::JadeD8Recorded(face) => face.zeroize(),
             _ => {}
@@ -65,9 +68,12 @@ impl fmt::Debug for Event {
             Self::FlipRecorded(_) => formatter.write_str("FlipRecorded([REDACTED])"),
             Self::JadeD16Recorded(_) => formatter.write_str("JadeD16Recorded([REDACTED])"),
             Self::JadeD8Recorded(_) => formatter.write_str("JadeD8Recorded([REDACTED])"),
+            Self::BitBoxD6Recorded(_) => formatter.write_str("BitBoxD6Recorded([REDACTED])"),
+            Self::BitBoxCoinRecorded(_) => formatter.write_str("BitBoxCoinRecorded([REDACTED])"),
             Self::RollUndone => formatter.write_str("RollUndone"),
             Self::FlipUndone => formatter.write_str("FlipUndone"),
             Self::JadeUndone => formatter.write_str("JadeUndone"),
+            Self::BitBoxUndone => formatter.write_str("BitBoxUndone"),
             Self::RollsConfirmed => formatter.write_str("RollsConfirmed"),
             Self::GenerationSucceeded => formatter.write_str("GenerationSucceeded"),
             Self::ExactAttemptRejected => formatter.write_str("ExactAttemptRejected"),

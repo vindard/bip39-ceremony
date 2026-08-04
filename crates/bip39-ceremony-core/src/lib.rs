@@ -14,14 +14,17 @@ pub use calculation::{
 };
 pub use domain::{
     bip39::{Bip39Error, EnglishMnemonic, Entropy, EntropyTarget},
+    bitbox::{BitBoxCapture, BitBoxObservation},
     coin::{CoinFlip, FlipSequence, InvalidCoinFlip},
     dice::{DieFace, InvalidDieFace, RollSequence},
     jade::{D8Face, D16Face, InvalidD8Face, InvalidD16Face, JadeCapture, JadeObservation},
     protocol::{
-        AssignmentStatus, CandidatePurpose, CandidateStatus, CanonicalInput, CanonicalInputKind,
-        CaptureAssessment, CaptureProgress, Compatibility, ConversionProtocol, JadeDieKind,
-        JadeProgress, JadeStage, ProtocolError, ProtocolSpecification, RejectionPolicy,
-        WordExactCandidate, WordExactProgress, WordExactTrace, jade_expected_die, jade_progress,
-        jade_required_observations, jade_word_index, trace_word_exact,
+        AssignmentStatus, BitBoxObservationKind, BitBoxProgress, BitBoxStage, CandidatePurpose,
+        CandidateStatus, CanonicalInput, CanonicalInputKind, CaptureAssessment, CaptureProgress,
+        Compatibility, ConversionProtocol, JadeDieKind, JadeProgress, JadeStage, ProtocolError,
+        ProtocolSpecification, RejectionPolicy, WordExactCandidate, WordExactProgress,
+        WordExactTrace, bitbox_progress, bitbox_required_observations, bitbox_tail_bits,
+        bitbox_word_index, jade_expected_die, jade_progress, jade_required_observations,
+        jade_word_index, trace_word_exact,
     },
 };

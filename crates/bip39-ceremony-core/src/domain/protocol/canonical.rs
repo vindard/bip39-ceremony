@@ -3,7 +3,8 @@ use core::fmt;
 use zeroize::Zeroizing;
 
 use crate::domain::{
-    bip39::EntropyTarget, coin::FlipSequence, dice::RollSequence, jade::JadeCapture,
+    bip39::EntropyTarget, bitbox::BitBoxCapture, coin::FlipSequence, dice::RollSequence,
+    jade::JadeCapture,
 };
 
 use super::{
@@ -21,6 +22,7 @@ pub enum CanonicalInput {
     AsciiFaceDigits(Zeroizing<Vec<u8>>),
     AsciiFacesWithSixAsZero(Zeroizing<Vec<u8>>),
     TypedMixedDice(Zeroizing<Vec<u8>>),
+    TypedD6AndCoins(Zeroizing<Vec<u8>>),
     AsciiCoinFlips(Zeroizing<Vec<u8>>),
 }
 
@@ -32,6 +34,7 @@ impl CanonicalInput {
         rolls: &RollSequence,
         flips: &FlipSequence,
         jade: &JadeCapture,
+        bitbox: &BitBoxCapture,
     ) -> Self {
         match protocol {
             ConversionProtocol::ExactV1 => Self::Base6Integer(base6_digits(rolls)),
@@ -45,6 +48,7 @@ impl CanonicalInput {
                 Self::AsciiFacesWithSixAsZero(keystone_legacy_ascii_rolls(rolls))
             }
             ConversionProtocol::JadeDirectV1 => Self::TypedMixedDice(jade.audit_bytes()),
+            ConversionProtocol::BitBox02DirectV1 => Self::TypedD6AndCoins(bitbox.audit_bytes()),
             ConversionProtocol::SeedSignerCoinsV1 => Self::AsciiCoinFlips(flips.ascii_bytes()),
         }
     }
@@ -83,6 +87,7 @@ mod tests {
             &rolls,
             &FlipSequence::new(),
             &JadeCapture::new(),
+            &BitBoxCapture::new(),
         ) else {
             panic!("base-6 representation expected");
         };

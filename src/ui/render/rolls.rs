@@ -1,3 +1,4 @@
+mod bitbox;
 mod jade;
 mod word_exact;
 
@@ -14,6 +15,9 @@ pub(super) fn render_roll_entry(app: &App, width: usize) -> Lines {
     let state = app.ceremony().state();
     if state.protocol() == Some(ConversionProtocol::JadeDirectV1) {
         return jade::render_jade_entry(app, width);
+    }
+    if state.protocol() == Some(ConversionProtocol::BitBox02DirectV1) {
+        return bitbox::render_bitbox_entry(app, width);
     }
     let count = state.capture_count();
     let required = state.required_rolls().unwrap_or(0);
@@ -297,6 +301,13 @@ pub(super) fn roll_count_status(count: usize, assessment: Option<CaptureAssessme
             progress.recorded(),
             progress.completed_words(),
             progress.required_words()
+        ),
+        CaptureProgress::BitBox(progress) => format!(
+            "{} recorded · {}/{} direct positions · {} rejected D6",
+            progress.recorded(),
+            progress.completed_words(),
+            progress.required_words(),
+            progress.rejected_faces()
         ),
         CaptureProgress::WordExact(progress) => format!(
             "{count} recorded · {}/{} word positions accepted",

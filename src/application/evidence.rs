@@ -76,7 +76,7 @@ mod tests {
     };
 
     #[test]
-    fn receipt_contains_only_non_secret_reproduction_metadata() {
+    fn receipt_omits_secret_values_from_reproduction_metadata() {
         let mut ceremony = Ceremony::new();
         ceremony
             .handle(Command::SelectTarget(EntropyTarget::Words12))

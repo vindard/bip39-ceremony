@@ -24,12 +24,16 @@ pub fn trust_boundary(capabilities: BuildCapabilities) -> Document {
 
 #[must_use]
 pub fn reproduction_receipt(receipt: ReproductionReceipt) -> Document {
-    let coin_capture =
-        receipt.protocol() == crate::domain::protocol::ConversionProtocol::SeedSignerCoinsV1;
-    let input_label = if coin_capture { "flips" } else { "rolls" };
-    let secret_label = if coin_capture { "coin sides" } else { "faces" };
+    let (input_label, secret_label) = match receipt.protocol() {
+        crate::domain::protocol::ConversionProtocol::SeedSignerCoinsV1 => ("flips", "coin sides"),
+        crate::domain::protocol::ConversionProtocol::BitBox02DirectV1 => {
+            ("outcomes", "D6 faces and coin sides")
+        }
+        crate::domain::protocol::ConversionProtocol::JadeDirectV1 => ("rolls", "mixed-dice faces"),
+        _ => ("rolls", "faces"),
+    };
     Document::new(
-        "REPRODUCTION METADATA · NON-SECRET".to_owned(),
+        "REPRODUCTION METADATA · SECRET VALUES OMITTED".to_owned(),
         vec![
             B::Paragraph(format!(
                 "Protocol {} · Target {} words · Recorded {input_label} {}",
@@ -38,7 +42,7 @@ pub fn reproduction_receipt(receipt: ReproductionReceipt) -> Document {
                 receipt.input_count()
             )),
             B::Paragraph(format!(
-                "Secret {secret_label} omitted; preserve the exact protocol ID for independent reproduction."
+                "Secret {secret_label} omitted. Counts can reveal rejection history; preserve the exact protocol ID for independent reproduction."
             )),
         ],
     )

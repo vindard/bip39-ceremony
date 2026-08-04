@@ -7,7 +7,9 @@ use crate::domain::{
     coin::CoinFlip,
     dice::DieFace,
     jade::{D8Face, D16Face},
-    protocol::{ConversionProtocol, JadeDieKind, jade_expected_die},
+    protocol::{
+        BitBoxObservationKind, ConversionProtocol, JadeDieKind, bitbox_progress, jade_expected_die,
+    },
 };
 
 use super::{CeremonyError, CeremonyState, Command, Event, Phase};
@@ -96,9 +98,12 @@ impl Ceremony {
             Command::RecordFlip(flip) => Self::record_flip(state, flip),
             Command::RecordJadeD16(face) => Self::record_jade_d16(state, face),
             Command::RecordJadeD8(face) => Self::record_jade_d8(state, face),
+            Command::RecordBitBoxD6(face) => Self::record_bitbox_d6(state, face),
+            Command::RecordBitBoxCoin(flip) => Self::record_bitbox_coin(state, flip),
             Command::UndoRoll => Self::undo_roll(state),
             Command::UndoFlip => Self::undo_flip(state),
             Command::UndoJade => Self::undo_jade(state),
+            Command::UndoBitBox => Self::undo_bitbox(state),
             Command::ConfirmRolls => Self::confirm_rolls(state),
             Command::RestartExactAttempt => Self::restart_exact_attempt(state),
             Command::RevealMnemonic => Self::reveal_mnemonic(state),
@@ -155,7 +160,11 @@ impl Ceremony {
         if state.phase() != Phase::EnterRolls
             || matches!(
                 state.protocol(),
-                Some(ConversionProtocol::SeedSignerCoinsV1 | ConversionProtocol::JadeDirectV1)
+                Some(
+                    ConversionProtocol::SeedSignerCoinsV1
+                        | ConversionProtocol::JadeDirectV1
+                        | ConversionProtocol::BitBox02DirectV1
+                )
             )
         {
             return Err(CeremonyError::WrongPhase);
@@ -209,9 +218,43 @@ impl Ceremony {
         }
     }
 
+    fn record_bitbox_d6(state: &CeremonyState, face: DieFace) -> Result<Event, CeremonyError> {
+        Self::validate_bitbox_record(state, BitBoxObservationKind::D6)?;
+        Ok(Event::BitBoxD6Recorded(face))
+    }
+
+    fn record_bitbox_coin(state: &CeremonyState, flip: CoinFlip) -> Result<Event, CeremonyError> {
+        Self::validate_bitbox_record(state, BitBoxObservationKind::Coin)?;
+        Ok(Event::BitBoxCoinRecorded(flip))
+    }
+
+    fn validate_bitbox_record(
+        state: &CeremonyState,
+        kind: BitBoxObservationKind,
+    ) -> Result<(), CeremonyError> {
+        if state.phase() != Phase::EnterRolls
+            || state.protocol() != Some(ConversionProtocol::BitBox02DirectV1)
+        {
+            return Err(CeremonyError::WrongPhase);
+        }
+        let target = state.target().ok_or(CeremonyError::WrongPhase)?;
+        match bitbox_progress(target, state.bitbox()).expected_kind() {
+            Some(expected) if expected == kind => Ok(()),
+            Some(_) => Err(CeremonyError::UnexpectedObservation),
+            None => Err(CeremonyError::RollLimitReached),
+        }
+    }
+
     fn undo_roll(state: &CeremonyState) -> Result<Event, CeremonyError> {
         if state.phase() != Phase::EnterRolls
-            || state.protocol() == Some(ConversionProtocol::JadeDirectV1)
+            || matches!(
+                state.protocol(),
+                Some(
+                    ConversionProtocol::JadeDirectV1
+                        | ConversionProtocol::BitBox02DirectV1
+                        | ConversionProtocol::SeedSignerCoinsV1
+                )
+            )
         {
             return Err(CeremonyError::WrongPhase);
         }
@@ -245,6 +288,19 @@ impl Ceremony {
             Err(CeremonyError::NoRollsToUndo)
         } else {
             Ok(Event::JadeUndone)
+        }
+    }
+
+    fn undo_bitbox(state: &CeremonyState) -> Result<Event, CeremonyError> {
+        if state.phase() != Phase::EnterRolls
+            || state.protocol() != Some(ConversionProtocol::BitBox02DirectV1)
+        {
+            return Err(CeremonyError::WrongPhase);
+        }
+        if state.bitbox().is_empty() {
+            Err(CeremonyError::NoRollsToUndo)
+        } else {
+            Ok(Event::BitBoxUndone)
         }
     }
 
@@ -338,8 +394,8 @@ mod tests {
         dice::DieFace,
         jade::{D8Face, D16Face},
         protocol::{
-            CaptureAssessment, CaptureProgress, ConversionProtocol, JadeDieKind, WordExactProgress,
-            jade_expected_die,
+            BitBoxStage, CaptureAssessment, CaptureProgress, ConversionProtocol, JadeDieKind,
+            WordExactProgress, bitbox_progress, jade_expected_die,
         },
     };
 
@@ -393,6 +449,21 @@ mod tests {
         let face = DieFace::new(4).unwrap();
         for _ in 0..count {
             ceremony.handle(Command::RecordRoll(face)).unwrap();
+        }
+    }
+
+    fn add_bitbox_zero_capture(ceremony: &mut Ceremony) {
+        let heads = CoinFlip::new(1).unwrap();
+        for _ in 0..11 {
+            for _ in 0..5 {
+                ceremony
+                    .handle(Command::RecordBitBoxD6(DieFace::new(1).unwrap()))
+                    .unwrap();
+            }
+            ceremony.handle(Command::RecordBitBoxCoin(heads)).unwrap();
+        }
+        for _ in 0..7 {
+            ceremony.handle(Command::RecordBitBoxCoin(heads)).unwrap();
         }
     }
 
@@ -748,6 +819,34 @@ mod tests {
         }
         assert!(ceremony.state().can_confirm_rolls());
         assert_eq!(ceremony.state().jade().len(), 35);
+    }
+
+    #[test]
+    fn bitbox_capture_rejects_kinds_and_retries_only_local_d6_faces() {
+        let mut ceremony = configured(ConversionProtocol::BitBox02DirectV1);
+        let heads = CoinFlip::new(1).unwrap();
+        assert_eq!(
+            ceremony.handle(Command::RecordBitBoxCoin(heads)),
+            Err(CeremonyError::UnexpectedObservation)
+        );
+
+        ceremony
+            .handle(Command::RecordBitBoxD6(DieFace::new(6).unwrap()))
+            .unwrap();
+        let state = ceremony.state();
+        let progress = bitbox_progress(EntropyTarget::Words12, state.bitbox());
+        assert_eq!(progress.rejected_faces(), 1);
+        assert!(matches!(progress.stage(), BitBoxStage::DirectWordD6 { .. }));
+        ceremony.handle(Command::UndoBitBox).unwrap();
+        assert!(ceremony.state().bitbox().is_empty());
+
+        add_bitbox_zero_capture(&mut ceremony);
+        assert!(ceremony.state().can_confirm_rolls());
+        assert_eq!(ceremony.state().bitbox().len(), 73);
+        assert_eq!(
+            ceremony.handle(Command::RecordBitBoxCoin(heads)),
+            Err(CeremonyError::RollLimitReached)
+        );
     }
 
     #[test]
