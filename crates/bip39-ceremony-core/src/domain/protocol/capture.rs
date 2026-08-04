@@ -2,6 +2,7 @@ use crate::domain::{
     bip39::EntropyTarget,
     bitbox::BitBoxCapture,
     coin::FlipSequence,
+    d20::D20RollSequence,
     dice::RollSequence,
     jade::{JadeCapture, JadeObservation},
     protocol::{
@@ -122,12 +123,13 @@ impl ConversionProtocol {
                     CaptureAssessment::Collecting(progress)
                 }
             }
-            Self::JadeDirectV1 | Self::BitBox02DirectV1 | Self::SeedSignerCoinsV1 => {
-                CaptureAssessment::Invalid(CaptureProgress::Fixed {
-                    recorded,
-                    required: self.minimum_observations(target),
-                })
-            }
+            Self::JadeDirectV1
+            | Self::BitBox02DirectV1
+            | Self::KruxD20V1
+            | Self::SeedSignerCoinsV1 => CaptureAssessment::Invalid(CaptureProgress::Fixed {
+                recorded,
+                required: self.minimum_observations(target),
+            }),
             Self::ExactV1 | Self::NativeHashV1 => {
                 let required = self.minimum_observations(target);
                 let progress = CaptureProgress::Fixed { recorded, required };
@@ -140,6 +142,28 @@ impl ConversionProtocol {
                     core::cmp::Ordering::Greater => CaptureAssessment::Invalid(progress),
                 }
             }
+        }
+    }
+
+    #[must_use]
+    pub fn assess_d20_capture(
+        self,
+        target: EntropyTarget,
+        rolls: &D20RollSequence,
+    ) -> CaptureAssessment {
+        let recorded = rolls.len();
+        let minimum = self.minimum_observations(target);
+        let progress = CaptureProgress::OpenEnded { recorded, minimum };
+        if self != Self::KruxD20V1 {
+            return CaptureAssessment::Invalid(progress);
+        }
+        if recorded >= minimum {
+            CaptureAssessment::Complete {
+                progress,
+                accepts_optional_rolls: true,
+            }
+        } else {
+            CaptureAssessment::Collecting(progress)
         }
     }
 
@@ -315,6 +339,20 @@ mod tests {
         };
         assert_eq!(progress.recorded(), 74);
         assert_eq!(progress.rejected_faces(), 1);
+    }
+
+    #[test]
+    fn krux_d20_capture_accepts_rolls_beyond_its_minimum() {
+        use crate::domain::d20::{D20Face, D20RollSequence};
+
+        let mut rolls = D20RollSequence::new();
+        for _ in 0..31 {
+            rolls.push(D20Face::new(20).unwrap());
+        }
+        let assessment =
+            ConversionProtocol::KruxD20V1.assess_d20_capture(EntropyTarget::Words12, &rolls);
+        assert!(assessment.is_complete());
+        assert!(assessment.accepts_optional_rolls());
     }
 
     #[test]

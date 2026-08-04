@@ -3,9 +3,9 @@ use std::fmt::Write;
 use bip39::{Language, Mnemonic};
 use bip39_ceremony_core::{
     BitBoxCapture, CalculationError, CalculationOutcome, CanonicalInput, Capture, CoinFlip,
-    ConversionProtocol, D8Face, D16Face, DieFace, Entropy, EntropyTarget, FlipSequence,
-    JadeCapture, JadeDieKind, ProtocolError, RollSequence, bitbox_tail_bits, calculate,
-    jade_expected_die, jade_required_observations,
+    ConversionProtocol, D8Face, D16Face, D20Face, D20RollSequence, DieFace, Entropy, EntropyTarget,
+    FlipSequence, JadeCapture, JadeDieKind, ProtocolError, RollSequence, bitbox_tail_bits,
+    calculate, jade_expected_die, jade_required_observations,
 };
 use bitcoin_hashes::{Hash, sha256};
 
@@ -77,6 +77,14 @@ fn bitbox_asymmetric(target: EntropyTarget) -> BitBoxCapture {
         capture.push_coin(CoinFlip::new(1 - selector).unwrap());
     }
     capture
+}
+
+fn d20_rolls(face: u8, count: usize) -> D20RollSequence {
+    let mut rolls = D20RollSequence::new();
+    for _ in 0..count {
+        rolls.push(D20Face::new(face).unwrap());
+    }
+    rolls
 }
 
 fn rolls(value: &str) -> RollSequence {
@@ -397,6 +405,64 @@ fn bitbox_wrong_observation_kind_is_rejected() {
         .unwrap_err(),
         CalculationError::Protocol(ProtocolError::WrongObservationKind)
     );
+}
+
+#[test]
+fn krux_d20_pinned_vectors_cross_serialization_hash_and_bip39() {
+    for (target, count, entropy, mnemonic) in [
+        (
+            EntropyTarget::Words12,
+            30,
+            "4cf6b2e58bcfee3fa6f6d0618c99bfcd",
+            "erupt remain ride bleak year cabin orange sure ghost gospel husband oppose",
+        ),
+        (
+            EntropyTarget::Words24,
+            60,
+            "5e0ecfd4e5c1ff5e0f2f519b09ab83af6c88ef136045b7be90c4a8d9e9bf1e87",
+            "fun island vivid slide cable pyramid device tuition only essence thought gain silk jealous eternal anger response virus couple faculty ozone test key vocal",
+        ),
+    ] {
+        let rolls = d20_rolls(1, count);
+        let calculation = accepted(target, ConversionProtocol::KruxD20V1, Capture::D20(&rolls));
+        assert_eq!(entropy_hex(calculation.entropy()), entropy);
+        assert_eq!(calculation.mnemonic().words().join(" "), mnemonic);
+        let CanonicalInput::AsciiHyphenatedD20(input) = calculation.evidence().canonical_input()
+        else {
+            panic!("Krux D20 canonical input expected");
+        };
+        assert_eq!(input.len(), count * 2 - 1);
+        assert!(!input.starts_with(b"-"));
+        assert!(!input.ends_with(b"-"));
+    }
+}
+
+#[test]
+fn krux_d20_mixed_face_oracle_fixes_decimal_boundaries() {
+    let mut rolls = D20RollSequence::new();
+    for _ in 0..10 {
+        for face in [1, 10, 20] {
+            rolls.push(D20Face::new(face).unwrap());
+        }
+    }
+    let calculation = accepted(
+        EntropyTarget::Words12,
+        ConversionProtocol::KruxD20V1,
+        Capture::D20(&rolls),
+    );
+    assert_eq!(
+        entropy_hex(calculation.entropy()),
+        "f206c8adb2ef5c50d7eda7a19ee69b51"
+    );
+    assert_eq!(
+        calculation.mnemonic().words().join(" "),
+        "velvet curve clock grape volume chronic garden reject pave warm plug photo"
+    );
+    let CanonicalInput::AsciiHyphenatedD20(input) = calculation.evidence().canonical_input() else {
+        panic!("Krux D20 canonical input expected");
+    };
+    assert!(input.starts_with(b"1-10-20-1-10-20"));
+    assert!(input.ends_with(b"-1-10-20"));
 }
 
 #[test]

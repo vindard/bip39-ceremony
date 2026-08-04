@@ -30,6 +30,7 @@ pub fn reproduction_receipt(receipt: ReproductionReceipt) -> Document {
             ("outcomes", "D6 faces and coin sides")
         }
         crate::domain::protocol::ConversionProtocol::JadeDirectV1 => ("rolls", "mixed-dice faces"),
+        crate::domain::protocol::ConversionProtocol::KruxD20V1 => ("rolls", "D20 faces"),
         _ => ("rolls", "faces"),
     };
     Document::new(

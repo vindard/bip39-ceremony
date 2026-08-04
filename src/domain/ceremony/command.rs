@@ -3,6 +3,7 @@ use core::fmt;
 use crate::domain::{
     bip39::EntropyTarget,
     coin::CoinFlip,
+    d20::D20Face,
     dice::DieFace,
     jade::{D8Face, D16Face},
     protocol::ConversionProtocol,
@@ -22,10 +23,12 @@ pub enum Command {
     RecordJadeD8(D8Face),
     RecordBitBoxD6(DieFace),
     RecordBitBoxCoin(CoinFlip),
+    RecordD20(D20Face),
     UndoRoll,
     UndoFlip,
     UndoJade,
     UndoBitBox,
+    UndoD20,
     ConfirmRolls,
     RestartExactAttempt,
     RevealMnemonic,
@@ -50,10 +53,12 @@ impl fmt::Debug for Command {
             Self::RecordJadeD8(_) => formatter.write_str("RecordJadeD8([REDACTED])"),
             Self::RecordBitBoxD6(_) => formatter.write_str("RecordBitBoxD6([REDACTED])"),
             Self::RecordBitBoxCoin(_) => formatter.write_str("RecordBitBoxCoin([REDACTED])"),
+            Self::RecordD20(_) => formatter.write_str("RecordD20([REDACTED])"),
             Self::UndoRoll => formatter.write_str("UndoRoll"),
             Self::UndoFlip => formatter.write_str("UndoFlip"),
             Self::UndoJade => formatter.write_str("UndoJade"),
             Self::UndoBitBox => formatter.write_str("UndoBitBox"),
+            Self::UndoD20 => formatter.write_str("UndoD20"),
             Self::ConfirmRolls => formatter.write_str("ConfirmRolls"),
             Self::RestartExactAttempt => formatter.write_str("RestartExactAttempt"),
             Self::RevealMnemonic => formatter.write_str("RevealMnemonic"),
@@ -79,5 +84,8 @@ mod tests {
         let bitbox = format!("{:?}", Command::RecordBitBoxD6(DieFace::new(5).unwrap()));
         assert_eq!(bitbox, "RecordBitBoxD6([REDACTED])");
         assert!(!bitbox.contains('5'));
+
+        let d20 = format!("{:?}", Command::RecordD20(D20Face::new(20).unwrap()));
+        assert_eq!(d20, "RecordD20([REDACTED])");
     }
 }

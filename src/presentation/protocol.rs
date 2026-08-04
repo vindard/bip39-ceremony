@@ -71,6 +71,7 @@ pub fn protocol_explanation(protocol: ConversionProtocol, target: EntropyTarget)
             ],
         ),
         ConversionProtocol::BitBox02DirectV1 => bitbox_explanation(specification, target),
+        ConversionProtocol::KruxD20V1 => krux_d20_explanation(target),
         ConversionProtocol::SeedSignerCoinsV1 => Document::new(
             "SEEDSIGNER COIN FLIPS".to_owned(),
             vec![
@@ -89,6 +90,28 @@ pub fn protocol_explanation(protocol: ConversionProtocol, target: EntropyTarget)
             ],
         ),
     }
+}
+
+fn krux_d20_explanation(target: EntropyTarget) -> Document {
+    Document::new(
+        "KRUX D20".to_owned(),
+        vec![
+            B::Heading("KRUX D20 · HYPHENATED DECIMAL HASH".to_owned()),
+            B::Heading("PURPOSE".to_owned()),
+            B::Paragraph("Reproduce Krux's D20 roll-to-mnemonic conversion for the same ordered faces, final count, and target.".to_owned()),
+            B::Heading("CANONICAL INPUT".to_owned()),
+            B::Paragraph("Write each D20 face as unpadded decimal ASCII and place one ASCII hyphen between faces. Include no leading/trailing hyphen or newline.".to_owned()),
+            B::Verbatim("faces:  1, 10, 20\nbytes:  31 2d 31 30 2d 32 30\ntext:   1-10-20".to_owned()),
+            B::Heading("HASH AND OUTPUT".to_owned()),
+            B::Paragraph(if target == EntropyTarget::Words12 {
+                "After at least 30 rolls, hash the complete text once with SHA-256 and use the first 16 digest bytes as BIP-39 entropy.".to_owned()
+            } else {
+                "After at least 60 rolls, hash the complete text once with SHA-256 and use all 32 digest bytes as BIP-39 entropy.".to_owned()
+            }),
+            B::Paragraph("Additional D20 rolls are accepted and change the final digest. Hashing does not create entropy or establish die fairness.".to_owned()),
+            B::Paragraph("Compatibility covers Krux's deterministic conversion. Its advisory Shannon estimate, pattern warning, keypad, and complete device interaction are outside this profile.".to_owned()),
+        ],
+    )
 }
 
 fn bitbox_explanation(specification: ProtocolSpecification, target: EntropyTarget) -> Document {
@@ -127,13 +150,9 @@ pub fn protocol_menu_explanation(choice: ProtocolMenuChoice, target: EntropyTarg
             "The published source establishes a 24-word workflow but does not establish how a legacy Keystone device produced 12 words from dice.",
             "Choose 24 words to use the implemented, vector-tested profile. A guessed 12-word adaptation would not be a compatibility protocol.",
         ),
-        ProtocolMenuChoice::KruxD20 => (
-            "Reproduce Krux's D20 mnemonic-generation mode.",
-            "Krux documents hashing the cumulative D20 outcome string with SHA-256, then encoding the target-width digest material as BIP-39.",
-            "Exact outcome serialization, roll completion, and versioned vectors must be pinned before implementation. Krux D20 is not its COLDCARD-compatible D6 mode.",
-        ),
         ProtocolMenuChoice::JadeDirectWords
         | ProtocolMenuChoice::BitBoxDiceware
+        | ProtocolMenuChoice::KruxD20
         | ProtocolMenuChoice::SeedSignerCoins
         | ProtocolMenuChoice::Coldcard
         | ProtocolMenuChoice::WordExact
@@ -392,6 +411,18 @@ mod tests {
         assert!(text.contains("all 4 + tails → zoo"));
         assert!(text.contains("Flip three additional coins"));
         assert!(text.contains("compatibility is limited to the published table"));
+    }
+
+    #[test]
+    fn krux_document_fixes_decimal_separator_and_compatibility_scope() {
+        let text = format!(
+            "{:?}",
+            protocol_explanation(ConversionProtocol::KruxD20V1, EntropyTarget::Words12).blocks()
+        );
+        assert!(text.contains("31 2d 31 30 2d 32 30"));
+        assert!(text.contains("at least 30 rolls"));
+        assert!(text.contains("Additional D20 rolls are accepted"));
+        assert!(text.contains("Shannon estimate"));
     }
 
     #[test]

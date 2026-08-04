@@ -11,6 +11,7 @@ pub enum CanonicalInputKind {
     AsciiFacesWithSixAsZero,
     TypedMixedDice,
     TypedD6AndCoins,
+    AsciiHyphenatedD20,
     AsciiCoinFlips,
 }
 
@@ -34,6 +35,7 @@ pub enum Compatibility {
     KeystoneLegacy,
     JadeTable,
     BitBoxTable,
+    Krux,
     SeedSigner,
 }
 
@@ -133,6 +135,12 @@ impl ConversionProtocol {
                 Compatibility::BitBoxTable,
                 false,
             ),
+            Self::KruxD20V1 => (
+                CanonicalInputKind::AsciiHyphenatedD20,
+                RejectionPolicy::None,
+                Compatibility::Krux,
+                true,
+            ),
             Self::SeedSignerCoinsV1 => (
                 CanonicalInputKind::AsciiCoinFlips,
                 RejectionPolicy::None,
@@ -209,6 +217,18 @@ mod tests {
             RejectionPolicy::LocalizedD6ToBase4
         );
         assert_eq!(specification.compatibility(), Compatibility::BitBoxTable);
+    }
+
+    #[test]
+    fn krux_specification_exposes_hyphenated_open_capture() {
+        let specification = ConversionProtocol::KruxD20V1.specification(EntropyTarget::Words12);
+        assert_eq!(specification.minimum_observations(), 30);
+        assert_eq!(
+            specification.canonical_input(),
+            CanonicalInputKind::AsciiHyphenatedD20
+        );
+        assert_eq!(specification.compatibility(), Compatibility::Krux);
+        assert!(specification.accepts_optional_rolls());
     }
 
     #[test]

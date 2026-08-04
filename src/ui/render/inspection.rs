@@ -150,6 +150,13 @@ fn render_snapshot_rolls(snapshot: &InspectionSnapshot, width: usize) -> Lines {
             "outcomes",
             "Snapshots show structure, not secret D6 or coin values.",
         ),
+        Some(ConversionProtocol::KruxD20V1) => (
+            "PHYSICAL D20 SNAPSHOT",
+            "◆ D20 VALUES CONCEALED",
+            "  No D20 rolls recorded at this position.",
+            "faces",
+            "Snapshots show structure, not secret D20 values.",
+        ),
         _ => (
             "PHYSICAL D6 SNAPSHOT",
             "◆ ROLL VALUES CONCEALED",

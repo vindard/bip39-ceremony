@@ -83,6 +83,14 @@ pub fn readiness_document(readiness: CaptureReadiness) -> Document {
                 "○ The checksum and final word will be calculated, not chosen.".to_owned(),
             ),
         ],
+        ReadinessKind::KruxD20 => vec![
+            B::Paragraph(format!(
+                "✓ KRUX D20 MINIMUM MET · {} rolls recorded",
+                readiness.recorded()
+            )),
+            B::Paragraph("✓ Decimal D20 faces are separated by ASCII hyphens.".to_owned()),
+            B::Paragraph("Additional Krux-compatible D20 rolls are optional.".to_owned()),
+        ],
         ReadinessKind::SeedSignerCoins => vec![
             B::Paragraph(format!(
                 "✓ EXACT SEEDSIGNER COUNT · {} flips recorded",

@@ -10,6 +10,7 @@ pub enum ConversionProtocol {
     KeystoneLegacyV1,
     JadeDirectV1,
     BitBox02DirectV1,
+    KruxD20V1,
     SeedSignerCoinsV1,
 }
 
@@ -24,6 +25,7 @@ impl ConversionProtocol {
             Self::KeystoneLegacyV1 => "keystone-legacy-v1",
             Self::JadeDirectV1 => "jade-direct-v1",
             Self::BitBox02DirectV1 => "bitbox02-direct-v1",
+            Self::KruxD20V1 => "krux-d20-v1",
             Self::SeedSignerCoinsV1 => "seedsigner-coins-v1",
         }
     }
@@ -38,6 +40,8 @@ impl ConversionProtocol {
             (Self::JadeDirectV1, EntropyTarget::Words12) => 35,
             (Self::BitBox02DirectV1, EntropyTarget::Words12) => 73,
             (Self::BitBox02DirectV1, EntropyTarget::Words24) => 141,
+            (Self::KruxD20V1, EntropyTarget::Words12) => 30,
+            (Self::KruxD20V1, EntropyTarget::Words24) => 60,
             (Self::SeedSignerCoinsV1, target) => target.entropy_bits(),
             (_, target) => target.strict_roll_count(),
         }
@@ -76,6 +80,7 @@ mod tests {
                 73,
                 141,
             ),
+            (ConversionProtocol::KruxD20V1, "krux-d20-v1", 30, 60),
             (
                 ConversionProtocol::SeedSignerCoinsV1,
                 "seedsigner-coins-v1",

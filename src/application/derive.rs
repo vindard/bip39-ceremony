@@ -128,6 +128,9 @@ fn render_canonical_input(input: &CanonicalInput) -> String {
             }
             output
         }
+        CanonicalInput::AsciiHyphenatedD20(rolls) => {
+            format!("ascii-hyphenated-d20:{}", ascii(rolls))
+        }
         CanonicalInput::AsciiCoinFlips(flips) => format!("ascii-coin-flips:{}", ascii(flips)),
     }
 }

@@ -64,11 +64,15 @@ just run
 - **BitBox02 Diceware:** five D6 faces accepted only in `1`–`4` plus one coin
   side select each direct word using [BitBox02's published table][bitbox-guide].
   Rejected `5`/`6` attempts retry locally; final coins supply the entropy tail.
+- **Krux D20:** at least 30 or 60 D20 rolls serialized as hyphen-separated
+  decimal faces, matching [Krux's documented implementation][krux-guide].
+  Additional rolls are accepted before hashing with SHA-256.
 - **SeedSigner coin flips:** exactly 128 or 256 physical flips serialized as
   ASCII `0`/`1`, hashed with SHA-256, then truncated for 12 words when needed.
 
 [jade-guide]: https://help.blockstream.com/blockstream-jade/add-more-security-functionality/create-a-recovery-phrase-using-dice
 [bitbox-guide]: https://blog.bitbox.swiss/en/roll-the-dice-generate-your-own-seed/
+[krux-guide]: https://selfcustody.github.io/krux/getting-started/usage/generating-a-mnemonic/
 
 All selectable protocols produce ordinary BIP-39 output. The protocol matters
 only when reproducing a mnemonic from its original rolls. The frozen
@@ -109,7 +113,8 @@ Physical input uses a fixed capture workspace. D6 protocols accept `1` through
 mixed-dice capture accepts `1`–`9` and uppercase `A`–`G` for D16 faces 1–16,
 then `1`–`8` for D8 faces. BitBox02 capture alternates stage-aware D6 keys with
 `0` tails / `1` heads; its lookup selector maps heads to 0 and tails to 1.
-Backspace removes only the latest observation, while
+Krux D20 accepts `1`–`9` and uppercase `A`–`K` for faces 10–20. Backspace
+removes only the latest observation, while
 the next position and remaining count
 stay stationary. Inputs are secret, so prior values are hidden by default while
 the numbered latest outcome remains visible; `h` toggles the complete zero-padded

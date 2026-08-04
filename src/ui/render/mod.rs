@@ -84,7 +84,11 @@ pub(super) fn scroll_limit(app: &App, width: u16, height: u16) -> usize {
         if word_exact_assignments
             || matches!(
                 protocol,
-                Some(ConversionProtocol::JadeDirectV1 | ConversionProtocol::BitBox02DirectV1)
+                Some(
+                    ConversionProtocol::JadeDirectV1
+                        | ConversionProtocol::BitBox02DirectV1
+                        | ConversionProtocol::KruxD20V1
+                )
             )
         {
             let body = render_live(app, width.saturating_sub(4));
@@ -542,7 +546,11 @@ fn roll_footer(app: &App) -> String {
     let state = app.ceremony().state();
     if matches!(
         state.protocol(),
-        Some(ConversionProtocol::JadeDirectV1 | ConversionProtocol::BitBox02DirectV1)
+        Some(
+            ConversionProtocol::JadeDirectV1
+                | ConversionProtocol::BitBox02DirectV1
+                | ConversionProtocol::KruxD20V1
+        )
     ) {
         return if state.can_confirm_rolls() {
             "[q] cancel  [h] ledger  [↑/↓] scroll  [Enter] generate  [⌫] undo".to_owned()
@@ -1040,7 +1048,6 @@ mod tests {
             "BitBox02 Diceware",
             "Krux D20",
             "SeedSigner coin flips",
-            "PLACEHOLDER",
         ] {
             assert!(output.contains(expected), "missing {expected}");
         }
@@ -1132,6 +1139,29 @@ mod tests {
     }
 
     #[test]
+    fn krux_d20_choice_and_capture_workspace_are_operational() {
+        let mut app = App::default();
+        app.update(Key::Char('\n'));
+        for _ in 0..6 {
+            app.update(Key::Down);
+        }
+        let menu = render(&app, 80, 40);
+        assert!(menu.contains("▶ Krux D20"));
+        assert!(menu.contains("min 30 rolls"));
+        assert!(menu.contains("[Enter] next"));
+
+        app.update(Key::Char('\n'));
+        app.update(Key::Char('c'));
+        app.update(Key::Char('\n'));
+        app.update(Key::Char('K'));
+        let capture = render(&app, 80, 40);
+        assert!(capture.contains("PHYSICAL D20 CAPTURE · ROLLS ARE SECRET"));
+        assert!(capture.contains("D20 FACE 20"));
+        assert!(capture.contains("uppercase [A–K]"));
+        assert!(capture.contains("29 remaining"));
+    }
+
+    #[test]
     fn jade_twenty_four_word_ledger_scrolls_at_minimum_size() {
         let mut app = App::default();
         app.update(Key::Down);
@@ -1189,6 +1219,32 @@ mod tests {
         let bottom = render(&app, 52, 40);
         assert!(bottom.contains("ALL BITBOX TABLE POSITIONS + ENTROPY TAIL"));
         assert!(bottom.contains("[Enter] confirm and generate"));
+    }
+
+    #[test]
+    fn krux_twenty_four_word_ledger_scrolls_to_open_completion() {
+        let mut app = App::default();
+        app.update(Key::Down);
+        app.update(Key::Char('\n'));
+        for _ in 0..6 {
+            app.update(Key::Down);
+        }
+        app.update(Key::Char('\n'));
+        app.update(Key::Char('c'));
+        app.update(Key::Char('\n'));
+        for _ in 0..60 {
+            app.update(Key::Char('1'));
+        }
+        app.update(Key::Char('h'));
+
+        let limit = scroll_limit(&app, 52, 40);
+        assert!(limit > 0);
+        for _ in 0..limit.div_ceil(4) {
+            app.update_bounded(Key::PageDown, limit);
+        }
+        let bottom = render(&app, 52, 40);
+        assert!(bottom.contains("KRUX D20 MINIMUM MET"));
+        assert!(bottom.contains("Additional Krux-compatible"));
     }
 
     #[test]

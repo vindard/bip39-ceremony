@@ -5,6 +5,7 @@ use zeroize::Zeroize;
 use crate::domain::{
     bip39::EntropyTarget,
     coin::CoinFlip,
+    d20::D20Face,
     dice::DieFace,
     jade::{D8Face, D16Face},
     protocol::{
@@ -100,10 +101,12 @@ impl Ceremony {
             Command::RecordJadeD8(face) => Self::record_jade_d8(state, face),
             Command::RecordBitBoxD6(face) => Self::record_bitbox_d6(state, face),
             Command::RecordBitBoxCoin(flip) => Self::record_bitbox_coin(state, flip),
+            Command::RecordD20(face) => Self::record_d20(state, face),
             Command::UndoRoll => Self::undo_roll(state),
             Command::UndoFlip => Self::undo_flip(state),
             Command::UndoJade => Self::undo_jade(state),
             Command::UndoBitBox => Self::undo_bitbox(state),
+            Command::UndoD20 => Self::undo_d20(state),
             Command::ConfirmRolls => Self::confirm_rolls(state),
             Command::RestartExactAttempt => Self::restart_exact_attempt(state),
             Command::RevealMnemonic => Self::reveal_mnemonic(state),
@@ -164,6 +167,7 @@ impl Ceremony {
                     ConversionProtocol::SeedSignerCoinsV1
                         | ConversionProtocol::JadeDirectV1
                         | ConversionProtocol::BitBox02DirectV1
+                        | ConversionProtocol::KruxD20V1
                 )
             )
         {
@@ -245,6 +249,21 @@ impl Ceremony {
         }
     }
 
+    fn record_d20(state: &CeremonyState, face: D20Face) -> Result<Event, CeremonyError> {
+        if state.phase() != Phase::EnterRolls
+            || state.protocol() != Some(ConversionProtocol::KruxD20V1)
+        {
+            return Err(CeremonyError::WrongPhase);
+        }
+        let Some(assessment) = state.capture_assessment() else {
+            return Err(CeremonyError::WrongPhase);
+        };
+        if !assessment.can_record_more() {
+            return Err(CeremonyError::RollLimitReached);
+        }
+        Ok(Event::D20Recorded(face))
+    }
+
     fn undo_roll(state: &CeremonyState) -> Result<Event, CeremonyError> {
         if state.phase() != Phase::EnterRolls
             || matches!(
@@ -253,6 +272,7 @@ impl Ceremony {
                     ConversionProtocol::JadeDirectV1
                         | ConversionProtocol::BitBox02DirectV1
                         | ConversionProtocol::SeedSignerCoinsV1
+                        | ConversionProtocol::KruxD20V1
                 )
             )
         {
@@ -301,6 +321,19 @@ impl Ceremony {
             Err(CeremonyError::NoRollsToUndo)
         } else {
             Ok(Event::BitBoxUndone)
+        }
+    }
+
+    fn undo_d20(state: &CeremonyState) -> Result<Event, CeremonyError> {
+        if state.phase() != Phase::EnterRolls
+            || state.protocol() != Some(ConversionProtocol::KruxD20V1)
+        {
+            return Err(CeremonyError::WrongPhase);
+        }
+        if state.d20().is_empty() {
+            Err(CeremonyError::NoRollsToUndo)
+        } else {
+            Ok(Event::D20Undone)
         }
     }
 
@@ -391,6 +424,7 @@ mod tests {
         bip39::{BackupVerifier, EntropyTarget, VerifiedMnemonicBackup, WordSubmission},
         ceremony::{CeremonyError, Command, Event, Phase},
         coin::CoinFlip,
+        d20::D20Face,
         dice::DieFace,
         jade::{D8Face, D16Face},
         protocol::{
@@ -847,6 +881,28 @@ mod tests {
             ceremony.handle(Command::RecordBitBoxCoin(heads)),
             Err(CeremonyError::RollLimitReached)
         );
+    }
+
+    #[test]
+    fn krux_d20_capture_supports_undo_minimum_and_extra_rolls() {
+        let mut ceremony = configured(ConversionProtocol::KruxD20V1);
+        ceremony
+            .handle(Command::RecordD20(D20Face::new(20).unwrap()))
+            .unwrap();
+        ceremony.handle(Command::UndoD20).unwrap();
+        assert!(ceremony.state().d20().is_empty());
+
+        for _ in 0..30 {
+            ceremony
+                .handle(Command::RecordD20(D20Face::new(1).unwrap()))
+                .unwrap();
+        }
+        assert!(ceremony.state().can_confirm_rolls());
+        ceremony
+            .handle(Command::RecordD20(D20Face::new(20).unwrap()))
+            .unwrap();
+        assert_eq!(ceremony.state().d20().len(), 31);
+        assert_eq!(ceremony.handle(Command::ConfirmRolls), Ok(()));
     }
 
     #[test]

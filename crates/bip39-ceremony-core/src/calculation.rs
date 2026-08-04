@@ -8,12 +8,13 @@ use crate::domain::{
     bip39::{Bip39Error, EnglishMnemonic, Entropy, EntropyTarget},
     bitbox::BitBoxCapture,
     coin::FlipSequence,
+    d20::D20RollSequence,
     dice::RollSequence,
     jade::JadeCapture,
     protocol::{
         CanonicalInput, ConversionProtocol, ExactOutcome, ProtocolError, bitbox_entropy,
         coldcard_ascii_rolls, exact_entropy, jade_entropy, keystone_legacy_ascii_rolls,
-        native_hash_header, word_exact_entropy,
+        krux_d20_ascii_rolls, native_hash_header, word_exact_entropy,
     },
 };
 
@@ -23,6 +24,7 @@ pub enum Capture<'a> {
     Dice(&'a RollSequence),
     Jade(&'a JadeCapture),
     BitBox(&'a BitBoxCapture),
+    D20(&'a D20RollSequence),
     Coins(&'a FlipSequence),
 }
 
@@ -32,6 +34,7 @@ impl fmt::Debug for Capture<'_> {
             Self::Dice(rolls) => ("dice", rolls.len()),
             Self::Jade(capture) => ("jade-mixed-dice", capture.len()),
             Self::BitBox(capture) => ("bitbox-d6-coins", capture.len()),
+            Self::D20(rolls) => ("d20", rolls.len()),
             Self::Coins(flips) => ("coins", flips.len()),
         };
         formatter
@@ -181,22 +184,27 @@ pub fn calculate(
         (ConversionProtocol::BitBox02DirectV1, Capture::BitBox(capture)) => {
             bitbox_entropy(target, capture)?
         }
+        (ConversionProtocol::KruxD20V1, Capture::D20(rolls)) => krux_d20_entropy(target, rolls)?,
         (ConversionProtocol::SeedSignerCoinsV1, Capture::Coins(flips)) => {
             seedsigner_coin_entropy(target, flips)?
         }
         (
             ConversionProtocol::JadeDirectV1,
-            Capture::Dice(_) | Capture::BitBox(_) | Capture::Coins(_),
+            Capture::Dice(_) | Capture::BitBox(_) | Capture::D20(_) | Capture::Coins(_),
         )
         | (
             ConversionProtocol::BitBox02DirectV1,
-            Capture::Dice(_) | Capture::Jade(_) | Capture::Coins(_),
+            Capture::Dice(_) | Capture::Jade(_) | Capture::D20(_) | Capture::Coins(_),
         )
         | (
             ConversionProtocol::SeedSignerCoinsV1,
-            Capture::Dice(_) | Capture::Jade(_) | Capture::BitBox(_),
+            Capture::Dice(_) | Capture::Jade(_) | Capture::BitBox(_) | Capture::D20(_),
         )
-        | (_, Capture::Coins(_) | Capture::Jade(_) | Capture::BitBox(_)) => {
+        | (
+            ConversionProtocol::KruxD20V1,
+            Capture::Dice(_) | Capture::Jade(_) | Capture::BitBox(_) | Capture::Coins(_),
+        )
+        | (_, Capture::Coins(_) | Capture::Jade(_) | Capture::BitBox(_) | Capture::D20(_)) => {
             return Err(CalculationError::CaptureKind);
         }
         (ConversionProtocol::ExactV1, Capture::Dice(rolls)) => {
@@ -255,6 +263,21 @@ fn keystone_legacy_entropy(
     Ok(hash_entropy(target, &[ascii.as_slice()]))
 }
 
+fn krux_d20_entropy(
+    target: EntropyTarget,
+    rolls: &D20RollSequence,
+) -> Result<Entropy, ProtocolError> {
+    let protocol = ConversionProtocol::KruxD20V1;
+    if !protocol.assess_d20_capture(target, rolls).is_complete() {
+        return Err(ProtocolError::WrongObservationCount {
+            expected: protocol.minimum_observations(target),
+            actual: rolls.len(),
+        });
+    }
+    let ascii = krux_d20_ascii_rolls(rolls);
+    Ok(hash_entropy(target, &[ascii.as_slice()]))
+}
+
 fn seedsigner_coin_entropy(
     target: EntropyTarget,
     flips: &FlipSequence,
@@ -309,14 +332,16 @@ fn evidence(
     let empty_flips = FlipSequence::new();
     let empty_jade = JadeCapture::new();
     let empty_bitbox = BitBoxCapture::new();
-    let (rolls, flips, jade, bitbox) = match capture {
-        Capture::Dice(rolls) => (rolls, &empty_flips, &empty_jade, &empty_bitbox),
-        Capture::Jade(jade) => (&empty_rolls, &empty_flips, jade, &empty_bitbox),
-        Capture::BitBox(bitbox) => (&empty_rolls, &empty_flips, &empty_jade, bitbox),
-        Capture::Coins(flips) => (&empty_rolls, flips, &empty_jade, &empty_bitbox),
+    let empty_d20 = D20RollSequence::new();
+    let (rolls, flips, jade, bitbox, d20) = match capture {
+        Capture::Dice(rolls) => (rolls, &empty_flips, &empty_jade, &empty_bitbox, &empty_d20),
+        Capture::Jade(jade) => (&empty_rolls, &empty_flips, jade, &empty_bitbox, &empty_d20),
+        Capture::BitBox(bitbox) => (&empty_rolls, &empty_flips, &empty_jade, bitbox, &empty_d20),
+        Capture::D20(d20) => (&empty_rolls, &empty_flips, &empty_jade, &empty_bitbox, d20),
+        Capture::Coins(flips) => (&empty_rolls, flips, &empty_jade, &empty_bitbox, &empty_d20),
     };
     let canonical_input =
-        CanonicalInput::from_capture(protocol, target, rolls, flips, jade, bitbox);
+        CanonicalInput::from_capture(protocol, target, rolls, flips, jade, bitbox, d20);
     let mut digest = sha256(&[entropy.bytes()]);
     let checksum_length = target.entropy_bits() / 32;
     let checksum_bits = (0..checksum_length)

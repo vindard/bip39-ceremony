@@ -2,6 +2,7 @@ use crate::domain::{
     bip39::EntropyTarget,
     bitbox::BitBoxCapture,
     coin::FlipSequence,
+    d20::D20RollSequence,
     dice::RollSequence,
     jade::JadeCapture,
     protocol::{CaptureAssessment, ConversionProtocol},
@@ -33,6 +34,7 @@ pub struct CeremonyState {
     flips: FlipSequence,
     jade: JadeCapture,
     bitbox: BitBoxCapture,
+    d20: D20RollSequence,
     safety_acknowledged: bool,
     generation_succeeded: bool,
     mnemonic_backup_verified: bool,
@@ -48,6 +50,7 @@ impl Default for CeremonyState {
             flips: FlipSequence::new(),
             jade: JadeCapture::new(),
             bitbox: BitBoxCapture::new(),
+            d20: D20RollSequence::new(),
             safety_acknowledged: false,
             generation_succeeded: false,
             mnemonic_backup_verified: false,
@@ -87,11 +90,17 @@ impl CeremonyState {
     }
 
     #[must_use]
+    pub fn d20(&self) -> &D20RollSequence {
+        &self.d20
+    }
+
+    #[must_use]
     pub fn capture_count(&self) -> usize {
         match self.protocol {
             Some(ConversionProtocol::SeedSignerCoinsV1) => self.flips.len(),
             Some(ConversionProtocol::JadeDirectV1) => self.jade.len(),
             Some(ConversionProtocol::BitBox02DirectV1) => self.bitbox.len(),
+            Some(ConversionProtocol::KruxD20V1) => self.d20.len(),
             _ => self.rolls.len(),
         }
     }
@@ -142,6 +151,7 @@ impl CeremonyState {
                 ConversionProtocol::BitBox02DirectV1 => {
                     protocol.assess_bitbox_capture(target, &self.bitbox)
                 }
+                ConversionProtocol::KruxD20V1 => protocol.assess_d20_capture(target, &self.d20),
                 _ => protocol.assess_capture(target, &self.rolls),
             })
     }
@@ -180,6 +190,7 @@ impl CeremonyState {
             Event::JadeD8Recorded(face) => self.jade.push_d8(*face),
             Event::BitBoxD6Recorded(face) => self.bitbox.push_d6(*face),
             Event::BitBoxCoinRecorded(flip) => self.bitbox.push_coin(*flip),
+            Event::D20Recorded(face) => self.d20.push(*face),
             Event::RollUndone => {
                 let removed = self.rolls.remove_last();
                 assert!(removed, "undo events require an active roll");
@@ -195,6 +206,10 @@ impl CeremonyState {
             Event::BitBoxUndone => {
                 let removed = self.bitbox.remove_last();
                 assert!(removed, "undo events require an active BitBox observation");
+            }
+            Event::D20Undone => {
+                let removed = self.d20.remove_last();
+                assert!(removed, "undo events require an active D20 roll");
             }
             Event::RollsConfirmed => self.phase = Phase::ReadyToGenerate,
             Event::GenerationSucceeded => {
@@ -216,6 +231,7 @@ impl CeremonyState {
         self.flips = FlipSequence::new();
         self.jade = JadeCapture::new();
         self.bitbox = BitBoxCapture::new();
+        self.d20 = D20RollSequence::new();
         self.phase = Phase::EnterRolls;
     }
 }

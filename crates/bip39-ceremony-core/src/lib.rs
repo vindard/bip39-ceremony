@@ -16,6 +16,7 @@ pub use domain::{
     bip39::{Bip39Error, EnglishMnemonic, Entropy, EntropyTarget},
     bitbox::{BitBoxCapture, BitBoxObservation},
     coin::{CoinFlip, FlipSequence, InvalidCoinFlip},
+    d20::{D20Face, D20RollSequence, InvalidD20Face},
     dice::{DieFace, InvalidDieFace, RollSequence},
     jade::{D8Face, D16Face, InvalidD8Face, InvalidD16Face, JadeCapture, JadeObservation},
     protocol::{

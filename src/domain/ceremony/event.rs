@@ -5,6 +5,7 @@ use zeroize::Zeroize;
 use crate::domain::{
     bip39::EntropyTarget,
     coin::CoinFlip,
+    d20::D20Face,
     dice::DieFace,
     jade::{D8Face, D16Face},
     protocol::ConversionProtocol,
@@ -24,10 +25,12 @@ pub(crate) enum Event {
     JadeD8Recorded(D8Face),
     BitBoxD6Recorded(DieFace),
     BitBoxCoinRecorded(CoinFlip),
+    D20Recorded(D20Face),
     RollUndone,
     FlipUndone,
     JadeUndone,
     BitBoxUndone,
+    D20Undone,
     RollsConfirmed,
     GenerationSucceeded,
     ExactAttemptRejected,
@@ -44,6 +47,7 @@ impl Zeroize for Event {
             Self::FlipRecorded(flip) | Self::BitBoxCoinRecorded(flip) => flip.zeroize(),
             Self::JadeD16Recorded(face) => face.zeroize(),
             Self::JadeD8Recorded(face) => face.zeroize(),
+            Self::D20Recorded(face) => face.zeroize(),
             _ => {}
         }
         *self = Self::CeremonyCancelled;
@@ -70,10 +74,12 @@ impl fmt::Debug for Event {
             Self::JadeD8Recorded(_) => formatter.write_str("JadeD8Recorded([REDACTED])"),
             Self::BitBoxD6Recorded(_) => formatter.write_str("BitBoxD6Recorded([REDACTED])"),
             Self::BitBoxCoinRecorded(_) => formatter.write_str("BitBoxCoinRecorded([REDACTED])"),
+            Self::D20Recorded(_) => formatter.write_str("D20Recorded([REDACTED])"),
             Self::RollUndone => formatter.write_str("RollUndone"),
             Self::FlipUndone => formatter.write_str("FlipUndone"),
             Self::JadeUndone => formatter.write_str("JadeUndone"),
             Self::BitBoxUndone => formatter.write_str("BitBoxUndone"),
+            Self::D20Undone => formatter.write_str("D20Undone"),
             Self::RollsConfirmed => formatter.write_str("RollsConfirmed"),
             Self::GenerationSucceeded => formatter.write_str("GenerationSucceeded"),
             Self::ExactAttemptRejected => formatter.write_str("ExactAttemptRejected"),

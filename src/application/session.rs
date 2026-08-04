@@ -111,6 +111,7 @@ impl CeremonySession {
             ConversionProtocol::SeedSignerCoinsV1 => Capture::Coins(state.flips()),
             ConversionProtocol::JadeDirectV1 => Capture::Jade(state.jade()),
             ConversionProtocol::BitBox02DirectV1 => Capture::BitBox(state.bitbox()),
+            ConversionProtocol::KruxD20V1 => Capture::D20(state.d20()),
             _ => Capture::Dice(state.rolls()),
         };
         let outcome = calculate(target, protocol, capture)?;

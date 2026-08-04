@@ -11,6 +11,7 @@ use crate::{
         bip39::{BackupVerifier, EntropyTarget},
         ceremony::{Command, Phase},
         coin::CoinFlip,
+        d20::D20Face,
         dice::DieFace,
         inspection::InspectionSnapshot,
         jade::{D8Face, D16Face},
@@ -480,6 +481,10 @@ impl App {
             self.enter_bitbox_observation(key);
             return;
         }
+        if self.ceremony().state().protocol() == Some(ConversionProtocol::KruxD20V1) {
+            self.enter_d20_roll(key);
+            return;
+        }
         if self.ceremony().state().protocol() == Some(ConversionProtocol::SeedSignerCoinsV1) {
             self.enter_flip(key);
             return;
@@ -575,6 +580,30 @@ impl App {
         }
     }
 
+    fn enter_d20_roll(&mut self, key: Key) {
+        if matches!(key, Key::Backspace | Key::Delete) {
+            self.handle(Command::UndoD20);
+            return;
+        }
+        if self.enter_capture_control(key) {
+            return;
+        }
+        if let Key::Char(character) = key {
+            let value = match character {
+                '1'..='9' => character
+                    .to_digit(10)
+                    .and_then(|value| u8::try_from(value).ok()),
+                'A'..='K' => Some(10 + (character as u8 - b'A')),
+                _ => None,
+            };
+            if let Some(face) = value.and_then(|value| D20Face::new(value).ok()) {
+                self.handle(Command::RecordD20(face));
+            } else {
+                self.message = Some("D20: use 1–9 or uppercase A–K for faces 10–20.".to_owned());
+            }
+        }
+    }
+
     fn enter_flip(&mut self, key: Key) {
         match key {
             Key::Char(character @ ('0' | '1')) => {
@@ -643,7 +672,11 @@ impl App {
         self.word_exact_assignments_active()
             || matches!(
                 self.ceremony().state().protocol(),
-                Some(ConversionProtocol::JadeDirectV1 | ConversionProtocol::BitBox02DirectV1)
+                Some(
+                    ConversionProtocol::JadeDirectV1
+                        | ConversionProtocol::BitBox02DirectV1
+                        | ConversionProtocol::KruxD20V1
+                )
             )
     }
 
@@ -894,6 +927,7 @@ mod tests {
                 ConversionProtocol::ExactV1 => 2,
                 ConversionProtocol::JadeDirectV1 => 4,
                 ConversionProtocol::BitBox02DirectV1 => 5,
+                ConversionProtocol::KruxD20V1 => 6,
                 ConversionProtocol::SeedSignerCoinsV1 => 7,
                 ConversionProtocol::NativeHashV1 | ConversionProtocol::KeystoneLegacyV1 => {
                     unreachable!()
@@ -1213,6 +1247,26 @@ mod tests {
         app.update(Key::Char('\n'));
         assert_eq!(app.ceremony().state().phase(), Phase::Result);
         assert_eq!(app.generation().unwrap().mnemonic().words()[0], "abandon");
+    }
+
+    #[test]
+    fn krux_d20_capture_accepts_encoded_faces_extras_and_generates() {
+        let mut app = App::default();
+        configure(&mut app, ConversionProtocol::KruxD20V1);
+
+        app.update(Key::Char('0'));
+        assert!(app.message().is_some_and(|message| message.contains("D20")));
+        app.update(Key::Char('A'));
+        assert_eq!(app.ceremony().state().d20().faces()[0].get(), 10);
+        app.update(Key::Backspace);
+        for _ in 0..30 {
+            app.update(Key::Char('1'));
+        }
+        assert!(app.ceremony().state().can_confirm_rolls());
+        app.update(Key::Char('K'));
+        assert_eq!(app.ceremony().state().d20().faces()[30].get(), 20);
+        app.update(Key::Char('\n'));
+        assert_eq!(app.ceremony().state().phase(), Phase::Result);
     }
 
     #[test]

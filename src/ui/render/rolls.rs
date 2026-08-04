@@ -1,4 +1,5 @@
 mod bitbox;
+mod d20;
 mod jade;
 mod word_exact;
 
@@ -18,6 +19,9 @@ pub(super) fn render_roll_entry(app: &App, width: usize) -> Lines {
     }
     if state.protocol() == Some(ConversionProtocol::BitBox02DirectV1) {
         return bitbox::render_bitbox_entry(app, width);
+    }
+    if state.protocol() == Some(ConversionProtocol::KruxD20V1) {
+        return d20::render_d20_entry(app, width);
     }
     let count = state.capture_count();
     let required = state.required_rolls().unwrap_or(0);

@@ -3,12 +3,13 @@ use core::fmt;
 use zeroize::Zeroizing;
 
 use crate::domain::{
-    bip39::EntropyTarget, bitbox::BitBoxCapture, coin::FlipSequence, dice::RollSequence,
-    jade::JadeCapture,
+    bip39::EntropyTarget, bitbox::BitBoxCapture, coin::FlipSequence, d20::D20RollSequence,
+    dice::RollSequence, jade::JadeCapture,
 };
 
 use super::{
-    ConversionProtocol, coldcard_ascii_rolls, keystone_legacy_ascii_rolls, native_hash_header,
+    ConversionProtocol, coldcard_ascii_rolls, keystone_legacy_ascii_rolls, krux_d20_ascii_rolls,
+    native_hash_header,
 };
 
 /// Secret protocol input represented without presentation wording.
@@ -23,6 +24,7 @@ pub enum CanonicalInput {
     AsciiFacesWithSixAsZero(Zeroizing<Vec<u8>>),
     TypedMixedDice(Zeroizing<Vec<u8>>),
     TypedD6AndCoins(Zeroizing<Vec<u8>>),
+    AsciiHyphenatedD20(Zeroizing<Vec<u8>>),
     AsciiCoinFlips(Zeroizing<Vec<u8>>),
 }
 
@@ -35,6 +37,7 @@ impl CanonicalInput {
         flips: &FlipSequence,
         jade: &JadeCapture,
         bitbox: &BitBoxCapture,
+        d20: &D20RollSequence,
     ) -> Self {
         match protocol {
             ConversionProtocol::ExactV1 => Self::Base6Integer(base6_digits(rolls)),
@@ -49,6 +52,7 @@ impl CanonicalInput {
             }
             ConversionProtocol::JadeDirectV1 => Self::TypedMixedDice(jade.audit_bytes()),
             ConversionProtocol::BitBox02DirectV1 => Self::TypedD6AndCoins(bitbox.audit_bytes()),
+            ConversionProtocol::KruxD20V1 => Self::AsciiHyphenatedD20(krux_d20_ascii_rolls(d20)),
             ConversionProtocol::SeedSignerCoinsV1 => Self::AsciiCoinFlips(flips.ascii_bytes()),
         }
     }
@@ -88,6 +92,7 @@ mod tests {
             &FlipSequence::new(),
             &JadeCapture::new(),
             &BitBoxCapture::new(),
+            &D20RollSequence::new(),
         ) else {
             panic!("base-6 representation expected");
         };
