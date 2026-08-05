@@ -4,7 +4,7 @@
              (guix build-system cargo)
              (guix git-download)
              (guix gexp)
-             (guix licenses)
+             ((guix licenses) #:prefix license:)
              (guix packages))
 
 (define source-root
@@ -67,10 +67,16 @@
  (arguments
   (list #:rust rust-1.94
         #:install-source? #f
-        #:cargo-build-flags #~(list "--release" "--frozen"
-                                    "--package" "bip39-ceremony-tui")
-        #:cargo-test-flags #~(list "--workspace" "--all-targets"
-                                  "--all-features" "--frozen")))
+        ;; Force installation of the root binary package.  Guix otherwise
+        ;; inspects the first workspace member, which is the library crate.
+        #:cargo-install-paths ''(".")
+        ;; Guix's Cargo build system resolves exclusively from these fixed
+        ;; origins and always passes --offline.  The repository lock lint
+        ;; enforces exact agreement with Cargo.lock before this build.
+        #:cargo-build-flags '(list "--release" "--package"
+                                   "bip39-ceremony-tui")
+        #:cargo-test-flags '(list "--workspace" "--all-targets"
+                                  "--all-features")))
  (inputs
   (list rust-arrayvec-0.7.8
         rust-bip39-2.2.2
@@ -90,4 +96,4 @@
  (description
   "BIP-39 Ceremony is an offline terminal application that makes conversion of
 physical dice and coin observations into English BIP-39 mnemonics inspectable.")
- (license mit))
+ (license license:expat))
