@@ -48,6 +48,17 @@ guix-lock-lint:
 guix-syntax-lint:
     bash scripts/guix-syntax-lint.sh
 
+# Build through the pinned Guix channel without graft substitutions.
+guix-build:
+    guix time-machine -C contrib/guix/channels.scm -- build -f contrib/guix/package.scm --no-grafts
+
+# Build through Guix and exercise the installed terminal binary.
+guix-validate:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    out=$(just guix-build)
+    python3 scripts/pty-smoke.py "$out/bin/bip39-ceremony"
+
 # Run the complete local gate.
 precommit: check security
 
