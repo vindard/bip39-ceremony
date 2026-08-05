@@ -37,7 +37,7 @@ pub enum ClaimId {
     SafetyAttestation,
     RollStructure,
     GenerationReadiness,
-    ExactRejection,
+    AttemptRejection,
     ConcealedGeneration,
     RevealedMnemonic,
     Cancelled,
@@ -112,7 +112,7 @@ impl CeremonyGuidance {
             Phase::Safety => ClaimId::SafetyAttestation,
             Phase::EnterRolls => ClaimId::RollStructure,
             Phase::ReadyToGenerate => ClaimId::GenerationReadiness,
-            Phase::ExactAttemptRejected => ClaimId::ExactRejection,
+            Phase::AttemptRejected => ClaimId::AttemptRejection,
             Phase::Result => ClaimId::ConcealedGeneration,
             Phase::Revealed => ClaimId::RevealedMnemonic,
             Phase::Cancelled => ClaimId::Cancelled,
@@ -142,7 +142,7 @@ pub fn assurance_summary(state: &CeremonyState) -> AssuranceSummary {
             Phase::ChooseTarget => SoftwareEvidence::SelectionPending,
             Phase::ChooseProtocol => SoftwareEvidence::TargetSelected,
             Phase::Safety => SoftwareEvidence::ProtocolSelected,
-            Phase::EnterRolls | Phase::ReadyToGenerate | Phase::ExactAttemptRejected => {
+            Phase::EnterRolls | Phase::ReadyToGenerate | Phase::AttemptRejected => {
                 SoftwareEvidence::CaptureValidated
             }
             Phase::Result | Phase::Revealed => SoftwareEvidence::GenerationComplete,

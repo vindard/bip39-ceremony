@@ -1,5 +1,8 @@
 [workspace]
-members = ["crates/bip39-ceremony-core"]
+members = [
+  "crates/bip39-ceremony-core",
+  "tests/references/harness/core-driver",
+]
 resolver = "3"
 
 [package]

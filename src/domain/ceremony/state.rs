@@ -19,7 +19,7 @@ pub enum Phase {
     Safety,
     EnterRolls,
     ReadyToGenerate,
-    ExactAttemptRejected,
+    AttemptRejected,
     Result,
     Revealed,
     Cancelled,
@@ -237,8 +237,8 @@ impl CeremonyState {
                 self.generation_succeeded = true;
                 self.phase = Phase::Result;
             }
-            Event::ExactAttemptRejected => self.phase = Phase::ExactAttemptRejected,
-            Event::ExactAttemptRestarted => self.restart_attempt(),
+            Event::AttemptRejected => self.phase = Phase::AttemptRejected,
+            Event::AttemptRestarted => self.restart_attempt(),
             Event::MnemonicRevealed => self.phase = Phase::Revealed,
             Event::MnemonicBackupVerified => {
                 self.mnemonic_backup_verified = true;

@@ -1,5 +1,173 @@
 {
   "nodes": {
+    "bitbox-bip39": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1760078507,
+        "narHash": "sha256-5uQJnzK7eXXIuoJIEYrfBOXgyTxMQzYSFII8qBzEVXA=",
+        "owner": "BitBoxSwiss",
+        "repo": "rust-bip39",
+        "rev": "d69f68c837ee7962a26619316fb7a725e2e8d44c",
+        "type": "github"
+      },
+      "original": {
+        "owner": "BitBoxSwiss",
+        "repo": "rust-bip39",
+        "rev": "d69f68c837ee7962a26619316fb7a725e2e8d44c",
+        "type": "github"
+      }
+    },
+    "bitbox02": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1783622288,
+        "narHash": "sha256-j9hqRI2/OW+8576RFfGdvK0zMH62fCTTnriB8LajW10=",
+        "owner": "BitBoxSwiss",
+        "repo": "bitbox02-firmware",
+        "rev": "6c18aa9cebcc457c3c5cd2c36ce58268a16bede5",
+        "type": "github"
+      },
+      "original": {
+        "owner": "BitBoxSwiss",
+        "ref": "firmware/v9.26.4",
+        "repo": "bitbox02-firmware",
+        "type": "github"
+      }
+    },
+    "coldcard": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1785588631,
+        "narHash": "sha256-R6H6SML+KcDdr0ilS31TqcAScFRo+WC4VYwGHEecaNc=",
+        "owner": "Coldcard",
+        "repo": "firmware",
+        "rev": "c849c4e04a978335937a0fd0c96e76f5bd70bbb6",
+        "type": "github"
+      },
+      "original": {
+        "owner": "Coldcard",
+        "repo": "firmware",
+        "type": "github"
+      }
+    },
+    "embit": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1717065789,
+        "narHash": "sha256-MpZESCz2r+8hQWTkaemGUzAR1ePQvU7CIBT25Ze41r8=",
+        "owner": "diybitcoinhardware",
+        "repo": "embit",
+        "rev": "84cce66fb831fa6d625fb73f28e03605f3c04e28",
+        "type": "github"
+      },
+      "original": {
+        "owner": "diybitcoinhardware",
+        "ref": "v0.8.0",
+        "repo": "embit",
+        "type": "github"
+      }
+    },
+    "iancoleman": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1690861491,
+        "narHash": "sha256-jovAPlr2G4i1ePx1QnaVPqHG3TAYtnCc/KSdaDKLIK0=",
+        "owner": "iancoleman",
+        "repo": "bip39",
+        "rev": "de71c22328b24e0848bbe1bd12ac8974ca83b5b8",
+        "type": "github"
+      },
+      "original": {
+        "owner": "iancoleman",
+        "repo": "bip39",
+        "type": "github"
+      }
+    },
+    "jade": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1777503933,
+        "narHash": "sha256-13BH49w9CPf4QWsYhmPUNYtMBn5YP+tgr/YYnAfsQtM=",
+        "owner": "Blockstream",
+        "repo": "Jade",
+        "rev": "6f858f39a19f89ff7fd4580c5b2db72cfe1dc0af",
+        "type": "github"
+      },
+      "original": {
+        "owner": "Blockstream",
+        "ref": "1.0.40",
+        "repo": "Jade",
+        "type": "github"
+      }
+    },
+    "jade-libwally": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1776115509,
+        "narHash": "sha256-F/cAuBLAIt9CDoleHhmzVM0XL9ejvSfYmPAER/YxkfU=",
+        "owner": "ElementsProject",
+        "repo": "libwally-core",
+        "rev": "43b97bed2e5b6347a909bfd1113242528826a8a2",
+        "type": "github"
+      },
+      "original": {
+        "owner": "ElementsProject",
+        "repo": "libwally-core",
+        "rev": "43b97bed2e5b6347a909bfd1113242528826a8a2",
+        "type": "github"
+      }
+    },
+    "jade-secp256k1": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1718889487,
+        "narHash": "sha256-j0mQ5DokdQz3JZRnBN7/jr3ZxBYKNDraL0jbarmzWiM=",
+        "owner": "BlockstreamResearch",
+        "repo": "secp256k1-zkp",
+        "rev": "6152622613fdf1c5af6f31f74c427c4e9ee120ce",
+        "type": "github"
+      },
+      "original": {
+        "owner": "BlockstreamResearch",
+        "repo": "secp256k1-zkp",
+        "rev": "6152622613fdf1c5af6f31f74c427c4e9ee120ce",
+        "type": "github"
+      }
+    },
+    "keystone-legacy": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1701140947,
+        "narHash": "sha256-LzQ3KRegf0Aivp7HOjxU1JcZVQW+6gEC2DwaUh1GGk8=",
+        "owner": "KeystoneHQ",
+        "repo": "Keystone-cold-app",
+        "rev": "34e638fa57aed6a54051f9fe065d501c3e129581",
+        "type": "github"
+      },
+      "original": {
+        "owner": "KeystoneHQ",
+        "repo": "Keystone-cold-app",
+        "rev": "34e638fa57aed6a54051f9fe065d501c3e129581",
+        "type": "github"
+      }
+    },
+    "krux": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1785779727,
+        "narHash": "sha256-/UONoja6/hLhtOH7soYFS/M3K8HUI9Bcoo3WO2+VEac=",
+        "owner": "selfcustody",
+        "repo": "krux",
+        "rev": "ec058d862b00a62bd06ec7932b31f007fc2b77e3",
+        "type": "github"
+      },
+      "original": {
+        "owner": "selfcustody",
+        "ref": "v26.08.0",
+        "repo": "krux",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1785571196,
@@ -18,7 +186,34 @@
     },
     "root": {
       "inputs": {
-        "nixpkgs": "nixpkgs"
+        "bitbox-bip39": "bitbox-bip39",
+        "bitbox02": "bitbox02",
+        "coldcard": "coldcard",
+        "embit": "embit",
+        "iancoleman": "iancoleman",
+        "jade": "jade",
+        "jade-libwally": "jade-libwally",
+        "jade-secp256k1": "jade-secp256k1",
+        "keystone-legacy": "keystone-legacy",
+        "krux": "krux",
+        "nixpkgs": "nixpkgs",
+        "seedsigner": "seedsigner"
+      }
+    },
+    "seedsigner": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1784749904,
+        "narHash": "sha256-wQdQe+GR87ACBqahq7t6ryD7f/MrGj9mLKZVyMVefOY=",
+        "owner": "SeedSigner",
+        "repo": "seedsigner",
+        "rev": "1fb2956322ea978428a6a96b955baa93e965c877",
+        "type": "github"
+      },
+      "original": {
+        "owner": "SeedSigner",
+        "repo": "seedsigner",
+        "type": "github"
       }
     }
   },

@@ -90,6 +90,42 @@ release-musl:
     python3 scripts/pty-smoke.py result/bin/bip39-ceremony
     file result/bin/bip39-ceremony
 
+# Validate the shared reference harness.
+reference-harness:
+    nix build ".#checks.$(nix eval --raw --impure --expr builtins.currentSystem).reference-harness"
+
+# Compare core with Coldcard firmware.
+reference-coldcard:
+    nix build ".#checks.$(nix eval --raw --impure --expr builtins.currentSystem).reference-coldcard"
+
+# Compare core with SeedSigner and embit.
+reference-seedsigner:
+    nix build ".#checks.$(nix eval --raw --impure --expr builtins.currentSystem).reference-seedsigner"
+
+# Compare core with Krux's D20 capture implementation.
+reference-krux:
+    nix build ".#checks.$(nix eval --raw --impure --expr builtins.currentSystem).reference-krux"
+
+# Compare core checksum completion with BitBox02 firmware.
+reference-bitbox:
+    nix build ".#checks.$(nix eval --raw --impure --expr builtins.currentSystem).reference-bitbox-checksum"
+
+# Compare core mapping and hashing with legacy Keystone source.
+reference-keystone:
+    nix build ".#checks.$(nix eval --raw --impure --expr builtins.currentSystem).reference-keystone-legacy"
+
+# Compare core checksum completion with Jade firmware and libwally.
+reference-jade:
+    nix build ".#checks.$(nix eval --raw --impure --expr builtins.currentSystem).reference-jade-checksum"
+
+# Compare core BIP-39 encoding with Ian Coleman.
+reference-iancoleman:
+    nix build ".#checks.$(nix eval --raw --impure --expr builtins.currentSystem).reference-iancoleman-bip39"
+
+# Compare core outputs with all pinned upstream implementations.
+reference-validation:
+    nix build ".#checks.$(nix eval --raw --impure --expr builtins.currentSystem).reference-implementations"
+
 # Exercise every release feasibility derivation for this host.
 release-feasibility:
     nix flake check

@@ -14,8 +14,9 @@ use crate::domain::{
     jade::JadeCapture,
     protocol::{
         CanonicalInput, ConversionProtocol, ExactOutcome, ProtocolError, bitbox_entropy,
-        coin_four_d6_entropy, coldcard_ascii_rolls, exact_entropy, jade_entropy,
-        keystone_legacy_ascii_rolls, krux_d20_ascii_rolls, native_hash_header, word_exact_entropy,
+        coin_four_d6_entropy, coldcard_ascii_rolls, coldcard_distribution_rejected, exact_entropy,
+        jade_entropy, keystone_legacy_ascii_rolls, krux_d20_ascii_rolls, native_hash_header,
+        word_exact_entropy,
     },
 };
 
@@ -136,6 +137,7 @@ impl fmt::Debug for CalculationEvidence {
 pub enum CalculationOutcome {
     Accepted(Calculation),
     ExactRejected,
+    ColdcardDistributionRejected,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -256,7 +258,14 @@ pub fn calculate(
         (ConversionProtocol::NativeHashV1, Capture::Dice(rolls)) => {
             native_hash_entropy(target, rolls)?
         }
-        (ConversionProtocol::ColdcardV1, Capture::Dice(rolls)) => coldcard_entropy(target, rolls)?,
+        (ConversionProtocol::ColdcardV1, Capture::Dice(rolls)) => {
+            require_complete_capture(ConversionProtocol::ColdcardV1, target, rolls)?;
+            if coldcard_distribution_rejected(rolls) {
+                return Ok(CalculationOutcome::ColdcardDistributionRejected);
+            }
+            let ascii = coldcard_ascii_rolls(rolls);
+            hash_entropy(target, &[ascii.as_slice()])
+        }
         (ConversionProtocol::KeystoneLegacyV1, Capture::Dice(rolls)) => {
             keystone_legacy_entropy(target, rolls)?
         }
@@ -280,12 +289,6 @@ fn native_hash_entropy(
     let header = native_hash_header(target);
     let ascii = rolls.ascii_bytes();
     Ok(hash_entropy(target, &[&header, ascii.as_slice()]))
-}
-
-fn coldcard_entropy(target: EntropyTarget, rolls: &RollSequence) -> Result<Entropy, ProtocolError> {
-    require_complete_capture(ConversionProtocol::ColdcardV1, target, rolls)?;
-    let ascii = coldcard_ascii_rolls(rolls);
-    Ok(hash_entropy(target, &[ascii.as_slice()]))
 }
 
 fn keystone_legacy_entropy(

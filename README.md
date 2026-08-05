@@ -83,9 +83,9 @@ just run
 | **COLDCARD** | 12 · 24 | D6 | SHA-256 over ASCII roll digits, compatible for an identical ordered sequence. Minimums are 50 rolls for 12 words and COLDCARD's documented 99 rolls for 24 words; additional rolls are accepted. |
 | **Word-by-word Exact** | 12 · 24 | D6 | Exact localized rejection over six-roll 11-bit candidates and a final entropy-tail candidate. Minimums are 70 or 140 rolls; rejected groups never discard accepted positions. |
 | **Exact** | 12 · 24 | D6 | Exact base-6 rejection mapping. Uniform under independent fair dice; ~16% of 50-roll and ~11% of 100-roll attempts reject. |
-| **Keystone legacy dice** | 24 | D6 | 24-word compatibility profile that maps face `6` to ASCII `0`, hashes at least 99 mapped rolls, and uses the full digest. |
+| **Keystone legacy dice** | 24 | D6 | 24-word compatibility profile that maps face `6` to ASCII `0`, permits completion from 50 mapped rolls, recommends continuing to 99, and uses the full digest. |
 | **Jade direct words** | 12 · 24 | D16/D8 | D16/D16/D8 triples select the first 11 or 23 BIP-39 indices using [Blockstream's published table order][jade-guide]. A final D16/D8 or D8 roll supplies the remaining entropy bits before checksum calculation. |
-| **BitBox02 Diceware** | 12 · 24 | D6 + coin | Five D6 faces accepted only in `1`–`4` plus one coin side select each direct word using [BitBox02's published table][bitbox-guide]. Rejected `5`/`6` attempts retry locally; final coins supply the entropy tail. |
+| **BitBox02 Diceware** | 12 · 24 | D6 + coin | Reproduces BitBox02's external printed-table workflow; the firmware does not capture the dice rolls. Five D6 faces accepted only in `1`–`4` plus one coin side select each direct word using the [published table][bitbox-guide]. Rejected `5`/`6` retry locally; final coins supply the entropy tail before the words are entered on the device. |
 | **Krux D20** | 12 · 24 | D20 | At least 30 or 60 D20 rolls serialized as hyphen-separated decimal faces, matching [Krux's documented implementation][krux-guide]. Additional rolls are accepted before hashing with SHA-256. |
 | **Coin + four-D6 direct words** | 12 | D6 + coin | One coin and four ordered D6 faces select each direct index using the pinned [Bip39-diceware table][coin-four-d6-table]. Whole rejected candidates retry; 12 accepted candidates provide 128 entropy bits before deterministic checksum replacement. |
 | **SeedSigner coin flips** | 12 · 24 | Coin | Exactly 128 or 256 physical flips serialized as ASCII `0`/`1`, hashed with SHA-256, then truncated for 12 words when needed. |
@@ -175,6 +175,41 @@ policy, explanatory wording, and terminal interface. Unit tests cover pure
 calculation and domain paths, while consumer-style vector tests verify the core
 crate's public boundary.
 
+## Reference validation
+
+![upstream oracles](https://img.shields.io/badge/upstream%20oracles-7%20pinned-2aa198)
+
+Every wallet-compatible profile is cross-checked against the wallet's own
+**executable** code — not just its published example — pinned by revision and
+content hash in `flake.lock`:
+
+**COLDCARD · SeedSigner · Krux · BitBox02 · Keystone · Jade · Ian Coleman**
+
+| Upstream (pinned) | Executed and compared at | `just` check |
+| --- | --- | --- |
+| **COLDCARD firmware** | dice count, 30% distribution rejection, ASCII SHA-256, target truncation | `reference-coldcard` |
+| **SeedSigner** (+ `embit 0.8.0`) | `generate_mnemonic_from_coin_flips` coin-flip helper | `reference-seedsigner` |
+| **Krux v26.08.0** | `DiceEntropy.new_key`: minimum gate, decimal-hyphen serialization, SHA-256, truncation | `reference-krux` |
+| **BitBox02 firmware v9.26.4** | checksum-completion candidates + entropy-tail ordering | `reference-bitbox` |
+| **Keystone** (legacy Android) | 50/98/99-roll completion branches, face `6`→`0` mapping, SHA-256 | `reference-keystone` |
+| **Jade firmware 1.0.40** (+ pinned libwally) | `valid_final_words` checksum + final-word ordering | `reference-jade` |
+| **Ian Coleman BIP-39** | entropy → English encoder (shared BIP-39 boundary) | `reference-iancoleman` |
+
+Only executable upstream code counts as a reference. Project-owned protocols
+without an upstream oracle (Exact, Word-by-word Exact, and the static Coin +
+four-D6 table) are instead held to pinned in-repo vectors under
+[`crates/bip39-ceremony-core/tests/`](crates/bip39-ceremony-core/tests/).
+
+The suite is grouped by upstream authority under
+[`tests/references/`](tests/references/); each implementation owns its loading,
+vectors, and assertions, while a shared harness holds the core driver and its
+typed accepted/rejected/invalid/error wire protocol. Nix exposes each check
+independently and composes them in `reference-implementations`. Run the
+aggregate with `just reference-validation` (also part of the host-wide
+`just release-feasibility`), or a single comparison with `just reference-jade`
+and its `reference-coldcard`, `reference-seedsigner`, `reference-krux`,
+`reference-bitbox`, `reference-keystone`, `reference-iancoleman` siblings.
+
 ## 🧰 Development environment
 
 Useful commands inside `nix develop` or direnv:
@@ -186,6 +221,7 @@ just security            # RustSec, licenses, sources and duplicate versions
 just precommit           # complete local gate
 just build               # debug binary
 just release             # local optimized build; not a release artifact
+just reference-validation # compare against pinned upstream implementations
 just release-gnu         # Nix GNU/Linux feasibility artifact and PTY smoke
 just release-musl        # Nix static-musl feasibility artifact and PTY smoke
 just release-feasibility # build and test all host feasibility outputs

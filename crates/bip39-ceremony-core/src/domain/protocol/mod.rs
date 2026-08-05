@@ -40,7 +40,9 @@ pub use word_exact::{
 
 pub(crate) use bitbox::bitbox_entropy;
 pub(crate) use coin_four_d6::coin_four_d6_entropy;
-pub(crate) use coldcard::ascii_rolls as coldcard_ascii_rolls;
+pub(crate) use coldcard::{
+    ascii_rolls as coldcard_ascii_rolls, distribution_is_rejected as coldcard_distribution_rejected,
+};
 pub(crate) use exact::{ExactOutcome, exact_entropy};
 pub(crate) use jade::jade_entropy;
 pub(crate) use keystone_legacy::ascii_rolls as keystone_legacy_ascii_rolls;

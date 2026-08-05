@@ -118,7 +118,7 @@ impl ConversionProtocol {
             ),
             Self::ColdcardV1 => (
                 CanonicalInputKind::AsciiFaceDigits,
-                RejectionPolicy::None,
+                RejectionPolicy::WholeSequence,
                 Compatibility::Coldcard,
                 true,
             ),
@@ -199,6 +199,7 @@ mod tests {
         let coldcard = ConversionProtocol::ColdcardV1.specification(EntropyTarget::Words24);
         assert_eq!(coldcard.minimum_observations(), 99);
         assert!(coldcard.accepts_optional_rolls());
+        assert_eq!(coldcard.rejection(), RejectionPolicy::WholeSequence);
         assert_eq!(
             coldcard.canonical_input(),
             CanonicalInputKind::AsciiFaceDigits
@@ -286,7 +287,7 @@ mod tests {
                 .specification(EntropyTarget::Words12)
                 .supports_target()
         );
-        assert_eq!(keystone.minimum_observations(), 99);
+        assert_eq!(keystone.minimum_observations(), 50);
         assert!(keystone.accepts_optional_rolls());
         assert_eq!(
             keystone.canonical_input(),

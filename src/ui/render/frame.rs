@@ -226,7 +226,7 @@ const fn active_stage(phase: Phase) -> usize {
         Phase::ChooseTarget | Phase::ChooseProtocol => 0,
         Phase::Safety => 1,
         Phase::EnterRolls => 2,
-        Phase::ReadyToGenerate | Phase::ExactAttemptRejected | Phase::Result => 3,
+        Phase::ReadyToGenerate | Phase::AttemptRejected | Phase::Result => 3,
         Phase::Revealed => 4,
         Phase::Cancelled => 5,
     }

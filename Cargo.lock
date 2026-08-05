@@ -28,6 +28,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "bip39-ceremony-reference-driver"
+version = "0.1.0"
+dependencies = [
+ "bip39-ceremony-core",
+]
+
+[[package]]
 name = "bip39-ceremony-tui"
 version = "0.1.0"
 dependencies = [

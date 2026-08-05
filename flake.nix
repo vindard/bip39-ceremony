@@ -1,9 +1,59 @@
 {
   description = "Inspectable physical-entropy to BIP-39 ceremony";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    coldcard = {
+      url = "github:Coldcard/firmware";
+      flake = false;
+    };
+    seedsigner = {
+      url = "github:SeedSigner/seedsigner";
+      flake = false;
+    };
+    embit = {
+      # SeedSigner requirements.txt pins embit 0.8.0.
+      url = "github:diybitcoinhardware/embit/v0.8.0";
+      flake = false;
+    };
+    iancoleman = {
+      url = "github:iancoleman/bip39";
+      flake = false;
+    };
+    krux = {
+      url = "github:selfcustody/krux/v26.08.0";
+      flake = false;
+    };
+    bitbox02 = {
+      url = "github:BitBoxSwiss/bitbox02-firmware/firmware/v9.26.4";
+      flake = false;
+    };
+    bitbox-bip39 = {
+      # Matches bitbox02-firmware's Cargo.lock git revision.
+      url = "github:BitBoxSwiss/rust-bip39/d69f68c837ee7962a26619316fb7a725e2e8d44c";
+      flake = false;
+    };
+    keystone-legacy = {
+      url = "github:KeystoneHQ/Keystone-cold-app/34e638fa57aed6a54051f9fe065d501c3e129581";
+      flake = false;
+    };
+    jade = {
+      url = "github:Blockstream/Jade/1.0.40";
+      flake = false;
+    };
+    jade-libwally = {
+      # Matches Jade's components/libwally-core/upstream gitlink.
+      url = "github:ElementsProject/libwally-core/43b97bed2e5b6347a909bfd1113242528826a8a2";
+      flake = false;
+    };
+    jade-secp256k1 = {
+      # Matches libwally-core's src/secp256k1 gitlink.
+      url = "github:BlockstreamResearch/secp256k1-zkp/6152622613fdf1c5af6f31f74c427c4e9ee120ce";
+      flake = false;
+    };
+  };
 
-  outputs = { self, nixpkgs, ... }:
+  outputs = { self, nixpkgs, coldcard, seedsigner, embit, iancoleman, krux, bitbox02, bitbox-bip39, keystone-legacy, jade, jade-libwally, jade-secp256k1, ... }:
     let
       systems = [
         "aarch64-darwin"
@@ -12,14 +62,15 @@
         "x86_64-linux"
       ];
       forAllSystems = nixpkgs.lib.genAttrs systems;
+      projectSource = nixpkgs.lib.fileset.toSource {
+        root = ./.;
+        fileset = nixpkgs.lib.fileset.gitTracked ./.;
+      };
       packageFor = pkgs: rustPlatform:
         rustPlatform.buildRustPackage {
           pname = "bip39-ceremony";
           version = "0.1.0";
-          src = nixpkgs.lib.fileset.toSource {
-            root = ./.;
-            fileset = nixpkgs.lib.fileset.gitTracked ./.;
-          };
+          src = projectSource;
 
           cargoLock.lockFile = ./Cargo.lock;
           cargoBuildFlags = [ "--package" "bip39-ceremony-tui" ];
@@ -38,10 +89,23 @@
         let
           pkgs = nixpkgs.legacyPackages.${system};
           dynamic = packageFor pkgs pkgs.rustPlatform;
+          referenceDriver = pkgs.rustPlatform.buildRustPackage {
+            pname = "bip39-ceremony-reference-driver";
+            version = "0.1.0";
+            src = projectSource;
+            cargoLock.lockFile = ./Cargo.lock;
+            cargoBuildFlags = [
+              "--package"
+              "bip39-ceremony-reference-driver"
+            ];
+            doCheck = false;
+            strictDeps = true;
+          };
         in
         {
           default = dynamic;
           gnu = dynamic;
+          reference-driver = referenceDriver;
         } // nixpkgs.lib.optionalAttrs pkgs.stdenv.isLinux {
           musl = packageFor pkgs pkgs.pkgsStatic.rustPlatform;
         });
@@ -49,6 +113,146 @@
       checks = forAllSystems (system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
+          coreDriver = "${self.packages.${system}.reference-driver}/bin/bip39-ceremony-reference-driver";
+          bitboxAdapterSource = pkgs.runCommand "bitbox-lastword-adapter-source"
+            { nativeBuildInputs = [ pkgs.python3Minimal ]; }
+            ''
+              python ${./tests/references/bitbox/extract.py} \
+                --source ${bitbox02} \
+                --bip39 ${bitbox-bip39} \
+                --output $out
+              cp ${./tests/references/bitbox/Cargo.lock} $out/Cargo.lock
+            '';
+          bitboxAdapter = pkgs.rustPlatform.buildRustPackage {
+            pname = "bitbox-lastword-adapter";
+            version = "0.1.0";
+            src = bitboxAdapterSource;
+            cargoHash = "sha256-4Z+AaXMkQzcxREFCTYHjKyA4sDzvm4E5rmdgQpidQMs=";
+            doCheck = false;
+            strictDeps = true;
+          };
+          keystoneAdapter = pkgs.runCommand "keystone-legacy-adapter"
+            { nativeBuildInputs = [ pkgs.jdk_headless pkgs.python3Minimal ]; }
+            ''
+              mkdir -p source $out
+              python ${./tests/references/keystone/extract.py} \
+                --source ${keystone-legacy} \
+                --output source
+              javac -d $out source/*.java
+            '';
+          jadeLibwally = pkgs.stdenv.mkDerivation {
+            pname = "jade-libwally-core";
+            version = "1.5.3";
+            src = jade-libwally;
+            nativeBuildInputs = [
+              pkgs.autoconf
+              pkgs.automake
+              pkgs.libtool
+              pkgs.pkg-config
+              pkgs.python311
+              pkgs.python311Packages.setuptools
+            ];
+            postUnpack = ''
+              chmod -R u+w "$sourceRoot"
+              mkdir -p "$sourceRoot/src/secp256k1"
+              cp -R ${jade-secp256k1}/. "$sourceRoot/src/secp256k1/"
+              chmod -R u+w "$sourceRoot"
+            '';
+            preConfigure = ''
+              export SETUPTOOLS_USE_DISTUTILS=local
+              ./tools/autogen.sh
+            '';
+            configureFlags = [
+              "--disable-elements"
+              "--disable-tests"
+              "--disable-shared"
+            ];
+            enableParallelBuilding = true;
+          };
+          jadeAdapter = pkgs.runCommand "jade-final-word-adapter"
+            {
+              nativeBuildInputs = [ pkgs.pkg-config pkgs.python3Minimal pkgs.stdenv.cc ];
+              buildInputs = [ jadeLibwally ];
+            }
+            ''
+              mkdir -p $out/bin
+              python ${./tests/references/jade/extract.py} \
+                --source ${jade} \
+                --output adapter.c
+              $CC -Wno-format-security adapter.c \
+                $(pkg-config --cflags --libs wallycore) -lsecp256k1 \
+                -o $out/bin/jade-final-word-adapter
+            '';
+          pythonCheck = name: path: extraInputs: extraPythonPath: command:
+            pkgs.runCommand name
+              { nativeBuildInputs = [ pkgs.python3Minimal ] ++ extraInputs; }
+              ''
+                export PYTHONPATH=${./tests/references/harness}${extraPythonPath}
+                python ${path} --core ${coreDriver} ${command}
+                touch $out
+              '';
+          referenceHarness = pythonCheck
+            "reference-harness"
+            ./tests/references/harness/check.py
+            [ ]
+            ""
+            "";
+          referenceColdcard = pythonCheck
+            "reference-coldcard"
+            ./tests/references/coldcard/check.py
+            [ ]
+            ""
+            "--source ${coldcard}";
+          referenceSeedSigner = pythonCheck
+            "reference-seedsigner"
+            ./tests/references/seedsigner/check.py
+            [ ]
+            ""
+            "--source ${seedsigner} --embit ${embit}";
+          referenceKrux = pythonCheck
+            "reference-krux"
+            ./tests/references/krux/check.py
+            [ ]
+            ""
+            "--source ${krux}";
+          referenceBitBox = pythonCheck
+            "reference-bitbox-checksum"
+            ./tests/references/bitbox/check.py
+            [ ]
+            ""
+            "--adapter ${bitboxAdapter}/bin/bitbox-lastword-adapter";
+          referenceKeystone = pythonCheck
+            "reference-keystone-legacy"
+            ./tests/references/keystone/check.py
+            [ ]
+            ""
+            "--java ${pkgs.jdk_headless}/bin/java --classes ${keystoneAdapter}";
+          referenceJade = pythonCheck
+            "reference-jade-checksum"
+            ./tests/references/jade/check.py
+            [ ]
+            ""
+            "--adapter ${jadeAdapter}/bin/jade-final-word-adapter";
+          ianPythonPath = ":${./tests/references/iancoleman}";
+          ianArguments = "--node ${pkgs.nodejs}/bin/node --runner ${./tests/references/iancoleman/runner.js} --source ${iancoleman}";
+          referenceIanBip39 = pythonCheck
+            "reference-iancoleman-bip39"
+            ./tests/references/iancoleman/bip39.py
+            [ pkgs.nodejs ]
+            ianPythonPath
+            ianArguments;
+          referenceImplementationChecks = {
+            reference-coldcard = referenceColdcard;
+            reference-seedsigner = referenceSeedSigner;
+            reference-krux = referenceKrux;
+            reference-bitbox-checksum = referenceBitBox;
+            reference-keystone-legacy = referenceKeystone;
+            reference-jade-checksum = referenceJade;
+            reference-iancoleman-bip39 = referenceIanBip39;
+          };
+          referenceChecks = referenceImplementationChecks // {
+            reference-harness = referenceHarness;
+          };
           smoke = name: package: pkgs.runCommand name
             { nativeBuildInputs = [ pkgs.python3Minimal ]; }
             ''
@@ -56,7 +260,8 @@
               touch $out
             '';
         in
-        {
+        referenceChecks // {
+          reference-implementations = pkgs.linkFarm "reference-implementations" referenceImplementationChecks;
           release-gnu = self.packages.${system}.gnu;
           smoke-gnu = smoke "bip39-ceremony-smoke-gnu" self.packages.${system}.gnu;
         } // nixpkgs.lib.optionalAttrs pkgs.stdenv.isLinux {

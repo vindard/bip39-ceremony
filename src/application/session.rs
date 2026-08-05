@@ -125,9 +125,10 @@ impl CeremonySession {
                 self.generation = Some(generation);
                 Ok(SessionGeneration::Generated)
             }
-            CalculationOutcome::ExactRejected => {
-                self.ceremony.record_exact_attempt_rejected()?;
-                Ok(SessionGeneration::ExactAttemptRejected)
+            CalculationOutcome::ExactRejected
+            | CalculationOutcome::ColdcardDistributionRejected => {
+                self.ceremony.record_attempt_rejected()?;
+                Ok(SessionGeneration::AttemptRejected)
             }
         }
     }
@@ -143,7 +144,7 @@ pub(crate) enum BackupSubmission {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum SessionGeneration {
     Generated,
-    ExactAttemptRejected,
+    AttemptRejected,
 }
 
 #[derive(Debug)]
@@ -223,6 +224,43 @@ mod tests {
             session.ceremony().state().phase(),
             crate::domain::ceremony::Phase::Result
         );
+    }
+
+    #[test]
+    fn coldcard_distribution_rejection_requires_a_fresh_attempt() {
+        let mut session = CeremonySession::new(Box::new(Hash));
+        session
+            .execute(Command::SelectTarget(EntropyTarget::Words12))
+            .unwrap();
+        session
+            .execute(Command::SelectProtocol(ConversionProtocol::ColdcardV1))
+            .unwrap();
+        session.execute(Command::AcknowledgeSafety).unwrap();
+        for _ in 0..50 {
+            session
+                .execute(Command::RecordRoll(DieFace::new(1).unwrap()))
+                .unwrap();
+        }
+
+        assert_eq!(
+            session.confirm_rolls_and_generate().unwrap(),
+            SessionGeneration::AttemptRejected
+        );
+        assert!(session.generation().is_none());
+        assert_eq!(
+            session.ceremony().state().phase(),
+            crate::domain::ceremony::Phase::AttemptRejected
+        );
+
+        session.execute(Command::RestartAttempt).unwrap();
+        assert_eq!(
+            session.ceremony().state().phase(),
+            crate::domain::ceremony::Phase::EnterRolls
+        );
+        assert!(session.ceremony().state().rolls().is_empty());
+        assert!(session.ceremony().events().len() > 50);
+        let retained_audit = format!("{:?}", session.ceremony().events());
+        assert!(retained_audit.contains("RollRecorded([REDACTED])"));
     }
 
     #[test]

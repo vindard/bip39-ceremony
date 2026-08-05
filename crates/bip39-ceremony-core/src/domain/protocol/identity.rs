@@ -38,7 +38,8 @@ impl ConversionProtocol {
             (Self::WordExactV1, EntropyTarget::Words12)
             | (Self::JadeDirectV1, EntropyTarget::Words24) => 70,
             (Self::WordExactV1, EntropyTarget::Words24) => 140,
-            (Self::ColdcardV1 | Self::KeystoneLegacyV1, EntropyTarget::Words24) => 99,
+            (Self::ColdcardV1, EntropyTarget::Words24) => 99,
+            (Self::KeystoneLegacyV1, EntropyTarget::Words24) => 50,
             (Self::JadeDirectV1, EntropyTarget::Words12) => 35,
             (Self::BitBox02DirectV1, EntropyTarget::Words12) => 73,
             (Self::BitBox02DirectV1, EntropyTarget::Words24) => 141,
@@ -74,7 +75,7 @@ mod tests {
                 ConversionProtocol::KeystoneLegacyV1,
                 "keystone-legacy-v1",
                 50,
-                99,
+                50,
             ),
             (ConversionProtocol::JadeDirectV1, "jade-direct-v1", 35, 70),
             (

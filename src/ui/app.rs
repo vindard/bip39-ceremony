@@ -345,7 +345,7 @@ impl App {
             Phase::ChooseProtocol => self.choose_protocol(key),
             Phase::Safety => self.acknowledge_safety(key),
             Phase::EnterRolls => self.enter_roll(key),
-            Phase::ExactAttemptRejected => self.restart_exact(key),
+            Phase::AttemptRejected => self.restart_attempt(key),
             Phase::Result => self.reveal(key),
             Phase::Revealed => self.review_mnemonic(key),
             Phase::ReadyToGenerate | Phase::Cancelled => {}
@@ -675,9 +675,9 @@ impl App {
             && !self.word_exact_raw_ledger()
     }
 
-    fn restart_exact(&mut self, key: Key) {
+    fn restart_attempt(&mut self, key: Key) {
         if matches!(key, Key::Char('\n' | 'r')) {
-            self.handle(Command::RestartExactAttempt);
+            self.handle(Command::RestartAttempt);
         }
     }
 
