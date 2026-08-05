@@ -13,7 +13,6 @@ use crate::{
         coin::CoinFlip,
         d20::D20Face,
         dice::DieFace,
-        inspection::InspectionSnapshot,
         jade::{D8Face, D16Face},
         protocol::{
             BitBoxObservationKind, CoinFourD6ObservationKind, ConversionProtocol, JadeDieKind,
@@ -25,8 +24,6 @@ use crate::{
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum InspectorView {
-    Snapshot,
-    Timeline,
     Derivation,
     ProtocolExplanation,
     Help,
@@ -34,7 +31,6 @@ pub enum InspectorView {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Inspector {
-    pub position: usize,
     pub view: InspectorView,
     pub scroll: usize,
 }
@@ -243,24 +239,8 @@ impl App {
     }
 
     #[must_use]
-    pub fn inspected_snapshot(&self) -> Option<InspectionSnapshot> {
-        self.inspector
-            .and_then(|inspector| InspectionSnapshot::at(self.ceremony(), inspector.position).ok())
-    }
-
-    #[must_use]
     pub fn derivation_available(&self) -> bool {
-        if self.generation().is_none() {
-            return false;
-        }
-        let position = self
-            .inspector
-            .map_or(self.ceremony().events().len(), |inspector| {
-                inspector.position
-            });
-        self.ceremony()
-            .state_at(position)
-            .is_ok_and(|state| state.phase() == Phase::Revealed)
+        self.generation().is_some() && self.ceremony().state().phase() == Phase::Revealed
     }
 
     #[must_use]
@@ -268,12 +248,7 @@ impl App {
         if !self.derivation_available() {
             return None;
         }
-        let position = self
-            .inspector
-            .map_or(self.ceremony().events().len(), |inspector| {
-                inspector.position
-            });
-        self.session.derivation(position)
+        self.session.derivation(self.ceremony().events().len())
     }
 
     /// Handles one decoded terminal key and reports whether rendering is invalidated.
@@ -318,14 +293,6 @@ impl App {
             self.quit_pending = true;
             return true;
         }
-        if self.blocks_hidden_roll_inspection(key) {
-            self.message = Some(self.hidden_input_inspection_message().to_owned());
-            return true;
-        }
-        if matches!(key, Key::Char('i' | '\t')) {
-            self.open_inspector(InspectorView::Snapshot);
-            return true;
-        }
         if matches!(key, Key::Char('?')) {
             self.open_inspector(InspectorView::Help);
             return true;
@@ -340,22 +307,6 @@ impl App {
 
         self.update_phase(key);
         true
-    }
-
-    fn hidden_input_inspection_message(&self) -> &'static str {
-        if self.ceremony().state().protocol() == Some(ConversionProtocol::SeedSignerCoinsV1) {
-            "Press h to show all flips before opening inspection."
-        } else if self.ceremony().state().protocol() == Some(ConversionProtocol::BitBox02DirectV1) {
-            "Press h to show all D6 and coin outcomes before opening inspection."
-        } else {
-            "Press h to show all rolls before opening inspection."
-        }
-    }
-
-    fn blocks_hidden_roll_inspection(&self, key: Key) -> bool {
-        self.ceremony().state().phase() == Phase::EnterRolls
-            && self.rolls_hidden()
-            && matches!(key, Key::Char('i' | '\t'))
     }
 
     fn update_scroll(&mut self, key: Key) -> bool {
@@ -820,7 +771,7 @@ impl App {
                     self.inspector = None;
                     self.quit_pending = true;
                 }
-                Key::Esc | Key::Char('e' | 'i' | '\t') => self.inspector = None,
+                Key::Esc | Key::Char('e' | '\t') => self.inspector = None,
                 Key::Up => inspector.scroll = inspector.scroll.saturating_sub(1),
                 Key::Down => {
                     inspector.scroll = inspector.scroll.saturating_add(1).min(self.scroll_limit);
@@ -838,7 +789,6 @@ impl App {
             }
             return;
         }
-        let last = self.ceremony().events().len();
         match key {
             Key::Char('q') | Key::Ctrl('c') => {
                 self.inspector = None;
@@ -851,23 +801,7 @@ impl App {
                 self.mnemonic_hidden = true;
                 return;
             }
-            Key::Esc | Key::Char('i' | '\t') => self.inspector = None,
-            Key::Left => {
-                inspector.position = inspector.position.saturating_sub(1);
-                inspector.scroll = 0;
-            }
-            Key::Right => {
-                inspector.position = (inspector.position + 1).min(last);
-                inspector.scroll = 0;
-            }
-            Key::Home => {
-                inspector.position = 0;
-                inspector.scroll = 0;
-            }
-            Key::End => {
-                inspector.position = last;
-                inspector.scroll = 0;
-            }
+            Key::Esc | Key::Char('\t') => self.inspector = None,
             Key::Up => inspector.scroll = inspector.scroll.saturating_sub(1),
             Key::Down => {
                 inspector.scroll = inspector.scroll.saturating_add(1).min(self.scroll_limit);
@@ -875,14 +809,6 @@ impl App {
             Key::PageUp => inspector.scroll = inspector.scroll.saturating_sub(8),
             Key::PageDown => {
                 inspector.scroll = inspector.scroll.saturating_add(8).min(self.scroll_limit);
-            }
-            Key::Char('s') => {
-                inspector.view = InspectorView::Snapshot;
-                inspector.scroll = 0;
-            }
-            Key::Char('t') => {
-                inspector.view = InspectorView::Timeline;
-                inspector.scroll = 0;
             }
             Key::Char('d') if self.derivation_available() => {
                 inspector.view = InspectorView::Derivation;
@@ -900,11 +826,7 @@ impl App {
     }
 
     fn open_inspector(&mut self, view: InspectorView) {
-        self.inspector = Some(Inspector {
-            position: self.ceremony().events().len(),
-            view,
-            scroll: 0,
-        });
+        self.inspector = Some(Inspector { view, scroll: 0 });
     }
 
     fn update_quit_confirmation(&mut self, key: Key) -> bool {
@@ -1018,47 +940,29 @@ mod tests {
     }
 
     #[test]
-    fn inspector_navigation_never_mutates_live_state() {
+    fn state_inspection_shortcuts_are_ignored_across_ceremony_stages() {
         let mut app = App::default();
-        configure(&mut app, ConversionProtocol::NativeHashV1);
-        app.update(Key::Char('4'));
-        let live_events = app.ceremony().events().len();
-
-        app.update(Key::Char('h'));
-        app.update(Key::Char('i'));
-        app.update(Key::Left);
-        app.update(Key::Left);
-
-        assert_eq!(app.inspector().unwrap().position, live_events - 2);
-        assert_eq!(app.ceremony().events().len(), live_events);
-        assert_eq!(app.ceremony().state().rolls().len(), 1);
-    }
-
-    #[test]
-    fn roll_visibility_toggles_without_domain_events_and_gates_inspection() {
-        let mut app = App::default();
-        configure(&mut app, ConversionProtocol::ExactV1);
-        app.update(Key::Char('4'));
-        let events = app.ceremony().events().len();
-
-        assert!(app.rolls_hidden());
         app.update(Key::Char('i'));
         assert!(app.inspector().is_none());
-        assert_eq!(
-            app.message(),
-            Some("Press h to show all rolls before opening inspection.")
-        );
 
-        app.update(Key::Char('?'));
-        assert_eq!(app.inspector().unwrap().view, InspectorView::Help);
-        app.update(Key::Esc);
-        assert!(app.rolls_hidden());
+        configure(&mut app, ConversionProtocol::ExactV1);
+        for _ in 0..50 {
+            app.update(Key::Char('4'));
+        }
+        let events = app.ceremony().events().len();
 
-        app.update(Key::Char('h'));
-        assert!(!app.rolls_hidden());
-        assert_eq!(app.ceremony().events().len(), events);
         app.update(Key::Char('i'));
-        assert!(app.inspector().is_some());
+        app.update(Key::Char('\t'));
+        assert!(app.inspector().is_none());
+        assert_eq!(app.ceremony().events().len(), events);
+
+        app.update(Key::Char('\n'));
+        app.update(Key::Char('i'));
+        assert!(app.inspector().is_none());
+
+        app.update(Key::Char('r'));
+        app.update(Key::Char('i'));
+        assert!(app.inspector().is_none());
     }
 
     #[test]
@@ -1121,18 +1025,6 @@ mod tests {
     }
 
     #[test]
-    fn tab_opens_inspection_and_returns_to_ceremony() {
-        let mut app = App::default();
-        configure(&mut app, ConversionProtocol::ExactV1);
-
-        app.update(Key::Char('h'));
-        app.update(Key::Char('\t'));
-        assert_eq!(app.inspector().unwrap().view, InspectorView::Snapshot);
-        app.update(Key::Char('\t'));
-        assert!(app.inspector().is_none());
-    }
-
-    #[test]
     fn quit_requires_confirmation() {
         let mut app = App::default();
         assert_eq!(app.update(Key::Char('q')), UpdateOutcome::Changed);
@@ -1143,18 +1035,6 @@ mod tests {
         assert_eq!(app.update(Key::Char('q')), UpdateOutcome::Changed);
         assert_eq!(app.update(Key::Char('q')), UpdateOutcome::Exit);
         assert_eq!(app.ceremony().state().phase(), Phase::Cancelled);
-    }
-
-    #[test]
-    fn quit_is_available_from_inspection() {
-        let mut app = App::default();
-        app.update(Key::Char('i'));
-
-        app.update(Key::Char('q'));
-
-        assert!(app.inspector().is_none());
-        assert!(app.quit_pending());
-        assert!(!app.ceremony().state().is_cancelled());
     }
 
     #[test]
@@ -1397,12 +1277,7 @@ mod tests {
             Some(InspectorView::ProtocolExplanation)
         );
         assert_eq!(app.ceremony().events().len(), events);
-        let position = app.inspector().unwrap().position;
         assert_eq!(app.update(Key::Right), UpdateOutcome::Unchanged);
-        assert_eq!(
-            app.inspector().map(|inspector| inspector.position),
-            Some(position)
-        );
         assert_eq!(app.update(Key::Down), UpdateOutcome::Changed);
         assert_eq!(app.inspector().map(|inspector| inspector.scroll), Some(1));
         assert_eq!(app.update(Key::Char('\t')), UpdateOutcome::Changed);
@@ -1519,9 +1394,9 @@ mod tests {
     }
 
     #[test]
-    fn inspector_content_scrolls_without_changing_state() {
+    fn help_content_scrolls_without_changing_state() {
         let mut app = App::default();
-        app.update(Key::Char('i'));
+        app.update(Key::Char('?'));
         app.update(Key::PageDown);
         app.update(Key::Down);
         assert_eq!(app.inspector().unwrap().scroll, 9);
