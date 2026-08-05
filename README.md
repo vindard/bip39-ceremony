@@ -13,6 +13,12 @@ standard 12- or 24-word English BIP-39 mnemonics.**
 &nbsp;![BIP-39](https://img.shields.io/badge/BIP--39-compatible-f7931a?logo=bitcoin&logoColor=white)
 &nbsp;![Built with Nix](https://img.shields.io/badge/built%20with-Nix-5277C3?logo=nixos&logoColor=white)
 
+<br>
+
+<img src="docs/img/ceremony.gif" alt="Animated walkthrough of the ceremony: setup, safety preflight, dice capture, reveal, and the derivation pipeline" width="820">
+
+<sub><i>Setup → safety → dice capture → reveal → derivation. (Demo uses the all-zero test vector; no real seed is shown.)</i></sub>
+
 </div>
 
 ## 🎯 Purpose
@@ -36,6 +42,21 @@ After deliberate reveal, the TUI exposes:
 - conversion details, including rejection decisions where applicable;
 - the resulting entropy bits and BIP-39 checksum;
 - each 11-bit word index and its corresponding English word.
+
+<table>
+<tr>
+<td width="50%">
+<img src="docs/img/roll-capture.png" alt="Roll-capture workspace with a live SHA-256 preview and zero-padded roll ledger">
+<br><sub><i>Physical capture: numbered positions, a live running hash, and the
+zero-padded ledger (hidden by default; toggle with <code>h</code>).</i></sub>
+</td>
+<td width="50%">
+<img src="docs/img/reveal.png" alt="Reveal screen showing the numbered 12-word grid and transcription-check guidance">
+<br><sub><i>Deliberate reveal: the numbered word grid gates behind an explicit
+step, with transcription and backup-verification guidance.</i></sub>
+</td>
+</tr>
+</table>
 
 ## 🛡️ Security boundary
 
