@@ -7,6 +7,5 @@ pub mod coin;
 pub mod coin_four_d6;
 pub mod d20;
 pub mod dice;
-pub mod inspection;
 pub mod jade;
 pub mod protocol;

@@ -184,9 +184,7 @@ pub(super) fn title_line(width: usize, label: &str) -> String {
 }
 
 pub(super) fn stage_line(app: &App, width: usize) -> String {
-    let phase = app
-        .inspected_snapshot()
-        .map_or(app.ceremony().state().phase(), |snapshot| snapshot.phase());
+    let phase = app.ceremony().state().phase();
     if phase == Phase::Cancelled {
         return "× CEREMONY CANCELLED".to_owned();
     }

@@ -227,10 +227,8 @@ fn workspace_card_title(app: &App) -> &'static str {
     }
     match app.inspector().map(|inspector| inspector.view) {
         Some(InspectorView::Derivation) => "DERIVATION · ALL VALUES SECRET · FOCUS",
-        Some(InspectorView::Timeline) => "EVENT TIMELINE · FOCUS",
         Some(InspectorView::ProtocolExplanation) => "PROTOCOL DETAILS · FOCUS",
         Some(InspectorView::Help) => "HELP · FOCUS",
-        Some(InspectorView::Snapshot) => "CEREMONY INSPECTION · READ ONLY · FOCUS",
         None if app.ceremony().state().phase() == Phase::Safety => "SAFETY PREFLIGHT · FOCUS",
         None if app.ceremony().state().phase() == Phase::EnterRolls => "ROLL CAPTURE · FOCUS",
         None if app.ceremony().state().phase() == Phase::Result => "MNEMONIC READY · FOCUS",
@@ -493,19 +491,17 @@ fn footer_line(app: &App) -> String {
         }
         Phase::Safety => "[q] cancel  [↑/↓] move  [Space] toggle  [c] all".to_owned(),
         Phase::EnterRolls => roll_footer(app),
-        Phase::ExactAttemptRejected => {
-            "[r/Enter] fresh attempt    [i] inspect    [q] cancel".to_owned()
-        }
-        Phase::Result => "[r] reveal    [i] inspect    [q] cancel".to_owned(),
+        Phase::ExactAttemptRejected => "[r/Enter] fresh attempt    [q] cancel".to_owned(),
+        Phase::Result => "[r] reveal    [q] cancel".to_owned(),
         Phase::Revealed => {
             if app.mnemonic_verification().is_some() {
                 "[letters] type   [Backspace] correct   [Enter] compare   [Esc] cancel".to_owned()
             } else if app.mnemonic_hidden() {
                 "[h/Esc] show mnemonic    [q] finish securely".to_owned()
             } else if app.ceremony().state().mnemonic_backup_verified() {
-                "[h] hide   [Enter/q] finish   [d] derive   [i] inspect".to_owned()
+                "[h] hide   [Enter/q] finish   [d] derive".to_owned()
             } else {
-                "[h] hide   [v] verify backup   [q] finish   [d] derive   [i] inspect".to_owned()
+                "[h] hide   [v] verify backup   [q] finish   [d] derive".to_owned()
             }
         }
         Phase::ReadyToGenerate | Phase::Cancelled => "[q] exit".to_owned(),
@@ -519,7 +515,7 @@ fn inspector_footer(view: InspectorView, derivation_available: bool, phase: Phas
         "[q] cancel"
     };
     if view == InspectorView::Derivation {
-        return format!("[h] hide   {quit}   [↑/↓] scroll   [s] ceremony   [Tab/i] live");
+        return format!("[h] hide   {quit}   [↑/↓] scroll   [Tab/Esc] live");
     }
     if view == InspectorView::ProtocolExplanation {
         let destination = if phase == Phase::ChooseProtocol {
@@ -534,15 +530,7 @@ fn inspector_footer(view: InspectorView, derivation_available: bool, phase: Phas
     } else {
         ""
     };
-    if view == InspectorView::Snapshot {
-        format!(
-            "{quit}   [←/→] snapshot   [Home/End] bounds   [t] events{derivation}   [Tab/i] live"
-        )
-    } else {
-        format!(
-            "{quit}   ←/→ snapshot   ↑/↓ scroll   [s] ceremony   [t] events{derivation}   [Tab/i] live"
-        )
-    }
+    format!("{quit}   [↑/↓] scroll{derivation}   [Tab/Esc] live")
 }
 
 fn roll_footer(app: &App) -> String {
@@ -763,7 +751,7 @@ mod tests {
 
         app.update(Key::Char('i'));
         app.update(Key::Char('d'));
-        assert_eq!(app.inspector().unwrap().view, InspectorView::Snapshot);
+        assert!(app.inspector().is_none());
     }
 
     #[test]
@@ -844,50 +832,6 @@ mod tests {
             output.find("┏━ CEREMONY").unwrap() < output.find("Choose mnemonic length").unwrap()
         );
         assert!(!output.contains(" STATE"));
-    }
-
-    #[test]
-    fn live_state_focus_is_not_labeled_historical() {
-        let mut app = App::default();
-        app.update(Key::Char('\t'));
-        let output = render(&app, 80, 40);
-
-        assert!(output.contains("LIVE CEREMONY PROJECTION · READ ONLY"));
-        assert!(!output.contains("HISTORICAL CEREMONY PROJECTION"));
-    }
-
-    #[test]
-    fn historical_projection_omits_live_prompts_and_cursors() {
-        let mut app = App::default();
-        app.update(Key::Char('\n'));
-        app.update(Key::Char('\n'));
-        app.update(Key::Char('c'));
-        app.update(Key::Char('\n'));
-        app.update(Key::Char('h'));
-        app.update(Key::Char('\t'));
-        app.update(Key::Left);
-        let safety = render(&app, 80, 40);
-        assert!(safety.contains("HISTORICAL CEREMONY PROJECTION · READ ONLY"));
-        assert!(!safety.contains("Press Enter to acknowledge"));
-
-        app.update(Key::Left);
-        let setup = render(&app, 80, 40);
-        assert!(setup.contains("Choose conversion protocol"));
-        assert!(!setup.contains('▶'));
-    }
-
-    #[test]
-    fn inspector_is_visibly_read_only_when_historical() {
-        let mut app = App::default();
-        app.update(Key::Char('\n'));
-        app.update(Key::Char('\n'));
-        app.update(Key::Char('i'));
-        app.update(Key::Left);
-
-        let output = render(&app, 80, 40);
-        assert!(output.contains("HISTORICAL CEREMONY PROJECTION · READ ONLY"));
-        assert!(output.contains("Choose conversion protocol"));
-        assert!(output.contains("● SETUP  ›  ○ SAFETY"));
     }
 
     #[test]
@@ -977,51 +921,6 @@ mod tests {
         assert!(output.contains("no application network adapter"));
         assert!(output.contains("actual offline status"));
         assert!(output.contains("operating-system integrity"));
-    }
-
-    #[test]
-    fn inspection_replaces_the_single_workspace_without_reflow() {
-        let mut app = App::default();
-        let live = render(&app, 80, 40);
-        let live_top = live.lines().position(|line| line.starts_with('┏')).unwrap();
-        assert_eq!(live.lines().filter(|line| line.starts_with('┏')).count(), 1);
-        assert!(!live.contains(" STATE"));
-
-        app.update(Key::Char('\t'));
-        let inspected = render(&app, 80, 40);
-        let inspected_top = inspected
-            .lines()
-            .position(|line| line.starts_with('┏'))
-            .unwrap();
-        assert!(inspected.contains("┏━ CEREMONY INSPECTION · READ ONLY · FOCUS"));
-        assert_eq!(
-            inspected
-                .lines()
-                .filter(|line| line.starts_with('┏'))
-                .count(),
-            1
-        );
-        assert_eq!(live_top, inspected_top);
-        assert_eq!(live.lines().count(), inspected.lines().count());
-    }
-
-    #[test]
-    fn snapshot_navigation_drives_the_whole_ceremony_projection() {
-        let mut app = App::default();
-        app.update(Key::Char('\n'));
-        app.update(Key::Char('\n'));
-        app.update(Key::Char('c'));
-        app.update(Key::Char('\n'));
-        app.update(Key::Char('4'));
-        app.update(Key::Char('h'));
-        app.update(Key::Char('\t'));
-        app.update(Key::Home);
-
-        let output = render(&app, 80, 40);
-        assert!(output.contains("┏━ CEREMONY INSPECTION · READ ONLY · FOCUS"));
-        assert!(output.contains("HISTORICAL CEREMONY PROJECTION · READ ONLY"));
-        assert!(output.contains("● SETUP  ›  ○ SAFETY"));
-        assert!(output.contains("Choose mnemonic length"));
     }
 
     #[test]
@@ -1820,47 +1719,6 @@ mod tests {
         }
         assert!(output.contains("[h] hide"));
         assert!(output.contains("[q] finish"));
-    }
-
-    #[test]
-    fn event_timeline_redacts_every_roll_face() {
-        let mut app = revealed_twenty_four_words();
-        app.update(Key::Char('\t'));
-        app.update(Key::Char('t'));
-        let output = render(&app, 80, 40);
-
-        assert!(output.contains("recorded secret roll"));
-        assert!(!output.contains("recorded roll 1"));
-    }
-
-    #[test]
-    fn historical_roll_snapshots_conceal_every_face() {
-        let mut app = revealed_twenty_four_words();
-        app.update(Key::Char('\t'));
-        for _ in 0..3 {
-            app.update(Key::Left);
-        }
-
-        let output = render(&app, 80, 40);
-
-        assert!(output.contains("HISTORICAL CEREMONY PROJECTION · READ ONLY"));
-        assert!(output.contains("◆ ROLL VALUES CONCEALED"));
-        assert!(output.contains("recorded · faces not drawn"));
-        assert!(!output.contains("11111"));
-    }
-
-    #[test]
-    fn inspection_conceals_the_revealed_mnemonic() {
-        let mut app = revealed_twenty_four_words();
-        let first_word = app.generation().unwrap().mnemonic().words()[0].clone();
-
-        app.update(Key::Char('\t'));
-        let output = render(&app, 80, 40);
-
-        assert!(output.contains("┏━ CEREMONY INSPECTION · READ ONLY · FOCUS"));
-        assert!(output.contains("○ RECOVERY WORDS CONCEALED"));
-        assert!(output.contains("The mnemonic is not drawn during inspection."));
-        assert!(!output.contains(&first_word));
     }
 
     #[test]

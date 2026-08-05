@@ -14,9 +14,7 @@ create entropy.
 
 The implementation follows the same goal. Calculations are isolated in the
 independent [`bip39-ceremony-core`](crates/bip39-ceremony-core/) crate so they are
-easy to read, test, verify, and reuse without the terminal interface. The
-in-memory event history also makes every logical step of a ceremony available
-for inspection without changing its live result.
+easy to read, test, verify, and reuse without the terminal interface.
 
 ## What you can inspect
 
@@ -25,8 +23,7 @@ After deliberate reveal, the TUI exposes:
 - the entered roll or flip sequence and protocol-specific grouping;
 - conversion details, including rejection decisions where applicable;
 - the resulting entropy bits and BIP-39 checksum;
-- each 11-bit word index and its corresponding English word; and
-- the ceremony state and phase path at every event-prefix snapshot.
+- each 11-bit word index and its corresponding English word.
 
 ## Security boundary
 
@@ -86,21 +83,17 @@ compatibility, but it is no longer offered as a ceremony choice.
 
 ## Interaction
 
-The ceremony is event sourced in memory. Press `Tab` or `i` to replace the live
-workspace with a read-only ceremony inspection without changing the live result.
-Moving its cursor reprojects the workspace and phase path at that historical
-state:
+The ceremony is event sourced in memory, but the interface does not expose or
+navigate event-prefix state. Detail panels are limited to protocol explanation,
+help, and the post-reveal derivation:
 
-- Left/Right or Home/End: navigate event-prefix snapshots
 - Up/Down or Page Up/Page Down: scroll longer detail views
-- `s`: return from a detail view to the ceremony projection
-- `t`: semantic event timeline
 - `d`: open the rolls-to-entropy-to-words derivation after mnemonic reveal
 - `?`: explanation and controls
-- `Tab`, `i`, or Escape: return to live state
+- `Tab` or Escape: return to the ceremony
 
 The concealed-result phase gates every equivalent derived secret together:
-entropy, checksum, indices, derivation words, and the mnemonic become inspectable
+entropy, checksum, indices, derivation words, and the mnemonic become available
 only after deliberate reveal.
 
 Choice menus use Up/Down or `j`/`k` to move the highlighted row. Left/Right or
@@ -142,12 +135,10 @@ for the structurally equivalent colorless presentation. `TERM=dumb` also selects
 plain mode. Labels, symbols, selection markers, and secret warnings remain
 complete without color.
 
-The interface normally uses one full-height workspace card. Inspection, help,
-timelines, and derivation replace that card on demand. Protocol explanation is
-the deliberate exception: the selected protocol list remains in an upper card
-while its scrollable explanation opens below, with a visible return control.
-After reveal, opening inspection replaces the mnemonic with an explicit
-concealment view. Historical projections remain read-only. Overflow stays inside
+The interface normally uses one full-height workspace card. Help and derivation
+replace that card on demand. Protocol explanation is the deliberate exception:
+the selected protocol list remains in an upper card while its scrollable
+explanation opens below, with a visible return control. Overflow stays inside
 the workspace and is navigated with Page Up/Page Down. The phase path uses `✓`,
 `●`, and `○` for complete, current, and future stages.
 
