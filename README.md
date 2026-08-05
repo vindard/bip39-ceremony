@@ -100,51 +100,6 @@ only when reproducing a mnemonic from its original rolls. The frozen
 `native-hash-v1` implementation and vectors remain in the source for protocol
 compatibility, but it is no longer offered as a ceremony choice.
 
-## ⌨️ Interaction
-
-The ceremony moves through five phases. Every derived secret — entropy,
-checksum, indices, words, and the mnemonic — stays concealed together until a
-single deliberate reveal.
-
-```mermaid
-flowchart LR
-    S["1 · Setup<br/>length + protocol"] --> A["2 · Safety<br/>5 acknowledgements"]
-    A --> R["3 · Rolls<br/>physical capture"]
-    R --> G["4 · Generate"]
-    G --> V["5 · Reveal 🔒"]
-    V -. deliberate reveal .-> O["entropy · checksum<br/>indices · words · mnemonic"]
-```
-
-### Controls
-
-| Context | Keys | Action |
-| --- | --- | --- |
-| Menus | `↑`/`↓` or `j`/`k` | Move the highlighted row |
-| Setup | `←`/`→` or `h`/`l` | Switch between length and protocol steps |
-| Setup | `e` | Explain the highlighted protocol |
-| Safety | `Space` · `c` · `Enter` | Toggle one · check all · advance (after all five) |
-| Capture | `Backspace` | Undo only the latest observation |
-| Capture | `h` | Toggle the full zero-padded ledger (hidden by default) |
-| Reveal | `d` | Open the rolls → entropy → words derivation |
-| Reveal | `v` | Mark transcription checked (does not validate the backup) |
-| Reveal | `h` / `Esc` | Quick-hide the words / restore them |
-| Panels | `↑`/`↓` · `PgUp`/`PgDn` · `?` · `Tab`/`Esc` | Scroll · page · help · return |
-
-### Capture keys per protocol
-
-| Protocol | Keys |
-| --- | --- |
-| D6 dice | `1`–`6` |
-| SeedSigner coins | `0` tails · `1` heads |
-| Jade | `1`–`9` `A`–`G` (D16), then `1`–`8` (D8) |
-| BitBox02 | Stage-aware D6, plus `0`/`1` coin |
-| Coin + four-D6 | `0`/`1` coin, then four `1`–`6` (whole tuple retries on rejection) |
-| Krux D20 | `1`–`9` `A`–`K` (faces 10–20) |
-
-Numeric shortcuts for menu selection are intentionally disabled. The 52×40
-minimum layout shows all 24 words in stable numbered columns without scrolling;
-cancelling or finishing requires confirmation and persists nothing.
-
 ## 🎨 Visual themes
 
 The warm `ember` palette is the sole visual theme. It preserves the terminal's
