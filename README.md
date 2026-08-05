@@ -130,7 +130,7 @@ policy, explanatory wording, and terminal interface. Unit tests cover pure
 calculation and domain paths, while consumer-style vector tests verify the core
 crate's public boundary.
 
-## Reference validation
+## 🔬 Reference validation
 
 ![upstream oracles](https://img.shields.io/badge/upstream%20oracles-7%20pinned-2aa198)
 
