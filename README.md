@@ -175,41 +175,40 @@ policy, explanatory wording, and terminal interface. Unit tests cover pure
 calculation and domain paths, while consumer-style vector tests verify the core
 crate's public boundary.
 
-### Upstream implementation validation
+## Reference validation
 
-The flake pins Coldcard firmware, SeedSigner, Krux, BitBox02 firmware and its
-BIP-39 dependency, legacy Keystone source, Jade and its libwally dependency,
-Ian Coleman's BIP-39 tool, and SeedSigner's `embit` dependency as non-flake
-source inputs. The
-`reference-implementations` check drives `bip39-ceremony-core` and each upstream
-implementation at its shared comparison boundary. It executes Coldcard's firmware
-capture function across its count and 30% distribution boundaries; executes
-SeedSigner's coin-flip helper with the `embit` version declared by SeedSigner;
-executes Krux's `DiceEntropy.new_key` minimum gate, D20 serialization, hashing,
-and truncation after simulated keypad input at minimum and optional-extra
-counts; executes BitBox02's firmware checksum-completion function to compare
-final-word sets and entropy-tail ordering; performs the same scoped comparison
-against Jade's firmware function and pinned libwally; executes legacy Keystone's
-50/99-roll UI branches, face mapping, and SHA-256 conversion; and passes core
-entropy to Ian Coleman's encoder
-as an independent BIP-39 boundary. Only executable upstream
-code is treated as a validation reference;
-implementation documentation and profiles without an executable artifact remain
-outside this suite.
+![upstream oracles](https://img.shields.io/badge/upstream%20oracles-7%20pinned-2aa198)
 
-The suite is grouped by upstream authority under [`tests/references/`](tests/references/).
-Each implementation owns its loading, vectors, and assertions. A separate
-harness contains the core driver and its typed accepted, rejected, invalid, or
-error wire protocol. Nix exposes each implementation check independently and
-composes them in `reference-implementations`; `flake.lock` pins every upstream
-revision and content hash.
+Every wallet-compatible profile is cross-checked against the wallet's own
+**executable** code — not just its published example — pinned by revision and
+content hash in `flake.lock`:
 
-Run an individual comparison with `just reference-coldcard`,
-`just reference-seedsigner`, `just reference-krux`, `just reference-bitbox`,
-`just reference-keystone`, `just reference-jade`, or `just reference-iancoleman`. Run the aggregate
-with `just reference-validation`,
-or include it in the host-wide
-`just release-feasibility` check.
+**COLDCARD · SeedSigner · Krux · BitBox02 · Keystone · Jade · Ian Coleman**
+
+| Upstream (pinned) | Executed and compared at | `just` check |
+| --- | --- | --- |
+| **COLDCARD firmware** | dice count, 30% distribution rejection, ASCII SHA-256, target truncation | `reference-coldcard` |
+| **SeedSigner** (+ `embit 0.8.0`) | `generate_mnemonic_from_coin_flips` coin-flip helper | `reference-seedsigner` |
+| **Krux v26.08.0** | `DiceEntropy.new_key`: minimum gate, decimal-hyphen serialization, SHA-256, truncation | `reference-krux` |
+| **BitBox02 firmware v9.26.4** | checksum-completion candidates + entropy-tail ordering | `reference-bitbox` |
+| **Keystone** (legacy Android) | 50/98/99-roll completion branches, face `6`→`0` mapping, SHA-256 | `reference-keystone` |
+| **Jade firmware 1.0.40** (+ pinned libwally) | `valid_final_words` checksum + final-word ordering | `reference-jade` |
+| **Ian Coleman BIP-39** | entropy → English encoder (shared BIP-39 boundary) | `reference-iancoleman` |
+
+Only executable upstream code counts as a reference. Project-owned protocols
+without an upstream oracle (Exact, Word-by-word Exact, and the static Coin +
+four-D6 table) are instead held to pinned in-repo vectors under
+[`crates/bip39-ceremony-core/tests/`](crates/bip39-ceremony-core/tests/).
+
+The suite is grouped by upstream authority under
+[`tests/references/`](tests/references/); each implementation owns its loading,
+vectors, and assertions, while a shared harness holds the core driver and its
+typed accepted/rejected/invalid/error wire protocol. Nix exposes each check
+independently and composes them in `reference-implementations`. Run the
+aggregate with `just reference-validation` (also part of the host-wide
+`just release-feasibility`), or a single comparison with `just reference-jade`
+and its `reference-coldcard`, `reference-seedsigner`, `reference-krux`,
+`reference-bitbox`, `reference-keystone`, `reference-iancoleman` siblings.
 
 ## 🧰 Development environment
 
