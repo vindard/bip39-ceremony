@@ -1,0 +1,13 @@
+[package]
+name = "bip39-ceremony-reference-driver"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.94"
+license = "MIT"
+publish = false
+
+[dependencies]
+bip39-ceremony-core = { path = "../../../../crates/bip39-ceremony-core" }
+
+[lints]
+workspace = true

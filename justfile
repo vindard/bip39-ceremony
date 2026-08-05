@@ -90,6 +90,27 @@ release-musl:
     python3 scripts/pty-smoke.py result/bin/bip39-ceremony
     file result/bin/bip39-ceremony
 
+# Validate the shared reference harness.
+reference-harness:
+    nix build ".#checks.$(nix eval --raw --impure --expr builtins.currentSystem).reference-harness"
+
+# Compare core with Coldcard firmware.
+reference-coldcard:
+    nix build ".#checks.$(nix eval --raw --impure --expr builtins.currentSystem).reference-coldcard"
+
+# Compare core with SeedSigner and embit.
+reference-seedsigner:
+    nix build ".#checks.$(nix eval --raw --impure --expr builtins.currentSystem).reference-seedsigner"
+
+# Compare core with both Ian Coleman surfaces.
+reference-iancoleman:
+    nix build ".#checks.$(nix eval --raw --impure --expr builtins.currentSystem).reference-iancoleman-bip39" \
+      ".#checks.$(nix eval --raw --impure --expr builtins.currentSystem).reference-iancoleman-legacy-dice"
+
+# Compare core outputs with all pinned upstream implementations.
+reference-validation:
+    nix build ".#checks.$(nix eval --raw --impure --expr builtins.currentSystem).reference-implementations"
+
 # Exercise every release feasibility derivation for this host.
 release-feasibility:
     nix flake check

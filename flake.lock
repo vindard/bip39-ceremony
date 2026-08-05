@@ -1,5 +1,54 @@
 {
   "nodes": {
+    "coldcard": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1785588631,
+        "narHash": "sha256-R6H6SML+KcDdr0ilS31TqcAScFRo+WC4VYwGHEecaNc=",
+        "owner": "Coldcard",
+        "repo": "firmware",
+        "rev": "c849c4e04a978335937a0fd0c96e76f5bd70bbb6",
+        "type": "github"
+      },
+      "original": {
+        "owner": "Coldcard",
+        "repo": "firmware",
+        "type": "github"
+      }
+    },
+    "embit": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1717065789,
+        "narHash": "sha256-MpZESCz2r+8hQWTkaemGUzAR1ePQvU7CIBT25Ze41r8=",
+        "owner": "diybitcoinhardware",
+        "repo": "embit",
+        "rev": "84cce66fb831fa6d625fb73f28e03605f3c04e28",
+        "type": "github"
+      },
+      "original": {
+        "owner": "diybitcoinhardware",
+        "ref": "v0.8.0",
+        "repo": "embit",
+        "type": "github"
+      }
+    },
+    "iancoleman": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1690861491,
+        "narHash": "sha256-jovAPlr2G4i1ePx1QnaVPqHG3TAYtnCc/KSdaDKLIK0=",
+        "owner": "iancoleman",
+        "repo": "bip39",
+        "rev": "de71c22328b24e0848bbe1bd12ac8974ca83b5b8",
+        "type": "github"
+      },
+      "original": {
+        "owner": "iancoleman",
+        "repo": "bip39",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1785571196,
@@ -18,7 +67,27 @@
     },
     "root": {
       "inputs": {
-        "nixpkgs": "nixpkgs"
+        "coldcard": "coldcard",
+        "embit": "embit",
+        "iancoleman": "iancoleman",
+        "nixpkgs": "nixpkgs",
+        "seedsigner": "seedsigner"
+      }
+    },
+    "seedsigner": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1784749904,
+        "narHash": "sha256-wQdQe+GR87ACBqahq7t6ryD7f/MrGj9mLKZVyMVefOY=",
+        "owner": "SeedSigner",
+        "repo": "seedsigner",
+        "rev": "1fb2956322ea978428a6a96b955baa93e965c877",
+        "type": "github"
+      },
+      "original": {
+        "owner": "SeedSigner",
+        "repo": "seedsigner",
+        "type": "github"
       }
     }
   },

@@ -175,6 +175,33 @@ policy, explanatory wording, and terminal interface. Unit tests cover pure
 calculation and domain paths, while consumer-style vector tests verify the core
 crate's public boundary.
 
+### Upstream implementation validation
+
+The flake pins Coldcard firmware, SeedSigner, Ian Coleman's BIP-39 tool, and
+SeedSigner's `embit` dependency as non-flake source inputs. The
+`reference-implementations` check drives `bip39-ceremony-core` and each upstream
+implementation at its shared comparison boundary. It executes Coldcard's firmware
+capture function at, below, and above its 12- and 24-word minimums; executes
+SeedSigner's coin-flip helper with its pinned `embit` dependency; and passes core
+entropy to Ian Coleman's encoder as an independent BIP-39 boundary.
+
+The legacy Keystone profile is deliberately narrower: the check executes Ian
+Coleman's dice normalization, SHA-256, and BIP-39 implementation, but does not
+claim to execute Keystone firmware. Requirements without an upstream oracle
+remain in the core crate's Rust contract tests.
+
+The suite is grouped by upstream authority under [`tests/references/`](tests/references/).
+Each implementation owns its loading, vectors, and assertions. A separate
+harness contains the core driver and its typed accepted, rejected, invalid, or
+error wire protocol. Nix exposes each implementation check independently and
+composes them in `reference-implementations`; `flake.lock` pins every upstream
+revision and content hash.
+
+Run an individual comparison with `just reference-coldcard`,
+`just reference-seedsigner`, or `just reference-iancoleman`. Run the aggregate
+with `just reference-validation`, or include it in the host-wide
+`just release-feasibility` check.
+
 ## 🧰 Development environment
 
 Useful commands inside `nix develop` or direnv:
@@ -186,6 +213,7 @@ just security            # RustSec, licenses, sources and duplicate versions
 just precommit           # complete local gate
 just build               # debug binary
 just release             # local optimized build; not a release artifact
+just reference-validation # compare against pinned upstream implementations
 just release-gnu         # Nix GNU/Linux feasibility artifact and PTY smoke
 just release-musl        # Nix static-musl feasibility artifact and PTY smoke
 just release-feasibility # build and test all host feasibility outputs
