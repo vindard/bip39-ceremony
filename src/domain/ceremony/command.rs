@@ -33,7 +33,7 @@ pub enum Command {
     UndoCoinFourD6,
     UndoD20,
     ConfirmRolls,
-    RestartExactAttempt,
+    RestartAttempt,
     RevealMnemonic,
 }
 
@@ -68,7 +68,7 @@ impl fmt::Debug for Command {
             Self::UndoCoinFourD6 => formatter.write_str("UndoCoinFourD6"),
             Self::UndoD20 => formatter.write_str("UndoD20"),
             Self::ConfirmRolls => formatter.write_str("ConfirmRolls"),
-            Self::RestartExactAttempt => formatter.write_str("RestartExactAttempt"),
+            Self::RestartAttempt => formatter.write_str("RestartAttempt"),
             Self::RevealMnemonic => formatter.write_str("RevealMnemonic"),
         }
     }

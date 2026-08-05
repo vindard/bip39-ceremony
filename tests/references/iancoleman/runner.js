@@ -15,28 +15,19 @@ for (const file of [
   "sjcl-bip39.js",
   "wordlist_english.js",
   "jsbip39.js",
-  "entropy.js",
 ]) {
   const filename = path.join(source, "src/js", file);
   vm.runInThisContext(fs.readFileSync(filename, "utf8"), { filename });
 }
 
 const mnemonic = new Mnemonic("english");
-let entropy;
-if (operation === "entropy") {
-  if (!/^(?:[0-9a-f]{32}|[0-9a-f]{64})$/.test(input)) {
-    throw new Error("entropy must be canonical 128- or 256-bit lowercase hex");
-  }
-  entropy = input;
-} else if (operation === "legacy-dice") {
-  if (!/^[1-6]+$/.test(input)) {
-    throw new Error("legacy dice input must contain only die faces");
-  }
-  const cleanInput = window.Entropy.fromString(input, "dice").cleanStr;
-  entropy = sjcl.codec.hex.fromBits(sjcl.hash.sha256.hash(cleanInput));
-} else {
+if (operation !== "entropy") {
   throw new Error(`unsupported operation: ${operation}`);
 }
+if (!/^(?:[0-9a-f]{32}|[0-9a-f]{64})$/.test(input)) {
+  throw new Error("entropy must be canonical 128- or 256-bit lowercase hex");
+}
+const entropy = input;
 
 const bytes = [...Buffer.from(entropy, "hex")];
 process.stdout.write(JSON.stringify({

@@ -21,7 +21,7 @@ use crate::domain::{
 use crate::{
     application::SafetyAttestation,
     presentation::{
-        ChoiceContent, ProtocolMenuChoice, concealed_generation, exact_rejection,
+        ChoiceContent, ProtocolMenuChoice, attempt_rejection, concealed_generation,
         finish_confirmation, protocol_choices, safety_content, target_choices,
     },
 };
@@ -261,7 +261,7 @@ fn render_live(app: &App, width: usize) -> Lines {
             "",
             "The conversion is deterministic and runs entirely in memory.",
         ]),
-        Phase::ExactAttemptRejected => render_exact_rejected(app),
+        Phase::AttemptRejected => render_attempt_rejected(app),
         Phase::Result => render_concealed_result(app, width),
         Phase::Revealed => render_mnemonic(app, width),
         Phase::Cancelled => lines(&[
@@ -389,9 +389,14 @@ fn choices(
     output
 }
 
-fn render_exact_rejected(app: &App) -> Lines {
+fn render_attempt_rejected(app: &App) -> Lines {
     let required = app.ceremony().state().required_rolls().unwrap_or(0);
-    let document = exact_rejection(required);
+    let protocol = app
+        .ceremony()
+        .state()
+        .protocol()
+        .unwrap_or(ConversionProtocol::ExactV1);
+    let document = attempt_rejection(protocol, required);
     let mut output = render_document(&document, MAX_CONTENT_WIDTH);
     push(&mut output, "");
     push(
@@ -498,7 +503,7 @@ fn footer_line(app: &App) -> String {
         }
         Phase::Safety => "[q] cancel  [↑/↓] move  [Space] toggle  [c] all".to_owned(),
         Phase::EnterRolls => roll_footer(app),
-        Phase::ExactAttemptRejected => "[r/Enter] fresh attempt    [q] cancel".to_owned(),
+        Phase::AttemptRejected => "[r/Enter] fresh attempt    [q] cancel".to_owned(),
         Phase::Result => "[r] reveal    [q] cancel".to_owned(),
         Phase::Revealed => {
             if app.mnemonic_verification().is_some() {
@@ -1266,12 +1271,12 @@ mod tests {
         app.update(Key::Char('\n'));
         app.update(Key::Char('c'));
         app.update(Key::Char('\n'));
-        for _ in 0..99 {
+        for _ in 0..50 {
             app.update(Key::Char('6'));
         }
 
         let ready = render(&app, 80, 40);
-        assert!(ready.contains("LEGACY KEYSTONE MINIMUM MET · 99 recorded"));
+        assert!(ready.contains("LEGACY KEYSTONE MINIMUM MET · 50 recorded"));
         assert!(ready.contains("Face 6 maps to ASCII 0"));
 
         app.update(Key::Char('\n'));
@@ -1680,6 +1685,18 @@ mod tests {
         let extra = render_roll_entry(&roll_entry_app(3, 100), 80).join("\n");
         assert!(extra.contains("CURRENT PREFIX · 100 ASCII ROLL DIGIT(S)"));
         assert!(extra.contains("✓ MINIMUM MET"));
+    }
+
+    #[test]
+    fn coldcard_distribution_rejection_explains_fresh_attempt() {
+        let mut app = roll_entry_app(3, 99);
+        app.update(Key::Char('\n'));
+        let output = render(&app, 80, 40);
+
+        assert!(output.contains("COLDCARD ATTEMPT REJECTED"));
+        assert!(output.contains("more than 30% of the time"));
+        assert!(output.contains("No part is reusable"));
+        assert!(output.contains("fresh attempt"));
     }
 
     #[test]

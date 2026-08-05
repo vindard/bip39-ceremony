@@ -13,7 +13,7 @@ pub use guidance::{assurance_line, phase_guidance};
 pub use protocol::{protocol_explanation, protocol_menu_explanation};
 pub use readiness::readiness_document;
 pub use recovery::{
-    concealed_generation, derivation_guidance, exact_rejection, finish_confirmation,
+    attempt_rejection, concealed_generation, derivation_guidance, finish_confirmation,
     transcription_instructions, verified_recovery,
 };
 pub use safety::{SafetyContent, safety_content};

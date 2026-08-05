@@ -46,11 +46,11 @@ pub fn phase_guidance(phase: Phase) -> Document {
                 (ClaimId::GenerationReadiness, EvidenceKind::NotEstablished) => {
                     "Readiness does not establish source fairness or correct physical entry."
                 }
-                (ClaimId::ExactRejection, EvidenceKind::SoftwareVerified) => {
-                    "Rejection preserves an unbiased whole-sequence conversion."
+                (ClaimId::AttemptRejection, EvidenceKind::SoftwareVerified) => {
+                    "Rejection follows the selected protocol's whole-sequence rule."
                 }
-                (ClaimId::ExactRejection, EvidenceKind::NotEstablished) => {
-                    "It does not mean the die, application, or operator failed."
+                (ClaimId::AttemptRejection, EvidenceKind::NotEstablished) => {
+                    "It does not certify the physical source or diagnose an operator."
                 }
                 (ClaimId::ConcealedGeneration, EvidenceKind::SoftwareVerified) => {
                     "Deterministic conversion completed without exposing derived secrets."

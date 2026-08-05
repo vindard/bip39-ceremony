@@ -1,6 +1,6 @@
 use bip39_ceremony_core::{
-    CalculationError, Capture, CoinFlip, ConversionProtocol, DieFace, EntropyTarget, FlipSequence,
-    ProtocolError, RollSequence, calculate,
+    CalculationError, CalculationOutcome, Capture, CoinFlip, ConversionProtocol, DieFace,
+    EntropyTarget, FlipSequence, ProtocolError, RollSequence, calculate,
 };
 
 fn flips(value: &str) -> FlipSequence {
@@ -42,8 +42,47 @@ fn seedsigner_requires_the_target_entropy_width() {
 }
 
 #[test]
-fn keystone_legacy_contract_rejects_short_and_unsupported_capture() {
-    let short = rolls(&"1".repeat(98));
+fn coldcard_rejects_skewed_complete_distributions_after_count_validation() {
+    let short = rolls(&"1".repeat(49));
+    assert!(matches!(
+        calculate(
+            EntropyTarget::Words12,
+            ConversionProtocol::ColdcardV1,
+            Capture::Dice(&short)
+        ),
+        Err(CalculationError::Protocol(
+            ProtocolError::WrongObservationCount {
+                expected: 50,
+                actual: 49,
+            }
+        ))
+    ));
+
+    for (target, observations) in [
+        (
+            EntropyTarget::Words12,
+            "11111111111111112222222333333344444445555555666666",
+        ),
+        (
+            EntropyTarget::Words24,
+            "111111111111111111111111111111222222222222223333333333333344444444444444555555555555556666666666666",
+        ),
+    ] {
+        let rolls = rolls(observations);
+        assert!(matches!(
+            calculate(
+                target,
+                ConversionProtocol::ColdcardV1,
+                Capture::Dice(&rolls)
+            ),
+            Ok(CalculationOutcome::ColdcardDistributionRejected)
+        ));
+    }
+}
+
+#[test]
+fn keystone_legacy_contract_enforces_legacy_scope() {
+    let short = rolls(&"1".repeat(49));
     assert!(matches!(
         calculate(
             EntropyTarget::Words24,
@@ -52,10 +91,20 @@ fn keystone_legacy_contract_rejects_short_and_unsupported_capture() {
         ),
         Err(CalculationError::Protocol(
             ProtocolError::WrongObservationCount {
-                expected: 99,
-                actual: 98,
+                expected: 50,
+                actual: 49,
             }
         ))
+    ));
+
+    let minimum = rolls(&"1".repeat(50));
+    assert!(matches!(
+        calculate(
+            EntropyTarget::Words24,
+            ConversionProtocol::KeystoneLegacyV1,
+            Capture::Dice(&minimum)
+        ),
+        Ok(CalculationOutcome::Accepted(_))
     ));
 
     let unsupported = rolls(&"1".repeat(50));

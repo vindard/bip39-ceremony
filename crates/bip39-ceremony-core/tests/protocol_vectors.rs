@@ -581,7 +581,7 @@ fn seedsigner_coin_flips_cross_sha256_and_bip39_boundaries() {
 
 #[test]
 fn coldcard_hash_crosses_sha256_and_bip39_boundaries() {
-    let rolls = rolls(&"1".repeat(100));
+    let rolls = rolls(&("123456".repeat(17))[..100]);
     let calculation = accepted(
         EntropyTarget::Words24,
         ConversionProtocol::ColdcardV1,
@@ -589,7 +589,7 @@ fn coldcard_hash_crosses_sha256_and_bip39_boundaries() {
     );
     assert_eq!(
         entropy_hex(calculation.entropy()),
-        "380b4863f69ebaacc794bfa1742a8a6ddc575e8cf0ded4341ab9da158881ea2d"
+        "e56403e8522ddeae1b44a1e8148b1ba4d3b4c626ccf20980056eedcc7e0c0f35"
     );
     assert_eq!(calculation.mnemonic().words().len(), 24);
 }

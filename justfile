@@ -102,10 +102,25 @@ reference-coldcard:
 reference-seedsigner:
     nix build ".#checks.$(nix eval --raw --impure --expr builtins.currentSystem).reference-seedsigner"
 
-# Compare core with both Ian Coleman surfaces.
+# Compare core with Krux's D20 capture implementation.
+reference-krux:
+    nix build ".#checks.$(nix eval --raw --impure --expr builtins.currentSystem).reference-krux"
+
+# Compare core checksum completion with BitBox02 firmware.
+reference-bitbox:
+    nix build ".#checks.$(nix eval --raw --impure --expr builtins.currentSystem).reference-bitbox-checksum"
+
+# Compare core mapping and hashing with legacy Keystone source.
+reference-keystone:
+    nix build ".#checks.$(nix eval --raw --impure --expr builtins.currentSystem).reference-keystone-legacy"
+
+# Compare core checksum completion with Jade firmware and libwally.
+reference-jade:
+    nix build ".#checks.$(nix eval --raw --impure --expr builtins.currentSystem).reference-jade-checksum"
+
+# Compare core BIP-39 encoding with Ian Coleman.
 reference-iancoleman:
-    nix build ".#checks.$(nix eval --raw --impure --expr builtins.currentSystem).reference-iancoleman-bip39" \
-      ".#checks.$(nix eval --raw --impure --expr builtins.currentSystem).reference-iancoleman-legacy-dice"
+    nix build ".#checks.$(nix eval --raw --impure --expr builtins.currentSystem).reference-iancoleman-bip39"
 
 # Compare core outputs with all pinned upstream implementations.
 reference-validation:

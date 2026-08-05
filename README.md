@@ -83,9 +83,9 @@ just run
 | **COLDCARD** | 12 · 24 | D6 | SHA-256 over ASCII roll digits, compatible for an identical ordered sequence. Minimums are 50 rolls for 12 words and COLDCARD's documented 99 rolls for 24 words; additional rolls are accepted. |
 | **Word-by-word Exact** | 12 · 24 | D6 | Exact localized rejection over six-roll 11-bit candidates and a final entropy-tail candidate. Minimums are 70 or 140 rolls; rejected groups never discard accepted positions. |
 | **Exact** | 12 · 24 | D6 | Exact base-6 rejection mapping. Uniform under independent fair dice; ~16% of 50-roll and ~11% of 100-roll attempts reject. |
-| **Keystone legacy dice** | 24 | D6 | 24-word compatibility profile that maps face `6` to ASCII `0`, hashes at least 99 mapped rolls, and uses the full digest. |
+| **Keystone legacy dice** | 24 | D6 | 24-word compatibility profile that maps face `6` to ASCII `0`, permits completion from 50 mapped rolls, recommends continuing to 99, and uses the full digest. |
 | **Jade direct words** | 12 · 24 | D16/D8 | D16/D16/D8 triples select the first 11 or 23 BIP-39 indices using [Blockstream's published table order][jade-guide]. A final D16/D8 or D8 roll supplies the remaining entropy bits before checksum calculation. |
-| **BitBox02 Diceware** | 12 · 24 | D6 + coin | Five D6 faces accepted only in `1`–`4` plus one coin side select each direct word using [BitBox02's published table][bitbox-guide]. Rejected `5`/`6` attempts retry locally; final coins supply the entropy tail. |
+| **BitBox02 Diceware** | 12 · 24 | D6 + coin | Reproduces BitBox02's external printed-table workflow; the firmware does not capture the dice rolls. Five D6 faces accepted only in `1`–`4` plus one coin side select each direct word using the [published table][bitbox-guide]. Rejected `5`/`6` retry locally; final coins supply the entropy tail before the words are entered on the device. |
 | **Krux D20** | 12 · 24 | D20 | At least 30 or 60 D20 rolls serialized as hyphen-separated decimal faces, matching [Krux's documented implementation][krux-guide]. Additional rolls are accepted before hashing with SHA-256. |
 | **Coin + four-D6 direct words** | 12 | D6 + coin | One coin and four ordered D6 faces select each direct index using the pinned [Bip39-diceware table][coin-four-d6-table]. Whole rejected candidates retry; 12 accepted candidates provide 128 entropy bits before deterministic checksum replacement. |
 | **SeedSigner coin flips** | 12 · 24 | Coin | Exactly 128 or 256 physical flips serialized as ASCII `0`/`1`, hashed with SHA-256, then truncated for 12 words when needed. |
@@ -177,18 +177,25 @@ crate's public boundary.
 
 ### Upstream implementation validation
 
-The flake pins Coldcard firmware, SeedSigner, Ian Coleman's BIP-39 tool, and
-SeedSigner's `embit` dependency as non-flake source inputs. The
+The flake pins Coldcard firmware, SeedSigner, Krux, BitBox02 firmware and its
+BIP-39 dependency, legacy Keystone source, Jade and its libwally dependency,
+Ian Coleman's BIP-39 tool, and SeedSigner's `embit` dependency as non-flake
+source inputs. The
 `reference-implementations` check drives `bip39-ceremony-core` and each upstream
 implementation at its shared comparison boundary. It executes Coldcard's firmware
-capture function at, below, and above its 12- and 24-word minimums; executes
-SeedSigner's coin-flip helper with its pinned `embit` dependency; and passes core
-entropy to Ian Coleman's encoder as an independent BIP-39 boundary.
-
-The legacy Keystone profile is deliberately narrower: the check executes Ian
-Coleman's dice normalization, SHA-256, and BIP-39 implementation, but does not
-claim to execute Keystone firmware. Requirements without an upstream oracle
-remain in the core crate's Rust contract tests.
+capture function across its count and 30% distribution boundaries; executes
+SeedSigner's coin-flip helper with the `embit` version declared by SeedSigner;
+executes Krux's `DiceEntropy.new_key` minimum gate, D20 serialization, hashing,
+and truncation after simulated keypad input at minimum and optional-extra
+counts; executes BitBox02's firmware checksum-completion function to compare
+final-word sets and entropy-tail ordering; performs the same scoped comparison
+against Jade's firmware function and pinned libwally; executes legacy Keystone's
+50/99-roll UI branches, face mapping, and SHA-256 conversion; and passes core
+entropy to Ian Coleman's encoder
+as an independent BIP-39 boundary. Only executable upstream
+code is treated as a validation reference;
+implementation documentation and profiles without an executable artifact remain
+outside this suite.
 
 The suite is grouped by upstream authority under [`tests/references/`](tests/references/).
 Each implementation owns its loading, vectors, and assertions. A separate
@@ -198,8 +205,10 @@ composes them in `reference-implementations`; `flake.lock` pins every upstream
 revision and content hash.
 
 Run an individual comparison with `just reference-coldcard`,
-`just reference-seedsigner`, or `just reference-iancoleman`. Run the aggregate
-with `just reference-validation`, or include it in the host-wide
+`just reference-seedsigner`, `just reference-krux`, `just reference-bitbox`,
+`just reference-keystone`, `just reference-jade`, or `just reference-iancoleman`. Run the aggregate
+with `just reference-validation`,
+or include it in the host-wide
 `just release-feasibility` check.
 
 ## 🧰 Development environment

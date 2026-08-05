@@ -121,7 +121,7 @@ impl Ceremony {
             Command::UndoCoinFourD6 => Self::undo_coin_four_d6(state),
             Command::UndoD20 => Self::undo_d20(state),
             Command::ConfirmRolls => Self::confirm_rolls(state),
-            Command::RestartExactAttempt => Self::restart_exact_attempt(state),
+            Command::RestartAttempt => Self::restart_attempt(state),
             Command::RevealMnemonic => Self::reveal_mnemonic(state),
         }
     }
@@ -422,20 +422,23 @@ impl Ceremony {
         Ok(())
     }
 
-    pub(crate) fn record_exact_attempt_rejected(&mut self) -> Result<(), CeremonyError> {
+    pub(crate) fn record_attempt_rejected(&mut self) -> Result<(), CeremonyError> {
         let state = self.state();
         if state.phase() != Phase::ReadyToGenerate
-            || state.protocol() != Some(ConversionProtocol::ExactV1)
+            || !matches!(
+                state.protocol(),
+                Some(ConversionProtocol::ExactV1 | ConversionProtocol::ColdcardV1)
+            )
         {
             return Err(CeremonyError::WrongPhase);
         }
-        self.events.push(Event::ExactAttemptRejected);
+        self.events.push(Event::AttemptRejected);
         Ok(())
     }
 
-    fn restart_exact_attempt(state: &CeremonyState) -> Result<Event, CeremonyError> {
-        if state.phase() == Phase::ExactAttemptRejected {
-            Ok(Event::ExactAttemptRestarted)
+    fn restart_attempt(state: &CeremonyState) -> Result<Event, CeremonyError> {
+        if state.phase() == Phase::AttemptRejected {
+            Ok(Event::AttemptRestarted)
         } else {
             Err(CeremonyError::WrongPhase)
         }
@@ -780,7 +783,7 @@ mod tests {
     fn restarting_exact_requires_a_rejected_attempt() {
         let mut ceremony = configured(ConversionProtocol::ExactV1);
         assert_eq!(
-            ceremony.handle(Command::RestartExactAttempt),
+            ceremony.handle(Command::RestartAttempt),
             Err(CeremonyError::WrongPhase)
         );
     }
@@ -1032,10 +1035,10 @@ mod tests {
         let mut ceremony = configured(ConversionProtocol::ExactV1);
         add_rolls(&mut ceremony, 50);
         ceremony.handle(Command::ConfirmRolls).unwrap();
-        ceremony.record_exact_attempt_rejected().unwrap();
-        assert_eq!(ceremony.state().phase(), Phase::ExactAttemptRejected);
+        ceremony.record_attempt_rejected().unwrap();
+        assert_eq!(ceremony.state().phase(), Phase::AttemptRejected);
 
-        ceremony.handle(Command::RestartExactAttempt).unwrap();
+        ceremony.handle(Command::RestartAttempt).unwrap();
         let state = ceremony.state();
         assert_eq!(state.phase(), Phase::EnterRolls);
         assert!(state.rolls().is_empty());
@@ -1043,12 +1046,12 @@ mod tests {
     }
 
     #[test]
-    fn hash_mode_cannot_record_exact_rejection() {
+    fn non_rejecting_protocol_cannot_record_attempt_rejection() {
         let mut ceremony = configured(ConversionProtocol::NativeHashV1);
         add_rolls(&mut ceremony, 50);
         ceremony.handle(Command::ConfirmRolls).unwrap();
         assert_eq!(
-            ceremony.record_exact_attempt_rejected(),
+            ceremony.record_attempt_rejected(),
             Err(CeremonyError::WrongPhase)
         );
     }

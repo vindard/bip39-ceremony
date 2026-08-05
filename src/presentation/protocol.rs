@@ -152,7 +152,7 @@ fn bitbox_explanation(specification: ProtocolSpecification, target: EntropyTarge
                 "Flip three additional coins for the remaining three entropy bits. Heads maps to 0 and tails to 1; BIP-39 then calculates eight checksum bits and the final word.".to_owned()
             }),
             B::Paragraph("Capture keys remain 0 = tails and 1 = heads, so the displayed physical-side key is deliberately opposite the lookup selector bit. Follow the side labels, not an assumed bit value.".to_owned()),
-            B::Paragraph("BitBox02 asks the operator to choose from valid final words and uses autocomplete for 12 words. This ceremony replaces that interaction with explicit tail coins; compatibility is limited to the published table and valid final-word set.".to_owned()),
+            B::Paragraph("BitBox02 firmware does not capture these dice rolls. Its published workflow uses an external printed table, then asks the operator to enter the resulting words and choose from valid final words; 12-word entry uses autocomplete. This ceremony executes the printed-table procedure and replaces final-word selection with explicit tail coins. Compatibility is limited to the published table and valid final-word set.".to_owned()),
             B::Paragraph(format!("The minimum is {} outcomes plus any rejected D6 retries. Rejection does not repair biased dice or coins.", specification.minimum_observations())),
         ],
     )
@@ -298,6 +298,7 @@ fn coldcard_explanation(specification: ProtocolSpecification, target: EntropyTar
             B::Paragraph("This is one running SHA-256 input stream, not separate chunk hashes: each displayed digest equals SHA-256 of the complete accumulated string. The preview digest is not fed back into the next update.".to_owned()),
             B::Paragraph("Each new roll changes the whole candidate digest; it does not preserve a growing prefix of the eventual result. COLDCARD displays candidates from the empty input onward, but Dice Rolls Only does not finalize the mnemonic below the required minimum.".to_owned()),
             B::Paragraph("SHA-256 conditions the input; it does not create entropy or establish that the die was fair. More fair, independent rolls increase source outcome capacity, but the digest's 256-bit size never proves 256 bits of source entropy.".to_owned()),
+            B::Paragraph("At finalization, COLDCARD rejects the whole attempt when any face occurred more than 30% of the time. Equality at 30% is accepted. This heuristic does not prove that an accepted die was fair.".to_owned()),
             B::Heading(format!("3 · TAKE {} BITS AS ENTROPY", target.entropy_bits())),
             B::Paragraph(if target == EntropyTarget::Words12 {
                 "For 12 words, keep the first 16 digest bytes and discard the remaining 16.".to_owned()
@@ -314,7 +315,7 @@ fn coldcard_explanation(specification: ProtocolSpecification, target: EntropyTar
             B::Heading(format!("PUBLIC {}-WORD RESULT", target.word_count())),
             B::Paragraph(words.to_owned()),
             B::Heading("MINIMUM, THEN OPTIONAL EXTRA ROLLS".to_owned()),
-            B::Paragraph(format!("COLDCARD's Dice Rolls Only workflow enforces at least {} rolls for this target before finalization; additional rolls are allowed. Every chosen final sequence deterministically produces one result.", specification.minimum_observations())),
+            B::Paragraph(format!("COLDCARD's Dice Rolls Only workflow enforces at least {} rolls for this target before finalization; additional rolls are allowed. A sequence that passes the distribution guard deterministically produces one result.", specification.minimum_observations())),
             B::Paragraph("This reaches the same 128- or 256-bit BIP-39 input format as Exact, not the same value. Exact uses fixed-count rejection instead of hashing, so the same rolls will normally produce different entropy and words.".to_owned()),
         ],
     )
@@ -340,7 +341,7 @@ fn keystone_legacy_explanation(
             B::Heading("3 · USE THE FULL DIGEST AS BIP-39 ENTROPY".to_owned()),
             B::Paragraph("Use all 32 digest bytes as 256-bit entropy, calculate the eight-bit BIP-39 checksum, and split the resulting 264 bits into 24 English word indices.".to_owned()),
             B::Heading("ROLL REQUIREMENT".to_owned()),
-            B::Paragraph(format!("This profile requires at least {} D6 rolls before generation and accepts additional rolls. The published legacy example generated 24 words from only 50 rolls; mnemonic width did not make that source 256-bit. This implementation enforces the documented 256-bit recommendation instead.", specification.minimum_observations())),
+            B::Paragraph(format!("Legacy Keystone permits generation from {} D6 rolls, warns that the entropy may be insufficient, and recommends continuing to 99. This profile matches that completion threshold and accepts additional rolls. A 24-word mnemonic does not make 50 physical rolls a 256-bit entropy source.", specification.minimum_observations())),
             B::Paragraph("Same mapped rolls and target produce the same mnemonic. Hashing does not create entropy or establish that the physical die was fair.".to_owned()),
         ],
     )
@@ -400,7 +401,8 @@ mod tests {
         );
         assert!(text.contains("24 WORDS ONLY"));
         assert!(text.contains("mapped text:   123450"));
-        assert!(text.contains("at least 99 D6 rolls"));
+        assert!(text.contains("permits generation from 50 D6 rolls"));
+        assert!(text.contains("recommends continuing to 99"));
 
         let unsupported = format!(
             "{:?}",
@@ -437,7 +439,8 @@ mod tests {
         assert!(text.contains("all 1 + heads → abandon"));
         assert!(text.contains("all 4 + tails → zoo"));
         assert!(text.contains("Flip three additional coins"));
-        assert!(text.contains("compatibility is limited to the published table"));
+        assert!(text.contains("firmware does not capture these dice rolls"));
+        assert!(text.contains("Compatibility is limited to the published table"));
     }
 
     #[test]
@@ -493,6 +496,7 @@ mod tests {
             "checksum bits = 0001",
             "payment owner",
             "enforces at least 50 rolls",
+            "more than 30% of the time",
             "not separate chunk hashes",
             "changes the whole candidate digest",
             "SeedSigner and Krux D6",

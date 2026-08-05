@@ -24,16 +24,41 @@ def main() -> None:
     core = CoreDriver(args.core)
     iancoleman = IanColeman(args.node, args.runner, args.source)
 
-    for words, rolls in [
-        (12, "1" * 50),
-        (12, EXACT_12_BOUNDARY),
-        (24, "1" * 100),
-        (24, EXACT_24_BOUNDARY),
-    ]:
+    vectors = [
+        (
+            12,
+            "1" * 50,
+            "00" * 16,
+            " ".join(["abandon"] * 11 + ["about"]),
+        ),
+        (
+            12,
+            EXACT_12_BOUNDARY,
+            "ff" * 16,
+            " ".join(["zoo"] * 11 + ["wrong"]),
+        ),
+        (
+            24,
+            "1" * 100,
+            "00" * 32,
+            " ".join(["abandon"] * 23 + ["art"]),
+        ),
+        (
+            24,
+            EXACT_24_BOUNDARY,
+            "ff" * 32,
+            " ".join(["zoo"] * 23 + ["vote"]),
+        ),
+    ]
+    for words, rolls, entropy, mnemonic in vectors:
         label = f"Ian Coleman {words}-word BIP-39"
         actual = require_accepted(label, core.calculate("exact-v1", words, rolls))
-        reference = iancoleman.from_entropy(actual.entropy)
-        require_equal(f"{label} mnemonic", reference.mnemonic, actual.mnemonic)
+        require_equal(f"{label} core entropy", entropy, actual.entropy)
+        require_equal(f"{label} core mnemonic", mnemonic, actual.mnemonic)
+
+        reference = iancoleman.from_entropy(entropy)
+        require_equal(f"{label} reference entropy", entropy, reference.entropy)
+        require_equal(f"{label} reference mnemonic", mnemonic, reference.mnemonic)
     print("validated Ian Coleman BIP-39 against core")
 
 

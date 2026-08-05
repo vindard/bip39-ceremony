@@ -66,12 +66,22 @@ pub fn verified_recovery(receipt: ReproductionReceipt) -> Document {
 }
 
 #[must_use]
-pub fn exact_rejection(required_rolls: usize) -> Document {
+pub fn attempt_rejection(protocol: ConversionProtocol, required_rolls: usize) -> Document {
+    let (title, reason) = match protocol {
+        ConversionProtocol::ColdcardV1 => (
+            "COLDCARD ATTEMPT REJECTED",
+            "Some face occurred more than 30% of the time, so Coldcard's enforced workflow rejects the sequence.",
+        ),
+        _ => (
+            "EXACT ATTEMPT REJECTED",
+            "Expected protocol outcome preserving a uniform conversion.",
+        ),
+    };
     Document::new(
-        "EXACT ATTEMPT REJECTED".to_owned(),
+        title.to_owned(),
         vec![
-            B::Heading("× EXACT ATTEMPT REJECTED · NO ENTROPY RESULT".to_owned()),
-            B::Paragraph("✓ Expected protocol outcome preserving a uniform conversion.".to_owned()),
+            B::Heading(format!("× {title} · NO ENTROPY RESULT")),
+            B::Paragraph(format!("✓ {reason}")),
             B::Paragraph(format!(
                 "× No part is reusable; re-roll all {required_rolls} physical results."
             )),

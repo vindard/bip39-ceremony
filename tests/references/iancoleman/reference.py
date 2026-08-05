@@ -19,9 +19,6 @@ class IanColeman:
     def from_entropy(self, entropy: str) -> IanOutcome:
         return self._run("entropy", entropy)
 
-    def from_legacy_dice(self, rolls: str) -> IanOutcome:
-        return self._run("legacy-dice", rolls)
-
     def _run(self, operation: str, value: str) -> IanOutcome:
         output = subprocess.check_output(
             [self._node, str(self._runner), self._source, operation, value],

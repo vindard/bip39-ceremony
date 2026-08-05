@@ -25,6 +25,20 @@ COINS_24 = (
 
 class SeedSigner:
     def __init__(self, source: str, embit_source: str) -> None:
+        requirements = [
+            line.partition("#")[0].strip()
+            for line in (Path(source) / "requirements.txt").read_text().splitlines()
+        ]
+        embit_requirements = [
+            requirement
+            for requirement in requirements
+            if requirement.lower().startswith("embit")
+        ]
+        require_equal(
+            "SeedSigner embit requirement",
+            "embit==0.8.0",
+            "\n".join(embit_requirements),
+        )
         helper_path = (
             Path(source)
             / "src"

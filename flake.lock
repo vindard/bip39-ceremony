@@ -1,5 +1,39 @@
 {
   "nodes": {
+    "bitbox-bip39": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1760078507,
+        "narHash": "sha256-5uQJnzK7eXXIuoJIEYrfBOXgyTxMQzYSFII8qBzEVXA=",
+        "owner": "BitBoxSwiss",
+        "repo": "rust-bip39",
+        "rev": "d69f68c837ee7962a26619316fb7a725e2e8d44c",
+        "type": "github"
+      },
+      "original": {
+        "owner": "BitBoxSwiss",
+        "repo": "rust-bip39",
+        "rev": "d69f68c837ee7962a26619316fb7a725e2e8d44c",
+        "type": "github"
+      }
+    },
+    "bitbox02": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1783622288,
+        "narHash": "sha256-j9hqRI2/OW+8576RFfGdvK0zMH62fCTTnriB8LajW10=",
+        "owner": "BitBoxSwiss",
+        "repo": "bitbox02-firmware",
+        "rev": "6c18aa9cebcc457c3c5cd2c36ce58268a16bede5",
+        "type": "github"
+      },
+      "original": {
+        "owner": "BitBoxSwiss",
+        "ref": "firmware/v9.26.4",
+        "repo": "bitbox02-firmware",
+        "type": "github"
+      }
+    },
     "coldcard": {
       "flake": false,
       "locked": {
@@ -49,6 +83,91 @@
         "type": "github"
       }
     },
+    "jade": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1777503933,
+        "narHash": "sha256-13BH49w9CPf4QWsYhmPUNYtMBn5YP+tgr/YYnAfsQtM=",
+        "owner": "Blockstream",
+        "repo": "Jade",
+        "rev": "6f858f39a19f89ff7fd4580c5b2db72cfe1dc0af",
+        "type": "github"
+      },
+      "original": {
+        "owner": "Blockstream",
+        "ref": "1.0.40",
+        "repo": "Jade",
+        "type": "github"
+      }
+    },
+    "jade-libwally": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1776115509,
+        "narHash": "sha256-F/cAuBLAIt9CDoleHhmzVM0XL9ejvSfYmPAER/YxkfU=",
+        "owner": "ElementsProject",
+        "repo": "libwally-core",
+        "rev": "43b97bed2e5b6347a909bfd1113242528826a8a2",
+        "type": "github"
+      },
+      "original": {
+        "owner": "ElementsProject",
+        "repo": "libwally-core",
+        "rev": "43b97bed2e5b6347a909bfd1113242528826a8a2",
+        "type": "github"
+      }
+    },
+    "jade-secp256k1": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1718889487,
+        "narHash": "sha256-j0mQ5DokdQz3JZRnBN7/jr3ZxBYKNDraL0jbarmzWiM=",
+        "owner": "BlockstreamResearch",
+        "repo": "secp256k1-zkp",
+        "rev": "6152622613fdf1c5af6f31f74c427c4e9ee120ce",
+        "type": "github"
+      },
+      "original": {
+        "owner": "BlockstreamResearch",
+        "repo": "secp256k1-zkp",
+        "rev": "6152622613fdf1c5af6f31f74c427c4e9ee120ce",
+        "type": "github"
+      }
+    },
+    "keystone-legacy": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1701140947,
+        "narHash": "sha256-LzQ3KRegf0Aivp7HOjxU1JcZVQW+6gEC2DwaUh1GGk8=",
+        "owner": "KeystoneHQ",
+        "repo": "Keystone-cold-app",
+        "rev": "34e638fa57aed6a54051f9fe065d501c3e129581",
+        "type": "github"
+      },
+      "original": {
+        "owner": "KeystoneHQ",
+        "repo": "Keystone-cold-app",
+        "rev": "34e638fa57aed6a54051f9fe065d501c3e129581",
+        "type": "github"
+      }
+    },
+    "krux": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1785779727,
+        "narHash": "sha256-/UONoja6/hLhtOH7soYFS/M3K8HUI9Bcoo3WO2+VEac=",
+        "owner": "selfcustody",
+        "repo": "krux",
+        "rev": "ec058d862b00a62bd06ec7932b31f007fc2b77e3",
+        "type": "github"
+      },
+      "original": {
+        "owner": "selfcustody",
+        "ref": "v26.08.0",
+        "repo": "krux",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1785571196,
@@ -67,9 +186,16 @@
     },
     "root": {
       "inputs": {
+        "bitbox-bip39": "bitbox-bip39",
+        "bitbox02": "bitbox02",
         "coldcard": "coldcard",
         "embit": "embit",
         "iancoleman": "iancoleman",
+        "jade": "jade",
+        "jade-libwally": "jade-libwally",
+        "jade-secp256k1": "jade-secp256k1",
+        "keystone-legacy": "keystone-legacy",
+        "krux": "krux",
         "nixpkgs": "nixpkgs",
         "seedsigner": "seedsigner"
       }

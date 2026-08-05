@@ -21,6 +21,22 @@ ROLLS_24 = (
 )
 
 
+def grouped_rolls(groups: list[tuple[str, int]]) -> str:
+    return "".join(face * count for face, count in groups)
+
+
+DISTRIBUTION_CASES = [
+    (12, grouped_rolls([("1", 15), ("2", 7), ("3", 7), ("4", 7), ("5", 7), ("6", 7)]), True),
+    (12, grouped_rolls([("1", 16), ("2", 7), ("3", 7), ("4", 7), ("5", 7), ("6", 6)]), False),
+    (12, grouped_rolls([("1", 15), ("2", 8), ("3", 7), ("4", 7), ("5", 7), ("6", 7)]), True),
+    (12, grouped_rolls([("1", 16), ("2", 7), ("3", 7), ("4", 7), ("5", 7), ("6", 7)]), False),
+    (24, grouped_rolls([("1", 29), ("2", 14), ("3", 14), ("4", 14), ("5", 14), ("6", 14)]), True),
+    (24, grouped_rolls([("1", 30), ("2", 14), ("3", 14), ("4", 14), ("5", 14), ("6", 13)]), False),
+    (24, grouped_rolls([("1", 30), ("2", 14), ("3", 14), ("4", 14), ("5", 14), ("6", 14)]), True),
+    (24, grouped_rolls([("1", 31), ("2", 14), ("3", 14), ("4", 14), ("5", 14), ("6", 13)]), False),
+]
+
+
 @dataclass(frozen=True)
 class FirmwareOutcome:
     accepted: bool
@@ -31,15 +47,16 @@ class Firmware:
     def __init__(self, source: str) -> None:
         seed_path = Path(source) / "shared" / "seed.py"
         tree = ast.parse(seed_path.read_text(), filename=str(seed_path))
+        functions = {
+            node.name: node
+            for node in tree.body
+            if isinstance(node, ast.AsyncFunctionDef)
+        }
         try:
-            self._function = next(
-                node
-                for node in tree.body
-                if isinstance(node, ast.AsyncFunctionDef)
-                and node.name == "add_dice_rolls"
-            )
-        except StopIteration as error:
-            raise RuntimeError("Coldcard add_dice_rolls function not found") from error
+            self._function = functions["add_dice_rolls"]
+            self._approve_word_list = functions["approve_word_list"]
+        except KeyError as error:
+            raise RuntimeError(f"Coldcard function not found: {error.args[0]}") from error
         self._filename = str(seed_path)
 
     def generate(self, rolls: str, words: int) -> FirmwareOutcome:
@@ -71,8 +88,32 @@ class Firmware:
             raise AssertionError(
                 f"Coldcard consumed {count} of {len(rolls)} supplied rolls"
             )
-        entropy_bytes = 16 if words == 12 else 32
-        return FirmwareOutcome(True, digest[:entropy_bytes].hex())
+        return FirmwareOutcome(True, self._select_entropy(digest, words).hex())
+
+    def _select_entropy(self, digest: bytes, words: int) -> bytes:
+        class CapturedEntropy(Exception):
+            def __init__(self, entropy: bytes) -> None:
+                self.entropy = entropy
+
+        class Bip39:
+            @staticmethod
+            def b2a_words(entropy: bytes) -> str:
+                raise CapturedEntropy(bytes(entropy))
+
+        namespace = {"bip39": Bip39()}
+        exec(
+            compile(
+                ast.Module(body=[self._approve_word_list], type_ignores=[]),
+                self._filename,
+                "exec",
+            ),
+            namespace,
+        )
+        try:
+            asyncio.run(namespace["approve_word_list"](digest, words))
+        except CapturedEntropy as captured:
+            return captured.entropy
+        raise AssertionError("Coldcard approve_word_list did not encode entropy")
 
     @staticmethod
     def _namespace(rolls: str) -> dict[str, object]:
@@ -134,7 +175,7 @@ def main() -> None:
             (str(minimum), str(minimum - 1)),
         )
 
-        for count in [minimum, minimum + 1]:
+        for count in [minimum, minimum + 1, len(observations)]:
             rolls = observations[:count]
             reference = firmware.generate(rolls, words)
             if not reference.accepted or reference.entropy is None:
@@ -150,7 +191,28 @@ def main() -> None:
                 reference.entropy,
                 actual.entropy,
             )
-    print("validated Coldcard firmware against core")
+    for words, rolls, accepted in DISTRIBUTION_CASES:
+        label = f"Coldcard {words}-word {len(rolls)}-roll distribution"
+        reference = firmware.generate(rolls, words)
+        actual = core.calculate("coldcard-v1", words, rolls)
+        if accepted:
+            if not reference.accepted or reference.entropy is None:
+                raise AssertionError(f"{label}: firmware unexpectedly rejected")
+            require_equal(
+                f"{label} entropy",
+                reference.entropy,
+                require_accepted(label, actual).entropy,
+            )
+        else:
+            if reference.accepted:
+                raise AssertionError(f"{label}: firmware unexpectedly accepted")
+            require_status(
+                label,
+                actual,
+                Status.REJECTED,
+                "dice-distribution",
+            )
+    print("validated Coldcard dice capture hashing against core")
 
 
 if __name__ == "__main__":
