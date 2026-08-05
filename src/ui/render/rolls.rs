@@ -195,9 +195,13 @@ fn render_coldcard_hash_preview(
             &format!("CURRENT PREFIX · {recorded} ASCII ROLL DIGIT(S)"),
         );
     }
-    let midpoint = digest_hex.len() / 2;
-    push(output, &format!("  {}", &digest_hex[..midpoint]));
-    push(output, &format!("  {}", &digest_hex[midpoint..]));
+    // The Coldcard digest IS the 256-bit entropy; show only a short
+    // fingerprint so the operator can cross-check against the device without
+    // painting the full seed on screen.
+    push(
+        output,
+        &format!("  {}  · full hash withheld", fingerprint(digest_hex)),
+    );
     if recorded < minimum {
         push(
             output,
@@ -213,6 +217,22 @@ fn render_coldcard_hash_preview(
         );
     }
     push(output, "");
+}
+
+/// A short leading…trailing view of a hex digest. Enough to compare against a
+/// device's displayed hash; too little to reconstruct the seed entropy.
+fn fingerprint(digest_hex: &str) -> String {
+    const LEAD: usize = 6;
+    const TAIL: usize = 6;
+    if digest_hex.len() > LEAD + TAIL {
+        format!(
+            "{}…{}",
+            &digest_hex[..LEAD],
+            &digest_hex[digest_hex.len() - TAIL..]
+        )
+    } else {
+        digest_hex.to_owned()
+    }
 }
 
 fn flip_capture_cursor(flips: &crate::domain::coin::FlipSequence) -> String {

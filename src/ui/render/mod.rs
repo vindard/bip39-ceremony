@@ -214,10 +214,17 @@ fn split_protocol_detail_rows(
 }
 
 fn workspace_status(app: &App) -> &'static str {
-    if app.ceremony().state().phase() == Phase::Result {
+    // The corner reflects only secret state the app actually controls, never
+    // an environment claim (offline, airgap) it cannot verify. Operator-owned
+    // guidance lives in the safety preflight.
+    let state = app.ceremony().state();
+    if state.phase() == Phase::EnterRolls && state.capture_count() > 0 {
+        // The ledger always shows at least the latest outcome during entry.
+        "● SECRET EXPOSED"
+    } else if state.phase() == Phase::Result || state.capture_count() > 0 {
         "● SECRET CONCEALED"
     } else {
-        "OFFLINE · EPHEMERAL"
+        "○ NO SECRET YET"
     }
 }
 
@@ -715,6 +722,35 @@ mod tests {
             app.update(Key::Char('1'));
         }
         app
+    }
+
+    #[test]
+    fn status_corner_reports_secret_lifecycle_not_environment() {
+        // Before any capture the corner must not assert an environment claim.
+        let setup = render(&App::default(), 52, 40);
+        let setup_title = setup.lines().next().unwrap();
+        assert!(setup_title.ends_with("○ NO SECRET YET"));
+        assert!(!setup.contains("OFFLINE"));
+
+        // During roll entry the latest outcome is on screen: secret exposed.
+        let entering = render(&roll_entry_app(0, 1), 52, 40);
+        assert!(
+            entering
+                .lines()
+                .next()
+                .unwrap()
+                .ends_with("● SECRET EXPOSED")
+        );
+
+        // A generated-but-hidden mnemonic is concealed.
+        let concealed = render(&concealed_twenty_four_words(), 52, 40);
+        assert!(
+            concealed
+                .lines()
+                .next()
+                .unwrap()
+                .ends_with("● SECRET CONCEALED")
+        );
     }
 
     #[test]
@@ -1615,16 +1651,19 @@ mod tests {
         for expected in [
             "COLDCARD RUNNING SHA-256 · SECRET",
             "CURRENT PREFIX · EMPTY ROLL STRING",
-            "e3b0c44298fc1c149afbf4c8996fb924",
-            "27ae41e4649b934ca495991b7852b855",
+            "e3b0c4…52b855  · full hash withheld",
             "99 more roll(s) before generation",
         ] {
             assert!(empty.contains(expected));
         }
+        // The full 64-char digest must never reach the screen.
+        assert!(!empty.contains("e3b0c44298fc1c149afbf4c8996fb924"));
+        assert!(!empty.contains("27ae41e4649b934ca495991b7852b855"));
 
         let one_roll = render_roll_entry(&roll_entry_app(3, 1), 80).join("\n");
         assert!(one_roll.contains("CURRENT PREFIX · 1 ASCII ROLL DIGIT(S)"));
-        assert!(one_roll.contains("6b86b273ff34fce19d6b804eff5a3f57"));
+        assert!(one_roll.contains("6b86b2…875b4b  · full hash withheld"));
+        assert!(!one_roll.contains("6b86b273ff34fce19d6b804eff5a3f57"));
     }
 
     #[test]

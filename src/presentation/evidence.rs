@@ -8,7 +8,7 @@ pub fn trust_boundary(capabilities: BuildCapabilities) -> Document {
         Capability::Absent => "no application network adapter",
     };
     let persistence = match capabilities.ceremony_persistence() {
-        Capability::Absent => "no ceremony persistence adapter",
+        Capability::Absent => "no ceremony persistence adapter · ephemeral in-memory state",
     };
     Document::new(
         "APPLICATION TRUST BOUNDARY".to_owned(),
@@ -62,6 +62,7 @@ mod tests {
         let text = format!("{:?}", document.blocks());
         assert!(text.contains("no application network adapter"));
         assert!(text.contains("no ceremony persistence adapter"));
+        assert!(text.contains("ephemeral in-memory state"));
         assert!(text.contains("actual offline status"));
     }
 }
