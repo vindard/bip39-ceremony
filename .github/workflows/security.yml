@@ -55,7 +55,7 @@ jobs:
           egress-policy: audit
       - uses: actions/checkout@v4
       - name: Review dependency changes
-        uses: actions/dependency-review-action@v4
+        uses: actions/dependency-review-action@v5
         with:
           comment-summary-in-pr: on-failure
           fail-on-severity: low
