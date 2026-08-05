@@ -185,9 +185,12 @@ pub fn protocol_menu_explanation(choice: ProtocolMenuChoice, target: EntropyTarg
     };
 
     Document::new(
-        format!("{} · PLACEHOLDER", choice.name().to_uppercase()),
+        format!("{} · UNAVAILABLE", choice.name().to_uppercase()),
         vec![
-            B::Heading(format!("{} · NOT IMPLEMENTED", choice.name().to_uppercase())),
+            B::Heading(format!(
+                "{} · UNSUPPORTED TARGET",
+                choice.name().to_uppercase()
+            )),
             B::Heading("PURPOSE".to_owned()),
             B::Paragraph(purpose.to_owned()),
             B::Heading("DOCUMENTED SHAPE".to_owned()),
@@ -364,17 +367,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn pending_protocol_documents_are_explicitly_non_operational() {
-        for choice in ProtocolMenuChoice::ALL.into_iter().filter(|choice| {
-            choice
-                .implemented_protocol(EntropyTarget::Words24)
-                .is_none()
-        }) {
-            let text = format!(
-                "{:?}",
-                protocol_menu_explanation(choice, EntropyTarget::Words24).blocks()
-            );
-            assert!(text.contains("NOT IMPLEMENTED"));
+    fn unsupported_target_documents_are_explicitly_non_operational() {
+        for (choice, target) in [
+            (
+                ProtocolMenuChoice::KeystoneLegacyDice,
+                EntropyTarget::Words12,
+            ),
+            (ProtocolMenuChoice::CoinFourD6Direct, EntropyTarget::Words24),
+        ] {
+            let text = format!("{:?}", protocol_menu_explanation(choice, target).blocks());
+            assert!(text.contains("UNSUPPORTED TARGET"));
             assert!(text.contains("cannot be selected"));
         }
         let coins = format!(
@@ -408,7 +410,7 @@ mod tests {
             )
             .blocks()
         );
-        assert!(unsupported.contains("NOT IMPLEMENTED"));
+        assert!(unsupported.contains("UNSUPPORTED TARGET"));
         assert!(unsupported.contains("available only for 24-word output"));
     }
 

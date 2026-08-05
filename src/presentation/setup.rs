@@ -213,13 +213,15 @@ pub fn protocol_choices(target: EntropyTarget) -> Vec<ChoiceContent> {
                     };
                     format!("{summary} · {roll_requirement}")
                 }
-                None if choice == ProtocolMenuChoice::KeystoneLegacyDice => {
-                    "! UNSUPPORTED · available for 24 words only".to_owned()
-                }
-                None if choice == ProtocolMenuChoice::CoinFourD6Direct => {
-                    "! UNSUPPORTED · sourced table defines 12 words only".to_owned()
-                }
-                None => "PLACEHOLDER · documented, not implemented".to_owned(),
+                None => match choice {
+                    ProtocolMenuChoice::KeystoneLegacyDice => {
+                        "! UNSUPPORTED · available for 24 words only".to_owned()
+                    }
+                    ProtocolMenuChoice::CoinFourD6Direct => {
+                        "! UNSUPPORTED · sourced table defines 12 words only".to_owned()
+                    }
+                    _ => unreachable!("all other menu choices support both targets"),
+                },
             };
             ChoiceContent::new(choice.name().to_owned(), detail)
         })

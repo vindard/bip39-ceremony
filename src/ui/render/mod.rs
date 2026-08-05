@@ -301,7 +301,7 @@ fn render_protocol_step(app: &App) -> Lines {
     } else {
         content_choices(
             "Choose conversion protocol",
-            "Implemented choices generate BIP-39; placeholders document future protocols.",
+            "Available choices generate BIP-39; target-limited rows explain their scope.",
             1,
             app.protocol_cursor(),
             &protocol_choices(target),
@@ -328,10 +328,12 @@ fn compact_protocol_choices(selected: usize, target: EntropyTarget) -> Lines {
         let marker = if index == selected { '▶' } else { '○' };
         let status = if choice.implemented_protocol(target).is_some() {
             ""
-        } else if choice == ProtocolMenuChoice::KeystoneLegacyDice {
-            " · UNSUPPORTED FOR 12 WORDS"
         } else {
-            " · PLACEHOLDER"
+            match choice {
+                ProtocolMenuChoice::KeystoneLegacyDice => " · UNSUPPORTED FOR 12 WORDS",
+                ProtocolMenuChoice::CoinFourD6Direct => " · UNSUPPORTED FOR 24 WORDS",
+                _ => unreachable!("all other menu choices support both targets"),
+            }
         };
         push(
             &mut output,
@@ -1049,6 +1051,7 @@ mod tests {
             "Jade direct words",
             "BitBox02 Diceware",
             "Krux D20",
+            "Coin + four-D6 direct words",
             "SeedSigner coin flips",
         ] {
             assert!(output.contains(expected), "missing {expected}");
@@ -1059,7 +1062,7 @@ mod tests {
     }
 
     #[test]
-    fn placeholder_protocol_renders_as_unavailable_with_explanation() {
+    fn unsupported_target_renders_as_unavailable_with_explanation() {
         let mut app = App::default();
         app.update(Key::Char('\n'));
         for _ in 0..3 {
@@ -1072,7 +1075,7 @@ mod tests {
 
         app.update(Key::Char('e'));
         let details = render(&app, 80, 40);
-        assert!(details.contains("KEYSTONE LEGACY DICE · NOT IMPLEMENTED"));
+        assert!(details.contains("KEYSTONE LEGACY DICE · UNSUPPORTED TARGET"));
         assert!(details.contains("available only for 24-word output"));
         app.update(Key::PageDown);
         assert!(render(&app, 80, 40).contains("cannot be selected for a ceremony"));

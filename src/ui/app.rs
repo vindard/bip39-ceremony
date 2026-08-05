@@ -435,7 +435,7 @@ impl App {
             self.handle(Command::SelectProtocol(protocol));
         } else {
             self.message = Some(format!(
-                "{} is a placeholder and is not implemented. Press e for details.",
+                "{} does not support this mnemonic length. Press e for details.",
                 self.selected_protocol_choice().name()
             ));
         }
@@ -1221,7 +1221,7 @@ mod tests {
     }
 
     #[test]
-    fn placeholder_protocol_explains_but_cannot_advance() {
+    fn unsupported_target_explains_but_cannot_advance() {
         let mut app = App::default();
         app.update(Key::Char('\n'));
         for _ in 0..3 {
@@ -1238,7 +1238,7 @@ mod tests {
         assert_eq!(app.ceremony().events().len(), events);
         assert!(
             app.message()
-                .is_some_and(|message| message.contains("not implemented"))
+                .is_some_and(|message| message.contains("does not support"))
         );
 
         app.update(Key::Char('e'));

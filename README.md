@@ -106,8 +106,8 @@ only after deliberate reveal.
 Choice menus use Up/Down or `j`/`k` to move the highlighted row. Left/Right or
 `h`/`l` move between mnemonic-length and conversion-protocol setup steps; Left
 or `h` also returns from safety to protocol selection. On protocol selection,
-`e` explains whichever protocol is highlighted, including implemented wallet
-compatibility profiles and researched placeholders. Up/Down scrolls one row, Page
+`e` explains whichever protocol is highlighted, including wallet compatibility
+profiles and target-limited rows. Up/Down scrolls one row, Page
 Up/Page Down scrolls a page, and a right-border rail shows position. The
 Safety preflight uses Up/Down to select an acknowledgement, Space to toggle it,
 and `c` to check all; Enter advances after all five are checked. Numeric shortcuts
