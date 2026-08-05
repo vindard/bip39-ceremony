@@ -1,6 +1,7 @@
 pub(crate) mod bip39;
 pub(crate) mod bitbox;
 pub(crate) mod coin;
+pub(crate) mod coin_four_d6;
 pub(crate) mod d20;
 pub(crate) mod dice;
 pub(crate) mod jade;

@@ -150,6 +150,13 @@ fn render_snapshot_rolls(snapshot: &InspectionSnapshot, width: usize) -> Lines {
             "outcomes",
             "Snapshots show structure, not secret D6 or coin values.",
         ),
+        Some(ConversionProtocol::CoinFourD6DirectV1) => (
+            "PHYSICAL COIN + FOUR-D6 SNAPSHOT",
+            "◆ COIN/D6 VALUES CONCEALED",
+            "  No outcomes recorded at this position.",
+            "outcomes",
+            "Snapshots show structure, not secret coin or D6 values.",
+        ),
         Some(ConversionProtocol::KruxD20V1) => (
             "PHYSICAL D20 SNAPSHOT",
             "◆ D20 VALUES CONCEALED",

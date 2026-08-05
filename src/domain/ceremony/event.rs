@@ -25,11 +25,14 @@ pub(crate) enum Event {
     JadeD8Recorded(D8Face),
     BitBoxD6Recorded(DieFace),
     BitBoxCoinRecorded(CoinFlip),
+    CoinFourD6CoinRecorded(CoinFlip),
+    CoinFourD6D6Recorded(DieFace),
     D20Recorded(D20Face),
     RollUndone,
     FlipUndone,
     JadeUndone,
     BitBoxUndone,
+    CoinFourD6Undone,
     D20Undone,
     RollsConfirmed,
     GenerationSucceeded,
@@ -43,8 +46,12 @@ pub(crate) enum Event {
 impl Zeroize for Event {
     fn zeroize(&mut self) {
         match self {
-            Self::RollRecorded(face) | Self::BitBoxD6Recorded(face) => face.zeroize(),
-            Self::FlipRecorded(flip) | Self::BitBoxCoinRecorded(flip) => flip.zeroize(),
+            Self::RollRecorded(face)
+            | Self::BitBoxD6Recorded(face)
+            | Self::CoinFourD6D6Recorded(face) => face.zeroize(),
+            Self::FlipRecorded(flip)
+            | Self::BitBoxCoinRecorded(flip)
+            | Self::CoinFourD6CoinRecorded(flip) => flip.zeroize(),
             Self::JadeD16Recorded(face) => face.zeroize(),
             Self::JadeD8Recorded(face) => face.zeroize(),
             Self::D20Recorded(face) => face.zeroize(),
@@ -74,11 +81,18 @@ impl fmt::Debug for Event {
             Self::JadeD8Recorded(_) => formatter.write_str("JadeD8Recorded([REDACTED])"),
             Self::BitBoxD6Recorded(_) => formatter.write_str("BitBoxD6Recorded([REDACTED])"),
             Self::BitBoxCoinRecorded(_) => formatter.write_str("BitBoxCoinRecorded([REDACTED])"),
+            Self::CoinFourD6CoinRecorded(_) => {
+                formatter.write_str("CoinFourD6CoinRecorded([REDACTED])")
+            }
+            Self::CoinFourD6D6Recorded(_) => {
+                formatter.write_str("CoinFourD6D6Recorded([REDACTED])")
+            }
             Self::D20Recorded(_) => formatter.write_str("D20Recorded([REDACTED])"),
             Self::RollUndone => formatter.write_str("RollUndone"),
             Self::FlipUndone => formatter.write_str("FlipUndone"),
             Self::JadeUndone => formatter.write_str("JadeUndone"),
             Self::BitBoxUndone => formatter.write_str("BitBoxUndone"),
+            Self::CoinFourD6Undone => formatter.write_str("CoinFourD6Undone"),
             Self::D20Undone => formatter.write_str("D20Undone"),
             Self::RollsConfirmed => formatter.write_str("RollsConfirmed"),
             Self::GenerationSucceeded => formatter.write_str("GenerationSucceeded"),

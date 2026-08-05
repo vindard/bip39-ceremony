@@ -1,6 +1,7 @@
 mod bitbox;
 mod canonical;
 mod capture;
+mod coin_four_d6;
 mod coldcard;
 mod error;
 mod exact;
@@ -18,6 +19,10 @@ pub use bitbox::{
 };
 pub use canonical::CanonicalInput;
 pub use capture::{CaptureAssessment, CaptureProgress};
+pub use coin_four_d6::{
+    CoinFourD6ObservationKind, CoinFourD6Progress, CoinFourD6Stage, coin_four_d6_progress,
+    coin_four_d6_word_index,
+};
 pub use error::ProtocolError;
 pub use identity::ConversionProtocol;
 pub use jade::{
@@ -34,6 +39,7 @@ pub use word_exact::{
 };
 
 pub(crate) use bitbox::bitbox_entropy;
+pub(crate) use coin_four_d6::coin_four_d6_entropy;
 pub(crate) use coldcard::ascii_rolls as coldcard_ascii_rolls;
 pub(crate) use exact::{ExactOutcome, exact_entropy};
 pub(crate) use jade::jade_entropy;

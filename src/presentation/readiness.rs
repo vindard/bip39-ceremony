@@ -91,6 +91,7 @@ pub fn readiness_document(readiness: CaptureReadiness) -> Document {
             B::Paragraph("✓ Decimal D20 faces are separated by ASCII hyphens.".to_owned()),
             B::Paragraph("Additional Krux-compatible D20 rolls are optional.".to_owned()),
         ],
+        ReadinessKind::CoinFourD6Direct => coin_four_d6_readiness(readiness.recorded()),
         ReadinessKind::SeedSignerCoins => vec![
             B::Paragraph(format!(
                 "✓ EXACT SEEDSIGNER COUNT · {} flips recorded",
@@ -100,4 +101,16 @@ pub fn readiness_document(readiness: CaptureReadiness) -> Document {
         ],
     };
     Document::new("CAPTURE READY".to_owned(), blocks)
+}
+
+fn coin_four_d6_readiness(recorded: usize) -> Vec<B> {
+    vec![
+        B::Paragraph(format!(
+            "✓ 12 DIRECT TABLE CANDIDATES · {recorded} outcomes recorded"
+        )),
+        B::Paragraph("✓ Rejected coin-plus-four-D6 candidates were retried in full.".to_owned()),
+        B::Paragraph(
+            "○ The final candidate supplies seven entropy bits; checksum is calculated.".to_owned(),
+        ),
+    ]
 }

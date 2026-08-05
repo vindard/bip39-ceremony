@@ -10,6 +10,7 @@ pub enum ReadinessKind {
     JadeDirect,
     BitBox02Direct,
     KruxD20,
+    CoinFourD6Direct,
     SeedSignerCoins,
 }
 
@@ -41,6 +42,7 @@ impl CaptureReadiness {
             ConversionProtocol::JadeDirectV1 => ReadinessKind::JadeDirect,
             ConversionProtocol::BitBox02DirectV1 => ReadinessKind::BitBox02Direct,
             ConversionProtocol::KruxD20V1 => ReadinessKind::KruxD20,
+            ConversionProtocol::CoinFourD6DirectV1 => ReadinessKind::CoinFourD6Direct,
             ConversionProtocol::SeedSignerCoinsV1 => ReadinessKind::SeedSignerCoins,
         };
         Some(Self {

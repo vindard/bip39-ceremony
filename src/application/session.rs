@@ -112,6 +112,7 @@ impl CeremonySession {
             ConversionProtocol::JadeDirectV1 => Capture::Jade(state.jade()),
             ConversionProtocol::BitBox02DirectV1 => Capture::BitBox(state.bitbox()),
             ConversionProtocol::KruxD20V1 => Capture::D20(state.d20()),
+            ConversionProtocol::CoinFourD6DirectV1 => Capture::CoinFourD6(state.coin_four_d6()),
             _ => Capture::Dice(state.rolls()),
         };
         let outcome = calculate(target, protocol, capture)?;

@@ -2,12 +2,14 @@ use crate::domain::{
     bip39::EntropyTarget,
     bitbox::BitBoxCapture,
     coin::FlipSequence,
+    coin_four_d6::CoinFourD6Capture,
     d20::D20RollSequence,
     dice::RollSequence,
     jade::{JadeCapture, JadeObservation},
     protocol::{
-        BitBoxProgress, BitBoxStage, ConversionProtocol, JadeDieKind, JadeProgress, WordExactParse,
-        WordExactProgress, bitbox_progress, jade_expected_die, jade_progress, parse_word_exact,
+        BitBoxProgress, BitBoxStage, CoinFourD6Progress, CoinFourD6Stage, ConversionProtocol,
+        JadeDieKind, JadeProgress, WordExactParse, WordExactProgress, bitbox_progress,
+        coin_four_d6_progress, jade_expected_die, jade_progress, parse_word_exact,
     },
 };
 
@@ -23,6 +25,7 @@ pub enum CaptureProgress {
     },
     Jade(JadeProgress),
     BitBox(BitBoxProgress),
+    CoinFourD6(CoinFourD6Progress),
     WordExact(WordExactProgress),
     WordExactComplete {
         accepted_words: usize,
@@ -126,6 +129,7 @@ impl ConversionProtocol {
             Self::JadeDirectV1
             | Self::BitBox02DirectV1
             | Self::KruxD20V1
+            | Self::CoinFourD6DirectV1
             | Self::SeedSignerCoinsV1 => CaptureAssessment::Invalid(CaptureProgress::Fixed {
                 recorded,
                 required: self.minimum_observations(target),
@@ -213,6 +217,27 @@ impl ConversionProtocol {
             return CaptureAssessment::Invalid(progress);
         }
         if bitbox.stage() == BitBoxStage::Complete {
+            CaptureAssessment::Complete {
+                progress,
+                accepts_optional_rolls: false,
+            }
+        } else {
+            CaptureAssessment::Collecting(progress)
+        }
+    }
+
+    #[must_use]
+    pub fn assess_coin_four_d6_capture(
+        self,
+        target: EntropyTarget,
+        capture: &CoinFourD6Capture,
+    ) -> CaptureAssessment {
+        let direct = coin_four_d6_progress(target, capture);
+        let progress = CaptureProgress::CoinFourD6(direct);
+        if self != Self::CoinFourD6DirectV1 || !direct.is_valid() {
+            return CaptureAssessment::Invalid(progress);
+        }
+        if direct.stage() == CoinFourD6Stage::Complete {
             CaptureAssessment::Complete {
                 progress,
                 accepts_optional_rolls: false,
@@ -339,6 +364,23 @@ mod tests {
         };
         assert_eq!(progress.recorded(), 74);
         assert_eq!(progress.rejected_faces(), 1);
+    }
+
+    #[test]
+    fn coin_four_d6_capture_completes_after_twelve_accepted_candidates() {
+        use crate::domain::{coin::CoinFlip, coin_four_d6::CoinFourD6Capture, dice::DieFace};
+
+        let mut capture = CoinFourD6Capture::new();
+        for _ in 0..12 {
+            capture.push_coin(CoinFlip::new(1).unwrap());
+            for _ in 0..4 {
+                capture.push_d6(DieFace::new(1).unwrap());
+            }
+        }
+        let assessment = ConversionProtocol::CoinFourD6DirectV1
+            .assess_coin_four_d6_capture(EntropyTarget::Words12, &capture);
+        assert!(assessment.is_complete());
+        assert!(!assessment.can_record_more());
     }
 
     #[test]

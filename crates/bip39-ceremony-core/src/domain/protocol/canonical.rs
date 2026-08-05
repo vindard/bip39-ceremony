@@ -3,8 +3,8 @@ use core::fmt;
 use zeroize::Zeroizing;
 
 use crate::domain::{
-    bip39::EntropyTarget, bitbox::BitBoxCapture, coin::FlipSequence, d20::D20RollSequence,
-    dice::RollSequence, jade::JadeCapture,
+    bip39::EntropyTarget, bitbox::BitBoxCapture, coin::FlipSequence,
+    coin_four_d6::CoinFourD6Capture, d20::D20RollSequence, dice::RollSequence, jade::JadeCapture,
 };
 
 use super::{
@@ -30,14 +30,10 @@ pub enum CanonicalInput {
 
 impl CanonicalInput {
     #[must_use]
-    pub(crate) fn from_capture(
+    pub(crate) fn from_dice(
         protocol: ConversionProtocol,
         target: EntropyTarget,
         rolls: &RollSequence,
-        flips: &FlipSequence,
-        jade: &JadeCapture,
-        bitbox: &BitBoxCapture,
-        d20: &D20RollSequence,
     ) -> Self {
         match protocol {
             ConversionProtocol::ExactV1 => Self::Base6Integer(base6_digits(rolls)),
@@ -50,11 +46,33 @@ impl CanonicalInput {
             ConversionProtocol::KeystoneLegacyV1 => {
                 Self::AsciiFacesWithSixAsZero(keystone_legacy_ascii_rolls(rolls))
             }
-            ConversionProtocol::JadeDirectV1 => Self::TypedMixedDice(jade.audit_bytes()),
-            ConversionProtocol::BitBox02DirectV1 => Self::TypedD6AndCoins(bitbox.audit_bytes()),
-            ConversionProtocol::KruxD20V1 => Self::AsciiHyphenatedD20(krux_d20_ascii_rolls(d20)),
-            ConversionProtocol::SeedSignerCoinsV1 => Self::AsciiCoinFlips(flips.ascii_bytes()),
+            _ => unreachable!("typed protocols use typed canonical constructors"),
         }
+    }
+
+    #[must_use]
+    pub(crate) fn from_jade(capture: &JadeCapture) -> Self {
+        Self::TypedMixedDice(capture.audit_bytes())
+    }
+
+    #[must_use]
+    pub(crate) fn from_bitbox(capture: &BitBoxCapture) -> Self {
+        Self::TypedD6AndCoins(capture.audit_bytes())
+    }
+
+    #[must_use]
+    pub(crate) fn from_coin_four_d6(capture: &CoinFourD6Capture) -> Self {
+        Self::TypedD6AndCoins(capture.audit_bytes())
+    }
+
+    #[must_use]
+    pub(crate) fn from_d20(capture: &D20RollSequence) -> Self {
+        Self::AsciiHyphenatedD20(krux_d20_ascii_rolls(capture))
+    }
+
+    #[must_use]
+    pub(crate) fn from_coins(capture: &FlipSequence) -> Self {
+        Self::AsciiCoinFlips(capture.ascii_bytes())
     }
 }
 
@@ -85,15 +103,9 @@ mod tests {
         rolls.push(DieFace::new(1).unwrap());
         rolls.push(DieFace::new(6).unwrap());
 
-        let CanonicalInput::Base6Integer(digits) = CanonicalInput::from_capture(
-            ConversionProtocol::ExactV1,
-            EntropyTarget::Words12,
-            &rolls,
-            &FlipSequence::new(),
-            &JadeCapture::new(),
-            &BitBoxCapture::new(),
-            &D20RollSequence::new(),
-        ) else {
+        let CanonicalInput::Base6Integer(digits) =
+            CanonicalInput::from_dice(ConversionProtocol::ExactV1, EntropyTarget::Words12, &rolls)
+        else {
             panic!("base-6 representation expected");
         };
         assert_eq!(digits.as_slice(), b"05");

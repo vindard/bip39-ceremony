@@ -20,6 +20,10 @@ pub enum RejectionPolicy {
     None,
     WholeSequence,
     LocalizedD6ToBase4,
+    LocalizedCoinFourD6 {
+        accepted_candidates: usize,
+        candidate_limit: u16,
+    },
     Localized {
         word_candidate_rolls: usize,
         word_candidate_limit: u32,
@@ -36,6 +40,7 @@ pub enum Compatibility {
     JadeTable,
     BitBoxTable,
     Krux,
+    CoinFourD6Table,
     SeedSigner,
 }
 
@@ -141,6 +146,15 @@ impl ConversionProtocol {
                 Compatibility::Krux,
                 true,
             ),
+            Self::CoinFourD6DirectV1 => (
+                CanonicalInputKind::TypedD6AndCoins,
+                RejectionPolicy::LocalizedCoinFourD6 {
+                    accepted_candidates: 12,
+                    candidate_limit: 2_048,
+                },
+                Compatibility::CoinFourD6Table,
+                false,
+            ),
             Self::SeedSignerCoinsV1 => (
                 CanonicalInputKind::AsciiCoinFlips,
                 RejectionPolicy::None,
@@ -229,6 +243,25 @@ mod tests {
         );
         assert_eq!(specification.compatibility(), Compatibility::Krux);
         assert!(specification.accepts_optional_rolls());
+    }
+
+    #[test]
+    fn coin_four_d6_specification_exposes_whole_candidate_rejection() {
+        let specification =
+            ConversionProtocol::CoinFourD6DirectV1.specification(EntropyTarget::Words12);
+        assert_eq!(specification.minimum_observations(), 60);
+        assert_eq!(
+            specification.rejection(),
+            RejectionPolicy::LocalizedCoinFourD6 {
+                accepted_candidates: 12,
+                candidate_limit: 2_048,
+            }
+        );
+        assert_eq!(
+            specification.compatibility(),
+            Compatibility::CoinFourD6Table
+        );
+        assert!(!specification.accepts_optional_rolls());
     }
 
     #[test]

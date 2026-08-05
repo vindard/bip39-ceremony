@@ -3,9 +3,10 @@ use std::fmt::Write;
 use bip39::{Language, Mnemonic};
 use bip39_ceremony_core::{
     BitBoxCapture, CalculationError, CalculationOutcome, CanonicalInput, Capture, CoinFlip,
-    ConversionProtocol, D8Face, D16Face, D20Face, D20RollSequence, DieFace, Entropy, EntropyTarget,
-    FlipSequence, JadeCapture, JadeDieKind, ProtocolError, RollSequence, bitbox_tail_bits,
-    calculate, jade_expected_die, jade_required_observations,
+    CoinFourD6Capture, ConversionProtocol, D8Face, D16Face, D20Face, D20RollSequence, DieFace,
+    Entropy, EntropyTarget, FlipSequence, JadeCapture, JadeDieKind, ProtocolError, RollSequence,
+    bitbox_tail_bits, calculate, coin_four_d6_progress, jade_expected_die,
+    jade_required_observations,
 };
 use bitcoin_hashes::{Hash, sha256};
 
@@ -49,6 +50,27 @@ fn bitbox_uniform(target: EntropyTarget, face: u8, flip: u8) -> BitBoxCapture {
     }
     for _ in 0..bitbox_tail_bits(target) {
         capture.push_coin(CoinFlip::new(flip).unwrap());
+    }
+    capture
+}
+
+fn coin_four_d6_indices(indices: &[u16]) -> CoinFourD6Capture {
+    let mut capture = CoinFourD6Capture::new();
+    for &index in indices {
+        let (coin, mut rank) = if index < 1_296 {
+            (1, index)
+        } else {
+            (0, index - 1_296)
+        };
+        let mut faces = [1_u8; 4];
+        for offset in (0..4).rev() {
+            faces[offset] = u8::try_from(rank % 6 + 1).unwrap();
+            rank /= 6;
+        }
+        capture.push_coin(CoinFlip::new(coin).unwrap());
+        for face in faces {
+            capture.push_d6(DieFace::new(face).unwrap());
+        }
     }
     capture
 }
@@ -463,6 +485,80 @@ fn krux_d20_mixed_face_oracle_fixes_decimal_boundaries() {
     };
     assert!(input.starts_with(b"1-10-20-1-10-20"));
     assert!(input.ends_with(b"-1-10-20"));
+}
+
+#[test]
+fn coin_four_d6_vectors_cross_table_tail_and_bip39_boundaries() {
+    for (indices, entropy, mnemonic) in [
+        (
+            vec![0; 12],
+            "00000000000000000000000000000000",
+            "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+        ),
+        (
+            vec![2_047; 12],
+            "ffffffffffffffffffffffffffffffff",
+            "zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo wrong",
+        ),
+        (
+            vec![
+                0, 1_295, 1_296, 2_047, 1, 1_294, 1_297, 2_046, 2, 1_293, 1_298, 2_045,
+            ],
+            "00143e887ff00343a88ffe005436897f",
+            "abandon peanut pear zoo ability peace peasant zone able payment pelican wrap",
+        ),
+    ] {
+        let capture = coin_four_d6_indices(&indices);
+        let calculation = accepted(
+            EntropyTarget::Words12,
+            ConversionProtocol::CoinFourD6DirectV1,
+            Capture::CoinFourD6(&capture),
+        );
+        assert_eq!(entropy_hex(calculation.entropy()), entropy);
+        assert_eq!(calculation.mnemonic().words().join(" "), mnemonic);
+        let CanonicalInput::TypedD6AndCoins(input) = calculation.evidence().canonical_input()
+        else {
+            panic!("typed coin-four-D6 canonical input expected");
+        };
+        assert_eq!(input.len(), 120);
+    }
+}
+
+#[test]
+fn coin_four_d6_rejection_remains_in_typed_canonical_evidence() {
+    let mut capture = CoinFourD6Capture::new();
+    capture.push_coin(CoinFlip::new(0).unwrap());
+    for face in [4, 3, 6, 3] {
+        capture.push_d6(DieFace::new(face).unwrap());
+    }
+    let zeros = coin_four_d6_indices(&[0; 12]);
+    for observation in zeros.observations() {
+        match observation {
+            bip39_ceremony_core::CoinFourD6Observation::Coin(flip) => capture.push_coin(*flip),
+            bip39_ceremony_core::CoinFourD6Observation::D6(face) => capture.push_d6(*face),
+        }
+    }
+    let progress = coin_four_d6_progress(EntropyTarget::Words12, &capture);
+    assert_eq!(progress.rejected_candidates(), 1);
+    assert_eq!(progress.completed_candidates(), 12);
+
+    let calculation = accepted(
+        EntropyTarget::Words12,
+        ConversionProtocol::CoinFourD6DirectV1,
+        Capture::CoinFourD6(&capture),
+    );
+    assert_eq!(
+        entropy_hex(calculation.entropy()),
+        "00000000000000000000000000000000"
+    );
+    let CanonicalInput::TypedD6AndCoins(input) = calculation.evidence().canonical_input() else {
+        panic!("typed coin-four-D6 canonical input expected");
+    };
+    assert_eq!(input.len(), 130);
+    assert_eq!(
+        &input[..20],
+        &[2, 0, 6, 4, 6, 3, 6, 6, 6, 3, 2, 1, 6, 1, 6, 1, 6, 1, 6, 1]
+    );
 }
 
 #[test]

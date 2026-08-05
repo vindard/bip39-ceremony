@@ -72,6 +72,7 @@ pub fn protocol_explanation(protocol: ConversionProtocol, target: EntropyTarget)
         ),
         ConversionProtocol::BitBox02DirectV1 => bitbox_explanation(specification, target),
         ConversionProtocol::KruxD20V1 => krux_d20_explanation(target),
+        ConversionProtocol::CoinFourD6DirectV1 => coin_four_d6_explanation(specification),
         ConversionProtocol::SeedSignerCoinsV1 => Document::new(
             "SEEDSIGNER COIN FLIPS".to_owned(),
             vec![
@@ -90,6 +91,25 @@ pub fn protocol_explanation(protocol: ConversionProtocol, target: EntropyTarget)
             ],
         ),
     }
+}
+
+fn coin_four_d6_explanation(specification: ProtocolSpecification) -> Document {
+    Document::new(
+        "COIN + FOUR-D6 DIRECT WORDS".to_owned(),
+        vec![
+            B::Heading("COIN + FOUR-D6 · WHOLE-CANDIDATE REJECTION".to_owned()),
+            B::Heading("PURPOSE".to_owned()),
+            B::Paragraph("Reproduce the pinned Bip39-diceware direct-word table while calculating checksum locally instead of testing secret words in a wallet.".to_owned()),
+            B::Heading("EACH TABLE CANDIDATE".to_owned()),
+            B::Paragraph("Flip one coin, then roll four D6 in a fixed order. Heads covers indices 0–1,295. Tails covers 1,296–2,047 through tuple 4,3,6,2.".to_owned()),
+            B::Verbatim("r = 216(d₁−1) + 36(d₂−1) + 6(d₃−1) + (d₄−1)\nheads: index = r\ntails and r < 752: index = 1296 + r\notherwise: reject coin + all four rolls".to_owned()),
+            B::Paragraph("After rejection, use a fresh coin flip and four fresh rolls. Keeping any part of a rejected candidate breaks the table's uniform mapping.".to_owned()),
+            B::Heading("ENTROPY AND CHECKSUM".to_owned()),
+            B::Paragraph("Collect 12 accepted indices. Keep all 11 bits from the first 11 and the upper seven bits from the twelfth, forming 128 entropy bits. Calculate the four BIP-39 checksum bits and replace the twelfth candidate's low nibble.".to_owned()),
+            B::Paragraph(format!("The rejection-free minimum is {} outcomes; each rejection adds five auditable outcomes. This source defines 12 words only.", specification.minimum_observations())),
+            B::Paragraph("Compatibility covers the pinned table and corrected result, not wallet-assisted checksum searching. Rejection does not establish coin or dice fairness.".to_owned()),
+        ],
+    )
 }
 
 fn krux_d20_explanation(target: EntropyTarget) -> Document {
@@ -149,6 +169,11 @@ pub fn protocol_menu_explanation(choice: ProtocolMenuChoice, target: EntropyTarg
             "The legacy Keystone profile is available only for 24-word output.",
             "The published source establishes a 24-word workflow but does not establish how a legacy Keystone device produced 12 words from dice.",
             "Choose 24 words to use the implemented, vector-tested profile. A guessed 12-word adaptation would not be a compatibility protocol.",
+        ),
+        ProtocolMenuChoice::CoinFourD6Direct => (
+            "The pinned coin-plus-four-D6 table defines only a 12-word procedure.",
+            "Twelve accepted table candidates supply 128 entropy bits before checksum replacement; the source does not specify the 24-word entropy-tail shape.",
+            "Choose 12 words to use the implemented profile. A 24-word extension would be a new protocol rather than sourced compatibility.",
         ),
         ProtocolMenuChoice::JadeDirectWords
         | ProtocolMenuChoice::BitBoxDiceware
@@ -423,6 +448,23 @@ mod tests {
         assert!(text.contains("at least 30 rolls"));
         assert!(text.contains("Additional D20 rolls are accepted"));
         assert!(text.contains("Shannon estimate"));
+    }
+
+    #[test]
+    fn coin_four_d6_document_fixes_rejection_and_checksum_scope() {
+        let text = format!(
+            "{:?}",
+            protocol_explanation(
+                ConversionProtocol::CoinFourD6DirectV1,
+                EntropyTarget::Words12,
+            )
+            .blocks()
+        );
+        assert!(text.contains("tails and r < 752"));
+        assert!(text.contains("reject coin + all four rolls"));
+        assert!(text.contains("upper seven bits"));
+        assert!(text.contains("replace the twelfth candidate's low nibble"));
+        assert!(text.contains("12 words only"));
     }
 
     #[test]

@@ -9,22 +9,32 @@ use crate::domain::{
     dice::DieFace,
     jade::{D8Face, D16Face},
     protocol::{
-        BitBoxObservationKind, ConversionProtocol, JadeDieKind, bitbox_progress, jade_expected_die,
+        BitBoxObservationKind, CoinFourD6ObservationKind, ConversionProtocol, JadeDieKind,
+        bitbox_progress, coin_four_d6_progress, jade_expected_die,
     },
 };
 
 use super::{CeremonyError, CeremonyState, Command, Event, Phase};
 
 /// Ephemeral event-sourced aggregate for one generation journey.
-#[derive(Default)]
 pub struct Ceremony {
     events: Vec<Event>,
 }
 
+impl Default for Ceremony {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Ceremony {
     #[must_use]
-    pub const fn new() -> Self {
-        Self { events: Vec::new() }
+    pub fn new() -> Self {
+        // Reserve beyond every rejection-free ceremony so secret-bearing event
+        // history does not normally cross a heap reallocation before zeroizing.
+        Self {
+            events: Vec::with_capacity(512),
+        }
     }
 
     #[must_use]
@@ -101,11 +111,14 @@ impl Ceremony {
             Command::RecordJadeD8(face) => Self::record_jade_d8(state, face),
             Command::RecordBitBoxD6(face) => Self::record_bitbox_d6(state, face),
             Command::RecordBitBoxCoin(flip) => Self::record_bitbox_coin(state, flip),
+            Command::RecordCoinFourD6Coin(flip) => Self::record_coin_four_d6_coin(state, flip),
+            Command::RecordCoinFourD6D6(face) => Self::record_coin_four_d6_d6(state, face),
             Command::RecordD20(face) => Self::record_d20(state, face),
             Command::UndoRoll => Self::undo_roll(state),
             Command::UndoFlip => Self::undo_flip(state),
             Command::UndoJade => Self::undo_jade(state),
             Command::UndoBitBox => Self::undo_bitbox(state),
+            Command::UndoCoinFourD6 => Self::undo_coin_four_d6(state),
             Command::UndoD20 => Self::undo_d20(state),
             Command::ConfirmRolls => Self::confirm_rolls(state),
             Command::RestartExactAttempt => Self::restart_exact_attempt(state),
@@ -168,6 +181,7 @@ impl Ceremony {
                         | ConversionProtocol::JadeDirectV1
                         | ConversionProtocol::BitBox02DirectV1
                         | ConversionProtocol::KruxD20V1
+                        | ConversionProtocol::CoinFourD6DirectV1
                 )
             )
         {
@@ -249,6 +263,39 @@ impl Ceremony {
         }
     }
 
+    fn record_coin_four_d6_coin(
+        state: &CeremonyState,
+        flip: CoinFlip,
+    ) -> Result<Event, CeremonyError> {
+        Self::validate_coin_four_d6_record(state, CoinFourD6ObservationKind::Coin)?;
+        Ok(Event::CoinFourD6CoinRecorded(flip))
+    }
+
+    fn record_coin_four_d6_d6(
+        state: &CeremonyState,
+        face: DieFace,
+    ) -> Result<Event, CeremonyError> {
+        Self::validate_coin_four_d6_record(state, CoinFourD6ObservationKind::D6)?;
+        Ok(Event::CoinFourD6D6Recorded(face))
+    }
+
+    fn validate_coin_four_d6_record(
+        state: &CeremonyState,
+        kind: CoinFourD6ObservationKind,
+    ) -> Result<(), CeremonyError> {
+        if state.phase() != Phase::EnterRolls
+            || state.protocol() != Some(ConversionProtocol::CoinFourD6DirectV1)
+        {
+            return Err(CeremonyError::WrongPhase);
+        }
+        let target = state.target().ok_or(CeremonyError::WrongPhase)?;
+        match coin_four_d6_progress(target, state.coin_four_d6()).expected_kind() {
+            Some(expected) if expected == kind => Ok(()),
+            Some(_) => Err(CeremonyError::UnexpectedObservation),
+            None => Err(CeremonyError::RollLimitReached),
+        }
+    }
+
     fn record_d20(state: &CeremonyState, face: D20Face) -> Result<Event, CeremonyError> {
         if state.phase() != Phase::EnterRolls
             || state.protocol() != Some(ConversionProtocol::KruxD20V1)
@@ -273,6 +320,7 @@ impl Ceremony {
                         | ConversionProtocol::BitBox02DirectV1
                         | ConversionProtocol::SeedSignerCoinsV1
                         | ConversionProtocol::KruxD20V1
+                        | ConversionProtocol::CoinFourD6DirectV1
                 )
             )
         {
@@ -321,6 +369,19 @@ impl Ceremony {
             Err(CeremonyError::NoRollsToUndo)
         } else {
             Ok(Event::BitBoxUndone)
+        }
+    }
+
+    fn undo_coin_four_d6(state: &CeremonyState) -> Result<Event, CeremonyError> {
+        if state.phase() != Phase::EnterRolls
+            || state.protocol() != Some(ConversionProtocol::CoinFourD6DirectV1)
+        {
+            return Err(CeremonyError::WrongPhase);
+        }
+        if state.coin_four_d6().is_empty() {
+            Err(CeremonyError::NoRollsToUndo)
+        } else {
+            Ok(Event::CoinFourD6Undone)
         }
     }
 
@@ -428,8 +489,9 @@ mod tests {
         dice::DieFace,
         jade::{D8Face, D16Face},
         protocol::{
-            BitBoxStage, CaptureAssessment, CaptureProgress, ConversionProtocol, JadeDieKind,
-            WordExactProgress, bitbox_progress, jade_expected_die,
+            BitBoxStage, CaptureAssessment, CaptureProgress, CoinFourD6Stage, ConversionProtocol,
+            JadeDieKind, WordExactProgress, bitbox_progress, coin_four_d6_progress,
+            jade_expected_die,
         },
     };
 
@@ -881,6 +943,37 @@ mod tests {
             ceremony.handle(Command::RecordBitBoxCoin(heads)),
             Err(CeremonyError::RollLimitReached)
         );
+    }
+
+    #[test]
+    fn coin_four_d6_capture_rejects_whole_candidates_and_replays_undo() {
+        let mut ceremony = configured(ConversionProtocol::CoinFourD6DirectV1);
+        ceremony
+            .handle(Command::RecordCoinFourD6Coin(CoinFlip::new(0).unwrap()))
+            .unwrap();
+        for value in [4, 3, 6, 3] {
+            ceremony
+                .handle(Command::RecordCoinFourD6D6(DieFace::new(value).unwrap()))
+                .unwrap();
+        }
+        let state = ceremony.state();
+        let progress = coin_four_d6_progress(EntropyTarget::Words12, state.coin_four_d6());
+        assert_eq!(progress.rejected_candidates(), 1);
+        assert_eq!(progress.stage(), CoinFourD6Stage::Coin { position: 1 });
+
+        ceremony.handle(Command::UndoCoinFourD6).unwrap();
+        let state = ceremony.state();
+        assert_eq!(
+            coin_four_d6_progress(EntropyTarget::Words12, state.coin_four_d6()).stage(),
+            CoinFourD6Stage::D6 {
+                position: 1,
+                recorded: 3,
+            }
+        );
+        assert!(matches!(
+            ceremony.handle(Command::RecordCoinFourD6Coin(CoinFlip::new(1).unwrap())),
+            Err(CeremonyError::UnexpectedObservation)
+        ));
     }
 
     #[test]

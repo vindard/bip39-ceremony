@@ -1,4 +1,5 @@
 mod bitbox;
+mod coin_four_d6;
 mod d20;
 mod jade;
 mod word_exact;
@@ -19,6 +20,9 @@ pub(super) fn render_roll_entry(app: &App, width: usize) -> Lines {
     }
     if state.protocol() == Some(ConversionProtocol::BitBox02DirectV1) {
         return bitbox::render_bitbox_entry(app, width);
+    }
+    if state.protocol() == Some(ConversionProtocol::CoinFourD6DirectV1) {
+        return coin_four_d6::render_coin_four_d6_entry(app, width);
     }
     if state.protocol() == Some(ConversionProtocol::KruxD20V1) {
         return d20::render_d20_entry(app, width);
@@ -312,6 +316,12 @@ pub(super) fn roll_count_status(count: usize, assessment: Option<CaptureAssessme
             progress.completed_words(),
             progress.required_words(),
             progress.rejected_faces()
+        ),
+        CaptureProgress::CoinFourD6(progress) => format!(
+            "{} recorded · {}/12 accepted · {} rejected candidates",
+            progress.recorded(),
+            progress.completed_candidates(),
+            progress.rejected_candidates()
         ),
         CaptureProgress::WordExact(progress) => format!(
             "{count} recorded · {}/{} word positions accepted",

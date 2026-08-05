@@ -52,11 +52,12 @@ pub enum ProtocolMenuChoice {
     JadeDirectWords,
     BitBoxDiceware,
     KruxD20,
+    CoinFourD6Direct,
     SeedSignerCoins,
 }
 
 impl ProtocolMenuChoice {
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 9] = [
         Self::Coldcard,
         Self::WordExact,
         Self::Exact,
@@ -64,6 +65,7 @@ impl ProtocolMenuChoice {
         Self::JadeDirectWords,
         Self::BitBoxDiceware,
         Self::KruxD20,
+        Self::CoinFourD6Direct,
         Self::SeedSignerCoins,
     ];
 
@@ -79,8 +81,11 @@ impl ProtocolMenuChoice {
             Self::JadeDirectWords => Some(ConversionProtocol::JadeDirectV1),
             Self::BitBoxDiceware => Some(ConversionProtocol::BitBox02DirectV1),
             Self::KruxD20 => Some(ConversionProtocol::KruxD20V1),
+            Self::CoinFourD6Direct if matches!(target, EntropyTarget::Words12) => {
+                Some(ConversionProtocol::CoinFourD6DirectV1)
+            }
             Self::SeedSignerCoins => Some(ConversionProtocol::SeedSignerCoinsV1),
-            Self::KeystoneLegacyDice => None,
+            Self::KeystoneLegacyDice | Self::CoinFourD6Direct => None,
         }
     }
 
@@ -94,6 +99,7 @@ impl ProtocolMenuChoice {
             Self::JadeDirectWords => "Jade direct words",
             Self::BitBoxDiceware => "BitBox02 Diceware",
             Self::KruxD20 => "Krux D20",
+            Self::CoinFourD6Direct => "Coin + four-D6 direct words",
             Self::SeedSignerCoins => "SeedSigner coin flips",
         }
     }
@@ -134,6 +140,10 @@ pub fn capture_protocol_context(protocol: ConversionProtocol) -> ChoiceContent {
             "Krux D20",
             "hyphen-separated decimal D20 faces → SHA-256 → BIP-39 entropy",
         ),
+        ConversionProtocol::CoinFourD6DirectV1 => (
+            "Coin + four-D6 direct words",
+            "whole-candidate rejection → direct indices → calculated checksum",
+        ),
         ConversionProtocol::SeedSignerCoinsV1 => (
             "SeedSigner coin flips",
             "ASCII 0/1 flip string → SHA-256 → target-width BIP-39 entropy",
@@ -172,6 +182,9 @@ pub fn protocol_choices(target: EntropyTarget) -> Vec<ChoiceContent> {
                         ProtocolMenuChoice::KruxD20 => {
                             "Krux compatibility · hyphenated D20 SHA-256"
                         }
+                        ProtocolMenuChoice::CoinFourD6Direct => {
+                            "Physical direct table · whole coin-plus-four-D6 rejection"
+                        }
                         ProtocolMenuChoice::SeedSignerCoins => {
                             "Coin compatibility · fixed ASCII binary capture"
                         }
@@ -181,6 +194,11 @@ pub fn protocol_choices(target: EntropyTarget) -> Vec<ChoiceContent> {
                     } else if protocol == ConversionProtocol::JadeDirectV1 {
                         format!(
                             "exactly {} mixed-die rolls",
+                            specification.minimum_observations()
+                        )
+                    } else if protocol == ConversionProtocol::CoinFourD6DirectV1 {
+                        format!(
+                            "min {} outcomes + rejected five-outcome retries",
                             specification.minimum_observations()
                         )
                     } else if protocol == ConversionProtocol::BitBox02DirectV1 {
@@ -197,6 +215,9 @@ pub fn protocol_choices(target: EntropyTarget) -> Vec<ChoiceContent> {
                 }
                 None if choice == ProtocolMenuChoice::KeystoneLegacyDice => {
                     "! UNSUPPORTED · available for 24 words only".to_owned()
+                }
+                None if choice == ProtocolMenuChoice::CoinFourD6Direct => {
+                    "! UNSUPPORTED · sourced table defines 12 words only".to_owned()
                 }
                 None => "PLACEHOLDER · documented, not implemented".to_owned(),
             };
@@ -240,7 +261,18 @@ mod tests {
         assert_eq!(protocols.len(), ProtocolMenuChoice::ALL.len());
         assert_eq!(protocols[3].name(), "Keystone legacy dice");
         assert!(protocols[3].detail().contains("Legacy compatibility"));
-        assert!(protocols[7].detail().contains("exactly 256 flips"));
+        assert!(protocols[8].detail().contains("exactly 256 flips"));
+    }
+
+    #[test]
+    fn coin_four_d6_choice_is_twelve_word_only() {
+        let twelve = protocol_choices(EntropyTarget::Words12);
+        assert!(twelve[7].detail().contains("min 60 outcomes"));
+        let twenty_four = protocol_choices(EntropyTarget::Words24);
+        assert_eq!(
+            twenty_four[7].detail(),
+            "! UNSUPPORTED · sourced table defines 12 words only"
+        );
     }
 
     #[test]

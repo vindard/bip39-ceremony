@@ -88,6 +88,7 @@ pub(super) fn scroll_limit(app: &App, width: u16, height: u16) -> usize {
                     ConversionProtocol::JadeDirectV1
                         | ConversionProtocol::BitBox02DirectV1
                         | ConversionProtocol::KruxD20V1
+                        | ConversionProtocol::CoinFourD6DirectV1
                 )
             )
         {
@@ -550,6 +551,7 @@ fn roll_footer(app: &App) -> String {
             ConversionProtocol::JadeDirectV1
                 | ConversionProtocol::BitBox02DirectV1
                 | ConversionProtocol::KruxD20V1
+                | ConversionProtocol::CoinFourD6DirectV1
         )
     ) {
         return if state.can_confirm_rolls() {
@@ -1248,10 +1250,35 @@ mod tests {
     }
 
     #[test]
-    fn seedsigner_coin_protocol_uses_binary_capture_workspace() {
+    fn coin_four_d6_protocol_uses_typed_rejection_workspace() {
         let mut app = App::default();
         app.update(Key::Char('\n'));
         for _ in 0..7 {
+            app.update(Key::Down);
+        }
+        let menu = render(&app, 80, 40);
+        assert!(menu.contains("▶ Coin + four-D6 direct words"));
+        assert!(menu.contains("[Enter] next"));
+
+        app.update(Key::Char('\n'));
+        app.update(Key::Char('c'));
+        app.update(Key::Char('\n'));
+        app.update(Key::Char('1'));
+        app.update(Key::Char('6'));
+        app.update(Key::Char('h'));
+        let capture = render(&app, 80, 40);
+        assert!(capture.contains("PHYSICAL COIN + FOUR-D6 CAPTURE"));
+        assert!(capture.contains("C=1H"));
+        assert!(capture.contains("D6=6"));
+        assert!(capture.contains("D6 2/4 NEXT"));
+        assert!(capture.contains("whole-candidate rejection"));
+    }
+
+    #[test]
+    fn seedsigner_coin_protocol_uses_binary_capture_workspace() {
+        let mut app = App::default();
+        app.update(Key::Char('\n'));
+        for _ in 0..8 {
             app.update(Key::Down);
         }
         let menu = render(&app, 80, 40);

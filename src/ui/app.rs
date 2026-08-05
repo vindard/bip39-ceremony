@@ -16,8 +16,8 @@ use crate::{
         inspection::InspectionSnapshot,
         jade::{D8Face, D16Face},
         protocol::{
-            BitBoxObservationKind, ConversionProtocol, JadeDieKind, bitbox_progress,
-            jade_expected_die,
+            BitBoxObservationKind, CoinFourD6ObservationKind, ConversionProtocol, JadeDieKind,
+            bitbox_progress, coin_four_d6_progress, jade_expected_die,
         },
     },
     presentation::ProtocolMenuChoice,
@@ -481,6 +481,10 @@ impl App {
             self.enter_bitbox_observation(key);
             return;
         }
+        if self.ceremony().state().protocol() == Some(ConversionProtocol::CoinFourD6DirectV1) {
+            self.enter_coin_four_d6_observation(key);
+            return;
+        }
         if self.ceremony().state().protocol() == Some(ConversionProtocol::KruxD20V1) {
             self.enter_d20_roll(key);
             return;
@@ -575,6 +579,40 @@ impl App {
             }
             (Some(BitBoxObservationKind::Coin), Key::Char(_)) => {
                 self.message = Some("Coin: use 0 for tails or 1 for heads.".to_owned());
+            }
+            _ => {}
+        }
+    }
+
+    fn enter_coin_four_d6_observation(&mut self, key: Key) {
+        if matches!(key, Key::Backspace | Key::Delete) {
+            self.handle(Command::UndoCoinFourD6);
+            return;
+        }
+        if self.enter_capture_control(key) {
+            return;
+        }
+        let state = self.ceremony().state();
+        let Some(target) = state.target() else { return };
+        match (
+            coin_four_d6_progress(target, state.coin_four_d6()).expected_kind(),
+            key,
+        ) {
+            (Some(CoinFourD6ObservationKind::Coin), Key::Char(character @ ('0' | '1'))) => {
+                if let Ok(flip) = CoinFlip::try_from(character) {
+                    self.handle(Command::RecordCoinFourD6Coin(flip));
+                }
+            }
+            (Some(CoinFourD6ObservationKind::Coin), Key::Char(_)) => {
+                self.message = Some("Coin: use 0 for tails or 1 for heads.".to_owned());
+            }
+            (Some(CoinFourD6ObservationKind::D6), Key::Char(character @ '1'..='6')) => {
+                if let Ok(face) = DieFace::try_from(character) {
+                    self.handle(Command::RecordCoinFourD6D6(face));
+                }
+            }
+            (Some(CoinFourD6ObservationKind::D6), Key::Char(_)) => {
+                self.message = Some("D6: only faces 1–6 are valid.".to_owned());
             }
             _ => {}
         }
@@ -676,6 +714,7 @@ impl App {
                     ConversionProtocol::JadeDirectV1
                         | ConversionProtocol::BitBox02DirectV1
                         | ConversionProtocol::KruxD20V1
+                        | ConversionProtocol::CoinFourD6DirectV1
                 )
             )
     }
@@ -928,7 +967,8 @@ mod tests {
                 ConversionProtocol::JadeDirectV1 => 4,
                 ConversionProtocol::BitBox02DirectV1 => 5,
                 ConversionProtocol::KruxD20V1 => 6,
-                ConversionProtocol::SeedSignerCoinsV1 => 7,
+                ConversionProtocol::CoinFourD6DirectV1 => 7,
+                ConversionProtocol::SeedSignerCoinsV1 => 8,
                 ConversionProtocol::NativeHashV1 | ConversionProtocol::KeystoneLegacyV1 => {
                     unreachable!()
                 }
@@ -1052,6 +1092,17 @@ mod tests {
         app.update_bounded(Key::Up, 5);
         assert_eq!(app.roll_scroll(), 4);
         app.update_bounded(Key::PageUp, 5);
+        assert_eq!(app.roll_scroll(), 0);
+    }
+
+    #[test]
+    fn coin_four_d6_scroll_uses_normal_document_directions() {
+        let mut app = App::default();
+        configure(&mut app, ConversionProtocol::CoinFourD6DirectV1);
+
+        app.update_bounded(Key::Down, 5);
+        assert_eq!(app.roll_scroll(), 1);
+        app.update_bounded(Key::Up, 5);
         assert_eq!(app.roll_scroll(), 0);
     }
 
@@ -1267,6 +1318,35 @@ mod tests {
         assert_eq!(app.ceremony().state().d20().faces()[30].get(), 20);
         app.update(Key::Char('\n'));
         assert_eq!(app.ceremony().state().phase(), Phase::Result);
+    }
+
+    #[test]
+    fn coin_four_d6_capture_enforces_kinds_and_generates() {
+        let mut app = App::default();
+        configure(&mut app, ConversionProtocol::CoinFourD6DirectV1);
+
+        app.update(Key::Char('2'));
+        assert!(
+            app.message()
+                .is_some_and(|message| message.contains("Coin"))
+        );
+        app.update(Key::Char('1'));
+        app.update(Key::Char('0'));
+        assert!(app.message().is_some_and(|message| message.contains("D6")));
+        for _ in 0..4 {
+            app.update(Key::Char('1'));
+        }
+        for _ in 1..12 {
+            app.update(Key::Char('1'));
+            for _ in 0..4 {
+                app.update(Key::Char('1'));
+            }
+        }
+        assert_eq!(app.ceremony().state().coin_four_d6().len(), 60);
+        assert!(app.ceremony().state().can_confirm_rolls());
+        app.update(Key::Char('\n'));
+        assert_eq!(app.ceremony().state().phase(), Phase::Result);
+        assert_eq!(app.generation().unwrap().mnemonic().words()[0], "abandon");
     }
 
     #[test]
