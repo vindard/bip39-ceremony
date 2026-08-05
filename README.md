@@ -1,9 +1,21 @@
-# BIP-39 Ceremony
+<div align="center">
 
-A glass-box Rust TUI for turning physical dice rolls or coin flips into standard
-12- or 24-word English BIP-39 mnemonics.
+# 🎲 BIP-39 Ceremony
 
-## Purpose
+**A glass-box Rust TUI for turning physical dice rolls and coin flips into
+standard 12- or 24-word English BIP-39 mnemonics.**
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+&nbsp;![Rust](https://img.shields.io/badge/Rust-1.94%2B-orange?logo=rust&logoColor=white)
+&nbsp;![Edition](https://img.shields.io/badge/edition-2024-orange)
+&nbsp;![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-blue)
+&nbsp;![unsafe: forbidden](https://img.shields.io/badge/unsafe-forbidden-success)
+&nbsp;![BIP-39](https://img.shields.io/badge/BIP--39-compatible-f7931a?logo=bitcoin&logoColor=white)
+&nbsp;![Built with Nix](https://img.shields.io/badge/built%20with-Nix-5277C3?logo=nixos&logoColor=white)
+
+</div>
+
+## 🎯 Purpose
 
 The primary goal is to make the entropy pipeline understandable and
 independently inspectable—not merely to generate a mnemonic. The ceremony shows
@@ -16,7 +28,7 @@ The implementation follows the same goal. Calculations are isolated in the
 independent [`bip39-ceremony-core`](crates/bip39-ceremony-core/) crate so they are
 easy to read, test, verify, and reuse without the terminal interface.
 
-## What you can inspect
+## 🔍 What you can inspect
 
 After deliberate reveal, the TUI exposes:
 
@@ -25,14 +37,14 @@ After deliberate reveal, the TUI exposes:
 - the resulting entropy bits and BIP-39 checksum;
 - each 11-bit word index and its corresponding English word.
 
-## Security boundary
+## 🛡️ Security boundary
 
 Rolls, flips, entropy, intermediate derivations, and mnemonic words are
 wallet-secret material. Prefer a trusted offline computer and local terminal.
 The program avoids persistence and zeroizes owned secret buffers, but cannot
 protect a compromised OS, swap, terminal recording, screenshots, or observers.
 
-## Quick start
+## 🚀 Quick start
 
 The repository pins Rust and audit tooling through Nix:
 
@@ -43,33 +55,19 @@ just hooks         # install the repository pre-commit hook
 just run
 ```
 
-## Conversion protocols
+## 🎲 Conversion protocols
 
-- **COLDCARD:** SHA-256 over ASCII roll digits, compatible for an identical
-  ordered sequence. Minimums are 50 rolls for 12 words and COLDCARD's documented
-  99 rolls for 24 words; additional rolls are accepted.
-- **Word-by-word Exact:** exact localized rejection over six-roll 11-bit
-  candidates and a final entropy-tail candidate. Minimums are 70 or 140 rolls;
-  rejected groups never discard accepted positions.
-- **Exact:** exact base-6 rejection mapping. Uniform under independent fair dice;
-  approximately 16% of 50-roll and 11% of 100-roll attempts reject.
-- **Keystone legacy dice:** 24-word compatibility profile that maps face `6` to
-  ASCII `0`, hashes at least 99 mapped rolls, and uses the full digest.
-- **Jade direct words:** D16/D16/D8 triples select the first 11 or 23 BIP-39
-  indices using [Blockstream's published table order][jade-guide]. A final D16/D8 or D8 roll
-  supplies the remaining entropy bits before checksum calculation.
-- **BitBox02 Diceware:** five D6 faces accepted only in `1`–`4` plus one coin
-  side select each direct word using [BitBox02's published table][bitbox-guide].
-  Rejected `5`/`6` attempts retry locally; final coins supply the entropy tail.
-- **Krux D20:** at least 30 or 60 D20 rolls serialized as hyphen-separated
-  decimal faces, matching [Krux's documented implementation][krux-guide].
-  Additional rolls are accepted before hashing with SHA-256.
-- **Coin + four-D6 direct words:** one coin and four ordered D6 faces select
-  each direct index using the pinned [Bip39-diceware table][coin-four-d6-table].
-  Whole rejected candidates retry; 12 accepted candidates provide 128 entropy
-  bits before deterministic checksum replacement. Available for 12 words only.
-- **SeedSigner coin flips:** exactly 128 or 256 physical flips serialized as
-  ASCII `0`/`1`, hashed with SHA-256, then truncated for 12 words when needed.
+| Protocol | 🎯 Target | Input | Basis & notes |
+| --- | :---: | --- | --- |
+| **COLDCARD** | 12 · 24 | D6 | SHA-256 over ASCII roll digits, compatible for an identical ordered sequence. Minimums are 50 rolls for 12 words and COLDCARD's documented 99 rolls for 24 words; additional rolls are accepted. |
+| **Word-by-word Exact** | 12 · 24 | D6 | Exact localized rejection over six-roll 11-bit candidates and a final entropy-tail candidate. Minimums are 70 or 140 rolls; rejected groups never discard accepted positions. |
+| **Exact** | 12 · 24 | D6 | Exact base-6 rejection mapping. Uniform under independent fair dice; ~16% of 50-roll and ~11% of 100-roll attempts reject. |
+| **Keystone legacy dice** | 24 | D6 | 24-word compatibility profile that maps face `6` to ASCII `0`, hashes at least 99 mapped rolls, and uses the full digest. |
+| **Jade direct words** | 12 · 24 | D16/D8 | D16/D16/D8 triples select the first 11 or 23 BIP-39 indices using [Blockstream's published table order][jade-guide]. A final D16/D8 or D8 roll supplies the remaining entropy bits before checksum calculation. |
+| **BitBox02 Diceware** | 12 · 24 | D6 + coin | Five D6 faces accepted only in `1`–`4` plus one coin side select each direct word using [BitBox02's published table][bitbox-guide]. Rejected `5`/`6` attempts retry locally; final coins supply the entropy tail. |
+| **Krux D20** | 12 · 24 | D20 | At least 30 or 60 D20 rolls serialized as hyphen-separated decimal faces, matching [Krux's documented implementation][krux-guide]. Additional rolls are accepted before hashing with SHA-256. |
+| **Coin + four-D6 direct words** | 12 | D6 + coin | One coin and four ordered D6 faces select each direct index using the pinned [Bip39-diceware table][coin-four-d6-table]. Whole rejected candidates retry; 12 accepted candidates provide 128 entropy bits before deterministic checksum replacement. |
+| **SeedSigner coin flips** | 12 · 24 | Coin | Exactly 128 or 256 physical flips serialized as ASCII `0`/`1`, hashed with SHA-256, then truncated for 12 words when needed. |
 
 [jade-guide]: https://help.blockstream.com/blockstream-jade/add-more-security-functionality/create-a-recovery-phrase-using-dice
 [bitbox-guide]: https://blog.bitbox.swiss/en/roll-the-dice-generate-your-own-seed/
@@ -81,7 +79,7 @@ only when reproducing a mnemonic from its original rolls. The frozen
 `native-hash-v1` implementation and vectors remain in the source for protocol
 compatibility, but it is no longer offered as a ceremony choice.
 
-## Interaction
+## ⌨️ Interaction
 
 The ceremony is event sourced in memory, but the interface does not expose or
 navigate event-prefix state. Detail panels are limited to protocol explanation,
@@ -126,7 +124,7 @@ validate the backup. On the reveal screen, `h` immediately replaces the words
 with a quick-hidden view; `h` or Escape restores them. Cancelling or finishing
 requires confirmation and persists nothing.
 
-## Visual themes
+## 🎨 Visual themes
 
 The warm `ember` palette is the sole visual theme. It preserves the terminal's
 background and uses gold, amber, and coral for semantic emphasis. Run
@@ -142,7 +140,7 @@ explanation opens below, with a visible return control. Overflow stays inside
 the workspace and is navigated with Page Up/Page Down. The phase path uses `✓`,
 `●`, and `○` for complete, current, and future stages.
 
-## Architecture and testing
+## 🏗️ Architecture and testing
 
 Reusable capture values, versioned conversions, SHA-256 conditioning, BIP-39
 encoding, and structured calculation evidence live in the publishable
@@ -156,7 +154,7 @@ policy, explanatory wording, and terminal interface. Unit tests cover pure
 calculation and domain paths, while consumer-style vector tests verify the core
 crate's public boundary.
 
-## Development environment
+## 🧰 Development environment
 
 Useful commands inside `nix develop` or direnv:
 
