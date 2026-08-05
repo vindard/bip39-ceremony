@@ -1,0 +1,48 @@
+# Reproducibility + upstream reference validation.
+#
+# `nix flake check` builds every pinned derivation and runs the flake `checks`:
+# the seven upstream reference comparisons (Coldcard, SeedSigner, Krux, BitBox02,
+# Keystone, Jade, Ian Coleman) plus the static/dynamic release artifacts and
+# their PTY smoke tests. Every upstream revision is pinned by flake.lock, so a
+# green run is per-PR proof that our output still matches the real wallet code.
+#
+# This is the heavy job: without Cachix it rebuilds libwally, the Node runner
+# and the Rust adapters every time. Configure the cache before relying on it.
+name: Reproducibility
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reproducibility-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  flake-check:
+    name: nix flake check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@v4
+      - name: Install Nix
+        uses: cachix/install-nix-action@v30
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+      - name: Cachix
+        uses: cachix/cachix-action@v15
+        with:
+          name: bip39-ceremony
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+      - name: Verify flake inputs are locked
+        run: nix flake metadata --no-update-lock-file
+      - name: nix flake check
+        run: nix flake check --print-build-logs

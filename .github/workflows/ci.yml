@@ -1,0 +1,46 @@
+# Core per-PR gate: the same checks enforced locally by `just check`,
+# run reproducibly through the pinned Nix devShell on both supported OSes.
+#
+# Actions are tag-pinned for the initial scaffold; the committed Dependabot
+# config keeps them current (and can migrate them to commit-SHA pins).
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: check (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - name: Harden runner
+        if: runner.os == 'Linux'
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@v4
+      - name: Install Nix
+        uses: cachix/install-nix-action@v30
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+      - name: Cachix
+        uses: cachix/cachix-action@v15
+        with:
+          name: bip39-ceremony
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+      - name: just check
+        run: nix develop --command just check

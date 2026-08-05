@@ -1,0 +1,10 @@
+version: 2
+updates:
+  # Keep the CI action references current (and maintain commit-SHA pins if
+  # the workflows are migrated from tags to SHAs).
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "ci"

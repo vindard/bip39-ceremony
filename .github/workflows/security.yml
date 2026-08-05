@@ -1,0 +1,61 @@
+# Supply-chain posture: RustSec advisories, license/source/ban policy
+# (`just security` = cargo-audit + cargo-deny), plus PR dependency review.
+# Runs on every PR AND daily, so a newly disclosed advisory turns the badge
+# red even without a code change.
+name: Security
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "27 6 * * *" # daily at 06:27 UTC
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: audit + deny
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@v4
+      - name: Install Nix
+        uses: cachix/install-nix-action@v30
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+      - name: Cachix
+        uses: cachix/cachix-action@v15
+        with:
+          name: bip39-ceremony
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+      - name: just security
+        run: nix develop --command just security
+
+  dependency-review:
+    name: dependency review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@v4
+      - name: Review dependency changes
+        uses: actions/dependency-review-action@v4
+        with:
+          comment-summary-in-pr: on-failure
+          fail-on-severity: low

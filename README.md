@@ -13,6 +13,11 @@ standard 12- or 24-word English BIP-39 mnemonics.**
 &nbsp;![BIP-39](https://img.shields.io/badge/BIP--39-compatible-f7931a?logo=bitcoin&logoColor=white)
 &nbsp;![Built with Nix](https://img.shields.io/badge/built%20with-Nix-5277C3?logo=nixos&logoColor=white)
 
+[![CI](https://github.com/vindard/bip39-ceremony/actions/workflows/ci.yml/badge.svg)](https://github.com/vindard/bip39-ceremony/actions/workflows/ci.yml)
+&nbsp;[![Security](https://github.com/vindard/bip39-ceremony/actions/workflows/security.yml/badge.svg)](https://github.com/vindard/bip39-ceremony/actions/workflows/security.yml)
+&nbsp;[![Reproducibility](https://github.com/vindard/bip39-ceremony/actions/workflows/reproducibility.yml/badge.svg)](https://github.com/vindard/bip39-ceremony/actions/workflows/reproducibility.yml)
+&nbsp;[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/vindard/bip39-ceremony/badge)](https://securityscorecards.dev/viewer/?uri=github.com/vindard/bip39-ceremony)
+
 <br>
 
 <img src="docs/img/ceremony.gif" alt="Animated walkthrough of the ceremony: setup, safety preflight, dice capture, reveal, and the derivation pipeline" width="820">
