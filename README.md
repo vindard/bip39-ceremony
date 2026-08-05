@@ -102,48 +102,48 @@ compatibility, but it is no longer offered as a ceremony choice.
 
 ## ⌨️ Interaction
 
-The ceremony is event sourced in memory, but the interface does not expose or
-navigate event-prefix state. Detail panels are limited to protocol explanation,
-help, and the post-reveal derivation:
+The ceremony moves through five phases. Every derived secret — entropy,
+checksum, indices, words, and the mnemonic — stays concealed together until a
+single deliberate reveal.
 
-- Up/Down or Page Up/Page Down: scroll longer detail views
-- `d`: open the rolls-to-entropy-to-words derivation after mnemonic reveal
-- `?`: explanation and controls
-- `Tab` or Escape: return to the ceremony
+```mermaid
+flowchart LR
+    S["1 · Setup<br/>length + protocol"] --> A["2 · Safety<br/>5 acknowledgements"]
+    A --> R["3 · Rolls<br/>physical capture"]
+    R --> G["4 · Generate"]
+    G --> V["5 · Reveal 🔒"]
+    V -. deliberate reveal .-> O["entropy · checksum<br/>indices · words · mnemonic"]
+```
 
-The concealed-result phase gates every equivalent derived secret together:
-entropy, checksum, indices, derivation words, and the mnemonic become available
-only after deliberate reveal.
+### Controls
 
-Choice menus use Up/Down or `j`/`k` to move the highlighted row. Left/Right or
-`h`/`l` move between mnemonic-length and conversion-protocol setup steps; Left
-or `h` also returns from safety to protocol selection. On protocol selection,
-`e` explains whichever protocol is highlighted, including wallet compatibility
-profiles and target-limited rows. Up/Down scrolls one row, Page
-Up/Page Down scrolls a page, and a right-border rail shows position. The
-Safety preflight uses Up/Down to select an acknowledgement, Space to toggle it,
-and `c` to check all; Enter advances after all five are checked. Numeric shortcuts
-are intentionally not accepted.
+| Context | Keys | Action |
+| --- | --- | --- |
+| Menus | `↑`/`↓` or `j`/`k` | Move the highlighted row |
+| Setup | `←`/`→` or `h`/`l` | Switch between length and protocol steps |
+| Setup | `e` | Explain the highlighted protocol |
+| Safety | `Space` · `c` · `Enter` | Toggle one · check all · advance (after all five) |
+| Capture | `Backspace` | Undo only the latest observation |
+| Capture | `h` | Toggle the full zero-padded ledger (hidden by default) |
+| Reveal | `d` | Open the rolls → entropy → words derivation |
+| Reveal | `v` | Mark transcription checked (does not validate the backup) |
+| Reveal | `h` / `Esc` | Quick-hide the words / restore them |
+| Panels | `↑`/`↓` · `PgUp`/`PgDn` · `?` · `Tab`/`Esc` | Scroll · page · help · return |
 
-Physical input uses a fixed capture workspace. D6 protocols accept `1` through
-`6`; SeedSigner coin capture accepts `0` for tails and `1` for heads. Jade's
-mixed-dice capture accepts `1`–`9` and uppercase `A`–`G` for D16 faces 1–16,
-then `1`–`8` for D8 faces. BitBox02 capture alternates stage-aware D6 keys with
-`0` tails / `1` heads; its lookup selector maps heads to 0 and tails to 1.
-Coin + four-D6 capture requests `0` tails / `1` heads, then four `1`–`6`
-faces; a rejected tails tuple retries the complete five-outcome candidate.
-Krux D20 accepts `1`–`9` and uppercase `A`–`K` for faces 10–20. Backspace
-removes only the latest observation, while
-the next position and remaining count
-stay stationary. Inputs are secret, so prior values are hidden by default while
-the numbered latest outcome remains visible; `h` toggles the complete zero-padded
-ledger. Repeats and patterns are explicitly valid. Generation and mnemonic
-reveal are separate. The 52×40 minimum layout keeps contextual controls visible
-and presents all 24 words in stable numbered columns without scrolling. After
-manual comparison, `v` records that transcription was marked checked; it does not
-validate the backup. On the reveal screen, `h` immediately replaces the words
-with a quick-hidden view; `h` or Escape restores them. Cancelling or finishing
-requires confirmation and persists nothing.
+### Capture keys per protocol
+
+| Protocol | Keys |
+| --- | --- |
+| D6 dice | `1`–`6` |
+| SeedSigner coins | `0` tails · `1` heads |
+| Jade | `1`–`9` `A`–`G` (D16), then `1`–`8` (D8) |
+| BitBox02 | Stage-aware D6, plus `0`/`1` coin |
+| Coin + four-D6 | `0`/`1` coin, then four `1`–`6` (whole tuple retries on rejection) |
+| Krux D20 | `1`–`9` `A`–`K` (faces 10–20) |
+
+Numeric shortcuts for menu selection are intentionally disabled. The 52×40
+minimum layout shows all 24 words in stable numbered columns without scrolling;
+cancelling or finishing requires confirmation and persists nothing.
 
 ## 🎨 Visual themes
 
