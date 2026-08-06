@@ -22,7 +22,7 @@ standard 12- or 24-word English BIP-39 mnemonics.**
 
 <img src="docs/img/ceremony.gif" alt="Animated walkthrough of the ceremony: setup, safety preflight, dice capture, reveal, and the derivation pipeline" width="820">
 
-<sub><i>Setup → safety → dice capture → reveal → derivation. (Demo uses the all-zero test vector; no real seed is shown.)</i></sub>
+<sub><i>Setup → safety → dice capture → reveal → derivation. (COLDCARD with example dice; the shown mnemonic is a throwaway demo seed — never use it.)</i></sub>
 
 </div>
 
