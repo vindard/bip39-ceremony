@@ -34,7 +34,7 @@ entropy you generate physically (dice, coins) and watch become checksum,
 indices, and words. Nothing to trust, all of it to verify — and the output is
 standard BIP-39, compatible with the wallets you already use.
 
-> [!WARNING]
+> [!IMPORTANT]
 > **July 2026 — that trust broke.** A Coldcard firmware bug shipped in March
 > 2021 and unnoticed for four years fed seed generation from a deterministic
 > software PRNG instead of the hardware RNG, collapsing effective key strength to
