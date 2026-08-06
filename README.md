@@ -105,22 +105,6 @@ only when reproducing a mnemonic from its original rolls. The frozen
 `native-hash-v1` implementation and vectors remain in the source for protocol
 compatibility, but it is no longer offered as a ceremony choice.
 
-## 🎨 Visual themes
-
-The warm `ember` palette is the sole visual theme. It preserves the terminal's
-background and uses gold, amber, and coral for semantic emphasis. Run
-`just run-plain`, set `BIP39_CEREMONY_THEME=plain`, or use a non-empty `NO_COLOR`
-for the structurally equivalent colorless presentation. `TERM=dumb` also selects
-plain mode. Labels, symbols, selection markers, and secret warnings remain
-complete without color.
-
-The interface normally uses one full-height workspace card. Help and derivation
-replace that card on demand. Protocol explanation is the deliberate exception:
-the selected protocol list remains in an upper card while its scrollable
-explanation opens below, with a visible return control. Overflow stays inside
-the workspace and is navigated with Page Up/Page Down. The phase path uses `✓`,
-`●`, and `○` for complete, current, and future stages.
-
 ## 🏗️ Architecture and testing
 
 Reusable capture values, versioned conversions, SHA-256 conditioning, BIP-39
