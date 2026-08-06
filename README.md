@@ -6,12 +6,10 @@
 standard 12- or 24-word English BIP-39 mnemonics.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-&nbsp;![Rust](https://img.shields.io/badge/Rust-1.94%2B-orange?logo=rust&logoColor=white)
-&nbsp;![Edition](https://img.shields.io/badge/edition-2024-orange)
-&nbsp;![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-blue)
-&nbsp;![unsafe: forbidden](https://img.shields.io/badge/unsafe-forbidden-success)
-&nbsp;![BIP-39](https://img.shields.io/badge/BIP--39-compatible-f7931a?logo=bitcoin&logoColor=white)
-&nbsp;![Built with Nix](https://img.shields.io/badge/built%20with-Nix-5277C3?logo=nixos&logoColor=white)
+&nbsp;[![Rust](https://img.shields.io/badge/Rust-1.94%2B-orange?logo=rust&logoColor=white)](https://www.rust-lang.org)
+&nbsp;[![unsafe: forbidden](https://img.shields.io/badge/unsafe-forbidden-success)](Cargo.toml)
+&nbsp;[![BIP-39](https://img.shields.io/badge/BIP--39-compatible-f7931a?logo=bitcoin&logoColor=white)](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki)
+&nbsp;[![Built with Nix](https://img.shields.io/badge/built%20with-Nix-5277C3?logo=nixos&logoColor=white)](flake.nix)
 
 [![CI](https://github.com/vindard/bip39-ceremony/actions/workflows/ci.yml/badge.svg)](https://github.com/vindard/bip39-ceremony/actions/workflows/ci.yml)
 &nbsp;[![Security](https://github.com/vindard/bip39-ceremony/actions/workflows/security.yml/badge.svg)](https://github.com/vindard/bip39-ceremony/actions/workflows/security.yml)
