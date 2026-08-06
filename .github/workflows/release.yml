@@ -81,15 +81,20 @@ jobs:
           install -m755 result-musl/bin/bip39-ceremony "dist/bip39-ceremony-v${v}-x86_64-linux-musl"
           ( cd dist && sha256sum bip39-ceremony-* | tee SHA256SUMS )
 
+      # Signing/attestation only on real tags — a workflow_dispatch dry run
+      # exercises build + reproducibility + smoke without writing to Rekor.
       - name: SLSA build provenance
+        if: steps.v.outputs.tag != ''
         uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
         with:
           subject-path: "dist/bip39-ceremony-v*-x86_64-linux-*"
 
       - name: Install cosign
+        if: steps.v.outputs.tag != ''
         uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
 
       - name: Cosign keyless sign
+        if: steps.v.outputs.tag != ''
         run: |
           cd dist
           for f in bip39-ceremony-*-x86_64-linux-* SHA256SUMS; do
