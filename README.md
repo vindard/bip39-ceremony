@@ -35,8 +35,8 @@ generator.
 In July 2026 that trust broke. A Coldcard firmware bug — shipped in **March
 2021** and unnoticed for over four years — quietly routed seed generation to a
 deterministic software PRNG instead of the hardware RNG, collapsing effective
-key strength to as little as ~40 bits: brute-forceable without ever touching the
-wallet. As of **early August 2026**, roughly **1,367 BTC (~$89M)** had been
+key strength to as little as 40 bits: brute-forceable without ever touching the
+wallet. As of **early August 2026**, roughly **1,367 BTC ($89M)** had been
 drained from thousands of addresses, with blockchain-forensics firms putting the
 running total above $100M.
 
@@ -121,7 +121,7 @@ just run
 | --- | :---: | --- | --- |
 | **COLDCARD** | 12 · 24 | D6 | SHA-256 over ASCII roll digits, compatible for an identical ordered sequence. Minimums are 50 rolls for 12 words and COLDCARD's documented 99 rolls for 24 words; additional rolls are accepted. |
 | **Word-by-word Exact** | 12 · 24 | D6 | Exact localized rejection over six-roll 11-bit candidates and a final entropy-tail candidate. Minimums are 70 or 140 rolls; rejected groups never discard accepted positions. |
-| **Exact** | 12 · 24 | D6 | Exact base-6 rejection mapping. Uniform under independent fair dice; ~16% of 50-roll and ~11% of 100-roll attempts reject. |
+| **Exact** | 12 · 24 | D6 | Exact base-6 rejection mapping. Uniform under independent fair dice; ≈16% of 50-roll and ≈11% of 100-roll attempts reject. |
 | **Keystone legacy dice** | 24 | D6 | 24-word compatibility profile that maps face `6` to ASCII `0`, permits completion from 50 mapped rolls, recommends continuing to 99, and uses the full digest. |
 | **Jade direct words** | 12 · 24 | D16/D8 | D16/D16/D8 triples select the first 11 or 23 BIP-39 indices using [Blockstream's published table order][jade-guide]. A final D16/D8 or D8 roll supplies the remaining entropy bits before checksum calculation. |
 | **BitBox02 Diceware** | 12 · 24 | D6 + coin | Reproduces BitBox02's external printed-table workflow; the firmware does not capture the dice rolls. Five D6 faces accepted only in `1`–`4` plus one coin side select each direct word using the [published table][bitbox-guide]. Rejected `5`/`6` retry locally; final coins supply the entropy tail before the words are entered on the device. |
