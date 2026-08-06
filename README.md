@@ -5,6 +5,8 @@
 **A glass-box Rust TUI for turning physical dice rolls and coin flips into
 standard 12- or 24-word English BIP-39 mnemonics.**
 
+### _“Don't trust, verify.”_
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 &nbsp;[![Rust](https://img.shields.io/badge/Rust-1.94%2B-orange?logo=rust&logoColor=white)](https://www.rust-lang.org)
 &nbsp;[![unsafe: forbidden](https://img.shields.io/badge/unsafe-forbidden-success)](Cargo.toml)
@@ -23,6 +25,35 @@ standard 12- or 24-word English BIP-39 mnemonics.**
 <sub><i>Setup → safety → dice capture → reveal → derivation. (Demo uses the all-zero test vector; no real seed is shown.)</i></sub>
 
 </div>
+
+## 🔥 Why this exists
+
+_Don't trust, verify_ is Bitcoin's oldest rule — and seed **entropy** is the one
+step almost nobody actually verifies. You trust the device's random number
+generator.
+
+In July 2026 that trust broke. A Coldcard firmware bug — shipped in **March
+2021** and unnoticed for over four years — quietly routed seed generation to a
+deterministic software PRNG instead of the hardware RNG, collapsing effective
+key strength to as little as ~40 bits: brute-forceable without ever touching the
+wallet. As of **early August 2026**, roughly **1,367 BTC (~$89M)** had been
+drained from thousands of addresses, with blockchain-forensics firms putting the
+running total above $100M.
+
+Nobody caught it for over four years because the bytes were never independently
+verifiable — the textbook definition of trusting instead of verifying. The users
+who were spared had one thing in common: they mixed in their **own dice-roll
+entropy** and refused to rely on the device's RNG alone.
+
+That is the entire point of this project. It makes entropy a **glass box** you
+generate physically — dice, coins — and watch turn into checksum, indices, and
+words, with every bit accounted for. Nothing to trust; all of it to verify. The
+output is standard BIP-39, compatible with the wallets you already use.
+
+<sub>Coldcard entropy flaw, July–August 2026 — sources:
+[The Hacker News](https://thehackernews.com/2026/08/coldcard-hardware-wallet-flaw-linked-to.html) ·
+[TRM Labs](https://www.trmlabs.com/resources/blog/the-largest-hardware-wallet-exploit-of-2026-inside-the-usd-116-million-coldcard-hack) ·
+[TechCrunch](https://techcrunch.com/2026/08/04/hackers-steal-over-130-million-by-exploiting-bug-in-offline-hardware-wallets/)</sub>
 
 ## 🎯 Purpose
 
