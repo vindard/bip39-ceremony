@@ -1,0 +1,113 @@
+# Tag-triggered release: build reproducible Linux binaries, gate on bit-for-bit
+# determinism, then attach checksums, SLSA provenance, and cosign keyless
+# signatures to a DRAFT GitHub Release. A maintainer adds a YubiKey PGP
+# signature (SHA256SUMS.asc) and publishes the draft — see
+# docs/verifying-releases.md.
+#
+# workflow_dispatch runs everything except creating the release (a dry run).
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false # never cancel an in-flight release build
+
+jobs:
+  release:
+    name: build · verify · sign · draft
+    runs-on: ubuntu-latest
+    environment: release # gated: required reviewer + v* tags only
+    permissions:
+      contents: write # create the draft release and upload assets
+      id-token: write # cosign keyless + provenance (sigstore OIDC)
+      attestations: write # actions/attest-build-provenance
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@08dcb3a5e62fa31e2da3d490afc4176ef55ecd72 # v30
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Cachix
+        uses: cachix/cachix-action@ad2ddac53f961de1989924296a1f236fcfbaa4fc # v15
+        with:
+          name: bip39-ceremony
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+
+      - name: Resolve version
+        id: v
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=0.0.0-dev+${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+            echo "tag=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build gnu + musl
+        run: |
+          nix build .#gnu  --out-link result-gnu  --print-build-logs
+          nix build .#musl --out-link result-musl --print-build-logs
+
+      - name: Reproducibility gate (bit-for-bit rebuild)
+        run: |
+          nix build .#gnu  --rebuild --no-link --print-build-logs
+          nix build .#musl --rebuild --no-link --print-build-logs
+
+      - name: PTY smoke test
+        run: |
+          nix run .#smoke-gnu
+          nix run .#smoke-musl
+
+      - name: Stage artifacts + checksums
+        run: |
+          v="${{ steps.v.outputs.version }}"
+          mkdir -p dist
+          install -m755 result-gnu/bin/bip39-ceremony  "dist/bip39-ceremony-v${v}-x86_64-linux-gnu"
+          install -m755 result-musl/bin/bip39-ceremony "dist/bip39-ceremony-v${v}-x86_64-linux-musl"
+          ( cd dist && sha256sum bip39-ceremony-* | tee SHA256SUMS )
+
+      # Signing/attestation only on real tags — a workflow_dispatch dry run
+      # exercises build + reproducibility + smoke without writing to Rekor.
+      - name: SLSA build provenance
+        if: steps.v.outputs.tag != ''
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+        with:
+          subject-path: "dist/bip39-ceremony-v*-x86_64-linux-*"
+
+      - name: Install cosign
+        if: steps.v.outputs.tag != ''
+        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
+
+      - name: Cosign keyless sign
+        if: steps.v.outputs.tag != ''
+        run: |
+          cd dist
+          for f in bip39-ceremony-*-x86_64-linux-* SHA256SUMS; do
+            cosign sign-blob --yes "$f" --bundle "${f}.cosign.bundle"
+          done
+
+      - name: Create draft release
+        if: steps.v.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.v.outputs.tag }}" \
+            --draft \
+            --title "bip39-ceremony ${{ steps.v.outputs.tag }}" \
+            --notes-file .github/release-notes.md \
+            dist/*
