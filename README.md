@@ -189,8 +189,19 @@ just guix-lock-lint      # compare Guix crate origins with Cargo.lock
 just deps                # reviewed normal dependency graph
 ```
 
-The supported first-iteration platforms are Linux and macOS. The flake's package
-outputs are release-feasibility probes, not an accepted release pipeline or an
-independent reproducibility claim. On Linux, `gnu` tests dynamic glibc linkage
-and `musl` tests static PIE linkage; both consume hash-checked Cargo inputs from
-`Cargo.lock` and run the real test suite during their Nix builds.
+Platform support is tiered:
+
+- **Linux — reproducible-build target.** The flake builds `gnu` (dynamic glibc)
+  and `musl` (static PIE) from hash-checked `Cargo.lock` inputs and runs the real
+  test suite during the build, and the independent Guix packaging in
+  [`contrib/guix/`](contrib/guix/) cross-checks the same crate origins. These
+  outputs are still release-feasibility probes, not an accepted release pipeline
+  or a finalized reproducibility claim.
+- **macOS — build and run from source.** CI runs the full test gate on macOS, but
+  the project ships no signed or reproducible macOS artifact yet; build with the
+  flake (`nix run`) or `cargo`. The static-musl profile and the Guix checks are
+  Linux-only.
+- **Windows — not supported natively.** The terminal layer ([`termion`]) targets
+  Unix TTYs. Run under WSL2, which uses the Linux build.
+
+[`termion`]: https://docs.rs/termion
