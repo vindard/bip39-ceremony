@@ -189,19 +189,12 @@ just guix-lock-lint      # compare Guix crate origins with Cargo.lock
 just deps                # reviewed normal dependency graph
 ```
 
-Platform support is tiered:
+| Platform | Support | How to get it |
+| --- | --- | --- |
+| 🐧 **Linux** | ✅ Reproducible-build target | `gnu` (dynamic glibc) & `musl` (static PIE) from hash-checked `Cargo.lock`, with the test suite run during the build; independently cross-checked by Guix ([`contrib/guix/`](contrib/guix/)) |
+| 🍎 **macOS** | 🔨 Build from source | `nix run` or `cargo` — CI runs the full test gate, but no signed or reproducible artifact yet |
+| 🪟 **Windows** | 🚫 Not native | Run under **WSL2**, which uses the Linux build |
 
-- **Linux — reproducible-build target.** The flake builds `gnu` (dynamic glibc)
-  and `musl` (static PIE) from hash-checked `Cargo.lock` inputs and runs the real
-  test suite during the build, and the independent Guix packaging in
-  [`contrib/guix/`](contrib/guix/) cross-checks the same crate origins. These
-  outputs are still release-feasibility probes, not an accepted release pipeline
-  or a finalized reproducibility claim.
-- **macOS — build and run from source.** CI runs the full test gate on macOS, but
-  the project ships no signed or reproducible macOS artifact yet; build with the
-  flake (`nix run`) or `cargo`. The static-musl profile and the Guix checks are
-  Linux-only.
-- **Windows — not supported natively.** The terminal layer ([`termion`]) targets
-  Unix TTYs. Run under WSL2, which uses the Linux build.
+<sub>Linux outputs are release-feasibility probes, not yet a finalized reproducibility claim. The static-musl profile and the Guix checks are Linux-only; the terminal layer ([`termion`]) targets Unix TTYs.</sub>
 
 [`termion`]: https://docs.rs/termion
