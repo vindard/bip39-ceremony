@@ -42,5 +42,11 @@ jobs:
         with:
           name: bip39-ceremony
           authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
-      - name: just check
+      # Guix syntax lint needs the Guix binary, which is Linux-only, so macOS
+      # runs the same gate minus that one recipe.
+      - name: just check (Linux — full gate)
+        if: runner.os == 'Linux'
         run: nix develop --command just check
+      - name: just check (macOS — Guix syntax lint is Linux-only)
+        if: runner.os == 'macOS'
+        run: nix develop --command just fmt-check lint test package-lint privacy-lint architecture-lint guix-lock-lint
