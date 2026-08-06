@@ -65,10 +65,15 @@ step, with transcription and backup-verification guidance.</i></sub>
 
 ## 🛡️ Security boundary
 
-Rolls, flips, entropy, intermediate derivations, and mnemonic words are
-wallet-secret material. Prefer a trusted offline computer and local terminal.
-The program avoids persistence and zeroizes owned secret buffers, but cannot
-protect a compromised OS, swap, terminal recording, screenshots, or observers.
+Rolls, flips, entropy, derivations, and words are wallet-secret material —
+prefer a trusted offline computer and local terminal.
+
+| ✅ The program does | 🚫 It cannot protect against |
+| --- | --- |
+| Persists nothing — no writes to disk | A compromised OS or malware |
+| Zeroizes owned secret buffers | Swap / hibernation paging memory to disk |
+| Keeps secrets in memory for the ceremony only | Terminal recording, scrollback, screenshots |
+| Gates every derived secret behind a deliberate reveal | Cameras, shoulder-surfing, other observers |
 
 ## 🚀 Quick start
 
@@ -107,17 +112,13 @@ compatibility, but it is no longer offered as a ceremony choice.
 
 ## 🏗️ Architecture and testing
 
-Reusable capture values, versioned conversions, SHA-256 conditioning, BIP-39
-encoding, and structured calculation evidence live in the publishable
-[`bip39-ceremony-core`](crates/bip39-ceremony-core/) workspace library. It has no
-ceremony, presentation, or terminal dependencies. Protocol-mandated
-cryptography is concrete so callers cannot substitute an incompatible hash
-while retaining a compatibility label.
+| Layer | Owns | Boundary |
+| --- | --- | --- |
+| [`bip39-ceremony-core`](crates/bip39-ceremony-core/) · publishable | capture values, versioned conversions, SHA-256 conditioning, BIP-39 encoding, structured calculation evidence | no ceremony, presentation, or terminal dependencies; crypto is concrete so a compatibility label cannot front an incompatible hash |
+| Application · unpublished | event-sourced `Ceremony`, safety and reveal policy, explanatory wording, terminal interface | consumes core only |
 
-The unpublished application owns the event-sourced `Ceremony`, safety and reveal
-policy, explanatory wording, and terminal interface. Unit tests cover pure
-calculation and domain paths, while consumer-style vector tests verify the core
-crate's public boundary.
+Unit tests cover pure calculation and domain paths, while consumer-style vector
+tests verify the core crate's public boundary.
 
 ## 🔬 Reference validation
 
