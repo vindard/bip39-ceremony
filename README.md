@@ -114,7 +114,8 @@ Run it straight from source with Nix (no download to trust):
 nix run github:vindard/bip39-ceremony
 ```
 
-Or download a reproducible Linux binary (`gnu` / static `musl`) from a
+Or download the reproducible static-`musl` Linux binary (x86_64, runs on any
+distro) from a
 [release](https://github.com/vindard/bip39-ceremony/releases). Releases carry
 checksums, a maintainer **PGP signature** on a hardware key (fingerprint
 `F1E2 DF8F 56F8 8D73 4181  1B92 1B00 5D83 8F95 D90A`), cosign keyless signatures,
