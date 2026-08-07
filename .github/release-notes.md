@@ -1,6 +1,7 @@
-Reproducible Linux binaries for `x86_64` (`gnu` dynamic glibc, `musl` static
-PIE), built with Nix and verified bit-for-bit reproducible in the release
-workflow.
+A reproducible static-PIE Linux binary for `x86_64` (`musl` — no interpreter or
+glibc-version dependency, runs on any x86_64 Linux), built with Nix and verified
+bit-for-bit reproducible in the release workflow. Nix users can also
+`nix run github:vindard/bip39-ceremony`.
 
 > **Draft:** this release is finalized only after a maintainer attaches a
 > hardware-key PGP signature over the checksums (`SHA256SUMS.asc`). Do not use a
@@ -8,7 +9,6 @@ workflow.
 
 ### Artifacts
 
-- `bip39-ceremony-vX.Y.Z-x86_64-linux-gnu` — dynamically linked (glibc)
 - `bip39-ceremony-vX.Y.Z-x86_64-linux-musl` — static PIE (no libc dependency)
 - `SHA256SUMS` (+ maintainer `SHA256SUMS.asc`)
 - `*.cosign.bundle` — sigstore keyless signatures

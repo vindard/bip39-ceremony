@@ -58,26 +58,23 @@ jobs:
             echo "tag=" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Build gnu + musl
-        run: |
-          nix build .#gnu  --out-link result-gnu  --print-build-logs
-          nix build .#musl --out-link result-musl --print-build-logs
+      # Only the static-PIE musl binary is shipped: it has no interpreter or
+      # glibc-version dependency, so it runs on any x86_64 Linux. The Nix `gnu`
+      # build hardcodes a /nix/store glibc interpreter and is not portable; Nix
+      # users run `nix run github:vindard/bip39-ceremony`.
+      - name: Build musl (static PIE)
+        run: nix build .#musl --out-link result-musl --print-build-logs
 
       - name: Reproducibility gate (bit-for-bit rebuild)
-        run: |
-          nix build .#gnu  --rebuild --no-link --print-build-logs
-          nix build .#musl --rebuild --no-link --print-build-logs
+        run: nix build .#musl --rebuild --no-link --print-build-logs
 
       - name: PTY smoke test
-        run: |
-          nix run .#smoke-gnu
-          nix run .#smoke-musl
+        run: nix run .#smoke-musl
 
-      - name: Stage artifacts + checksums
+      - name: Stage artifact + checksums
         run: |
           v="${{ steps.v.outputs.version }}"
           mkdir -p dist
-          install -m755 result-gnu/bin/bip39-ceremony  "dist/bip39-ceremony-v${v}-x86_64-linux-gnu"
           install -m755 result-musl/bin/bip39-ceremony "dist/bip39-ceremony-v${v}-x86_64-linux-musl"
           ( cd dist && sha256sum bip39-ceremony-* | tee SHA256SUMS )
 

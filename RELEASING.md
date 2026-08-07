@@ -13,7 +13,7 @@ goes green:
 - GitHub → **Actions → Release → Run workflow** (`workflow_dispatch`), or
   `gh workflow run release.yml`.
 
-A dispatch run does everything except create the release: build `gnu`/`musl`,
+A dispatch run does everything except create the release: build `musl`,
 the **`nix --rebuild` reproducibility gate**, the PTY smoke, and the cosign +
 provenance signing. It exists to catch **non-determinism before you tag** — if
 the reproducibility gate fails, the build is not bit-for-bit reproducible and
@@ -66,5 +66,5 @@ Upload `SHA256SUMS.asc` to the draft release.
       `gh attestation verify`) — see `docs/verifying-releases.md`.
 - [ ] Announce.
 
-> Scope today: x86_64 Linux (`gnu`, `musl`). arm64, macOS, and a crates.io
+> Scope today: x86_64 Linux (static `musl`). arm64, macOS, and a crates.io
 > publish of `bip39-ceremony-core` are follow-ups.
