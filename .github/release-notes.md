@@ -20,4 +20,15 @@ gh attestation verify bip39-ceremony-*-x86_64-linux-musl --repo vindard/bip39-ce
 
 Full instructions — including cosign verification and reproducing the build from source — are in [`docs/verifying-releases.md`](https://github.com/vindard/bip39-ceremony/blob/main/docs/verifying-releases.md).
 
+### Run
+
+After verifying, make it executable and run it — no install needed (ideal for a throwaway or air-gapped machine):
+
+```sh
+chmod +x bip39-ceremony-vX.Y.Z-x86_64-linux-musl
+./bip39-ceremony-vX.Y.Z-x86_64-linux-musl
+```
+
+Optionally put it on your `PATH`: `install -m755 bip39-ceremony-vX.Y.Z-x86_64-linux-musl ~/.local/bin/bip39-ceremony`.
+
 Prefer not to download a binary? Run it from source with Nix: `nix run github:vindard/bip39-ceremony`.
