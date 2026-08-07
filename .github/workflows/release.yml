@@ -73,7 +73,7 @@ jobs:
         run: nix build .#musl --rebuild --no-link --print-build-logs
 
       - name: PTY smoke test
-        run: nix run .#smoke-musl
+        run: nix build ".#checks.$(nix eval --raw --impure --expr builtins.currentSystem).smoke-musl" --print-build-logs
 
       - name: Stage artifact + checksums
         run: |
