@@ -23,7 +23,11 @@ jobs:
   release:
     name: build · verify · sign · draft
     runs-on: ubuntu-latest
-    environment: release # gated: required reviewer + v* tags only
+    # Real (tag) releases go through the gated `release` environment (required
+    # reviewer + v*-tag-restricted). A workflow_dispatch dry run on a branch
+    # uses no environment, so it isn't blocked by the tag restriction; its
+    # signing/release steps are tag-gated separately.
+    environment: ${{ github.ref_type == 'tag' && 'release' || '' }}
     permissions:
       contents: write # create the draft release and upload assets
       id-token: write # cosign keyless + provenance (sigstore OIDC)
