@@ -9,6 +9,7 @@ use super::Generation;
 /// Secret-bearing presentation projection of structured calculation evidence.
 pub struct DerivationProjection {
     protocol: &'static str,
+    canonical_input_encoding: &'static str,
     canonical_input: String,
     entropy_hex: String,
     checksum_bits: String,
@@ -20,9 +21,12 @@ impl DerivationProjection {
     #[must_use]
     pub fn build(generation: &Generation) -> Self {
         let evidence = generation.evidence();
+        let (canonical_input_encoding, canonical_input) =
+            canonical_input_parts(evidence.canonical_input());
         Self {
             protocol: generation.protocol().id(),
-            canonical_input: render_canonical_input(evidence.canonical_input()),
+            canonical_input_encoding,
+            canonical_input,
             entropy_hex: hex(generation.entropy().bytes()),
             checksum_bits: evidence
                 .checksum_bits()
@@ -37,6 +41,14 @@ impl DerivationProjection {
     #[must_use]
     pub const fn protocol(&self) -> &str {
         self.protocol
+    }
+
+    /// The encoding of the canonical input (e.g. `ascii-rolls`). A display
+    /// label describing the format of [`Self::canonical_input`]; it is not part
+    /// of the input and never enters the hash.
+    #[must_use]
+    pub const fn canonical_input_encoding(&self) -> &str {
+        self.canonical_input_encoding
     }
 
     #[must_use]
@@ -85,30 +97,36 @@ impl fmt::Debug for DerivationProjection {
     }
 }
 
-fn render_canonical_input(input: &CanonicalInput) -> String {
+/// Splits canonical-input evidence into its encoding label and its raw content.
+/// The label names the format only; the content is what the protocol actually
+/// consumes (and, for hash-based protocols, the exact SHA-256 preimage). The
+/// label is never part of the input or the hash.
+fn canonical_input_parts(input: &CanonicalInput) -> (&'static str, String) {
     match input {
-        CanonicalInput::Base6Integer(digits) => {
-            format!("base6-msb-first:{}", ascii(digits))
-        }
-        CanonicalInput::LocalizedBase6Candidates(digits) => {
-            format!("localized-base6-candidate-stream:{}", ascii(digits))
-        }
-        CanonicalInput::AsciiFaceDigits(digits) => format!("ascii-rolls:{}", ascii(digits)),
+        CanonicalInput::Base6Integer(digits) => (
+            "base-6 (0-5), msb-first (left-to-right), global rejection",
+            ascii(digits).to_owned(),
+        ),
+        CanonicalInput::LocalizedBase6Candidates(digits) => (
+            "base-6 (0-5), msb-first per-word candidates, local rejection",
+            ascii(digits).to_owned(),
+        ),
+        CanonicalInput::AsciiFaceDigits(digits) => ("ascii-rolls", ascii(digits).to_owned()),
         CanonicalInput::AsciiFacesWithSixAsZero(digits) => {
-            format!("ascii-faces-6-as-0:{}", ascii(digits))
+            ("ascii-faces-6-as-0", ascii(digits).to_owned())
         }
         CanonicalInput::TypedMixedDice(observations) => {
-            let mut output = String::from("typed-mixed-dice:");
+            let mut output = String::new();
             for (index, pair) in observations.chunks_exact(2).enumerate() {
                 if index > 0 {
                     output.push(',');
                 }
                 write!(output, "D{}={}", pair[0], pair[1]).expect("writing to String cannot fail");
             }
-            output
+            ("typed-mixed-dice", output)
         }
         CanonicalInput::TypedD6AndCoins(observations) => {
-            let mut output = String::from("typed-d6-coins:");
+            let mut output = String::new();
             for (index, pair) in observations.chunks_exact(2).enumerate() {
                 if index > 0 {
                     output.push(',');
@@ -116,12 +134,12 @@ fn render_canonical_input(input: &CanonicalInput) -> String {
                 let kind = if pair[0] == 6 { "D6" } else { "coin" };
                 write!(output, "{kind}={}", pair[1]).expect("writing to String cannot fail");
             }
-            output
+            ("typed-d6-coins", output)
         }
         CanonicalInput::AsciiHyphenatedD20(rolls) => {
-            format!("ascii-hyphenated-d20:{}", ascii(rolls))
+            ("ascii-hyphenated-d20", ascii(rolls).to_owned())
         }
-        CanonicalInput::AsciiCoinFlips(flips) => format!("ascii-coin-flips:{}", ascii(flips)),
+        CanonicalInput::AsciiCoinFlips(flips) => ("ascii-coin-flips", ascii(flips).to_owned()),
     }
 }
 
@@ -170,7 +188,13 @@ mod tests {
         let generation = zero_calculation(&rolls);
         let projection = DerivationProjection::build(&generation);
         assert_eq!(projection.protocol(), "exact-v1");
-        assert!(projection.canonical_input().starts_with("base6-msb-first:"));
+        // The encoding label is a separate display field; the content carries no
+        // label prefix (it is exactly what the protocol consumes).
+        assert_eq!(
+            projection.canonical_input_encoding(),
+            "base-6 (0-5), msb-first (left-to-right), global rejection"
+        );
+        assert!(!projection.canonical_input().contains(':'));
         assert_eq!(projection.entropy_hex(), "00000000000000000000000000000000");
         assert_eq!(projection.checksum_bits(), "0011");
         assert_eq!(
