@@ -878,28 +878,21 @@ mod tests {
 
     fn configure(app: &mut App, mode: ConversionProtocol) {
         app.update(Key::Char('\n'));
-        if mode == ConversionProtocol::NativeHashV1 {
-            // Retained for protocol compatibility, but no longer offered by the UI.
-            app.handle(Command::SelectProtocol(mode));
-        } else {
-            let steps = match mode {
-                ConversionProtocol::ColdcardV1 => 0,
-                ConversionProtocol::WordExactV1 => 1,
-                ConversionProtocol::ExactV1 => 2,
-                ConversionProtocol::JadeDirectV1 => 4,
-                ConversionProtocol::BitBox02DirectV1 => 5,
-                ConversionProtocol::KruxD20V1 => 6,
-                ConversionProtocol::CoinFourD6DirectV1 => 7,
-                ConversionProtocol::SeedSignerCoinsV1 => 8,
-                ConversionProtocol::NativeHashV1 | ConversionProtocol::KeystoneLegacyV1 => {
-                    unreachable!()
-                }
-            };
-            for _ in 0..steps {
-                app.update(Key::Char('j'));
-            }
-            app.update(Key::Char('\n'));
+        let steps = match mode {
+            ConversionProtocol::ColdcardV1 => 0,
+            ConversionProtocol::WordExactV1 => 1,
+            ConversionProtocol::ExactV1 => 2,
+            ConversionProtocol::JadeDirectV1 => 4,
+            ConversionProtocol::BitBox02DirectV1 => 5,
+            ConversionProtocol::KruxD20V1 => 6,
+            ConversionProtocol::CoinFourD6DirectV1 => 7,
+            ConversionProtocol::SeedSignerCoinsV1 => 8,
+            ConversionProtocol::KeystoneLegacyV1 => unreachable!(),
+        };
+        for _ in 0..steps {
+            app.update(Key::Char('j'));
         }
+        app.update(Key::Char('\n'));
         app.update(Key::Char('c'));
         app.update(Key::Char('\n'));
     }

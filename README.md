@@ -142,9 +142,7 @@ tag. See [**Verifying releases**](docs/verifying-releases.md).
 [coin-four-d6-table]: https://github.com/taelfrinn/Bip39-diceware/blob/5320c9978fe89b5e068f6c0cafe45effe900e74c/README.md
 
 All selectable protocols produce ordinary BIP-39 output. The protocol matters
-only when reproducing a mnemonic from its original rolls. The frozen
-`native-hash-v1` implementation and vectors remain in the source for protocol
-compatibility, but it is no longer offered as a ceremony choice.
+only when reproducing a mnemonic from its original rolls.
 
 ## 🏗️ Architecture and testing
 

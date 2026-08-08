@@ -3,23 +3,18 @@ use core::fmt;
 use zeroize::Zeroizing;
 
 use crate::domain::{
-    bip39::EntropyTarget, bitbox::BitBoxCapture, coin::FlipSequence,
-    coin_four_d6::CoinFourD6Capture, d20::D20RollSequence, dice::RollSequence, jade::JadeCapture,
+    bitbox::BitBoxCapture, coin::FlipSequence, coin_four_d6::CoinFourD6Capture,
+    d20::D20RollSequence, dice::RollSequence, jade::JadeCapture,
 };
 
 use super::{
     ConversionProtocol, coldcard_ascii_rolls, keystone_legacy_ascii_rolls, krux_d20_ascii_rolls,
-    native_hash_header,
 };
 
 /// Secret protocol input represented without presentation wording.
 pub enum CanonicalInput {
     Base6Integer(Zeroizing<Vec<u8>>),
     LocalizedBase6Candidates(Zeroizing<Vec<u8>>),
-    VersionedBinary {
-        header: Vec<u8>,
-        ascii_rolls: Zeroizing<Vec<u8>>,
-    },
     AsciiFaceDigits(Zeroizing<Vec<u8>>),
     AsciiFacesWithSixAsZero(Zeroizing<Vec<u8>>),
     TypedMixedDice(Zeroizing<Vec<u8>>),
@@ -30,18 +25,10 @@ pub enum CanonicalInput {
 
 impl CanonicalInput {
     #[must_use]
-    pub(crate) fn from_dice(
-        protocol: ConversionProtocol,
-        target: EntropyTarget,
-        rolls: &RollSequence,
-    ) -> Self {
+    pub(crate) fn from_dice(protocol: ConversionProtocol, rolls: &RollSequence) -> Self {
         match protocol {
             ConversionProtocol::ExactV1 => Self::Base6Integer(base6_digits(rolls)),
             ConversionProtocol::WordExactV1 => Self::LocalizedBase6Candidates(base6_digits(rolls)),
-            ConversionProtocol::NativeHashV1 => Self::VersionedBinary {
-                header: native_hash_header(target),
-                ascii_rolls: rolls.ascii_bytes(),
-            },
             ConversionProtocol::ColdcardV1 => Self::AsciiFaceDigits(coldcard_ascii_rolls(rolls)),
             ConversionProtocol::KeystoneLegacyV1 => {
                 Self::AsciiFacesWithSixAsZero(keystone_legacy_ascii_rolls(rolls))
@@ -104,7 +91,7 @@ mod tests {
         rolls.push(DieFace::new(6).unwrap());
 
         let CanonicalInput::Base6Integer(digits) =
-            CanonicalInput::from_dice(ConversionProtocol::ExactV1, EntropyTarget::Words12, &rolls)
+            CanonicalInput::from_dice(ConversionProtocol::ExactV1, &rolls)
         else {
             panic!("base-6 representation expected");
         };

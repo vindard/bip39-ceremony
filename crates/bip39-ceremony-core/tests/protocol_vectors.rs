@@ -170,21 +170,6 @@ fn word_exact_zero_crosses_rejection_and_bip39_boundaries() {
 }
 
 #[test]
-fn native_hash_crosses_sha256_and_bip39_boundaries() {
-    let rolls = rolls(&"1".repeat(50));
-    let calculation = accepted(
-        EntropyTarget::Words12,
-        ConversionProtocol::NativeHashV1,
-        Capture::Dice(&rolls),
-    );
-    assert_eq!(
-        entropy_hex(calculation.entropy()),
-        "c6ea190b0a8106d07e8d8c0ef5ca33d5"
-    );
-    assert_eq!(calculation.mnemonic().words().len(), 12);
-}
-
-#[test]
 fn coldcard_documented_short_example_matches_sha256_and_bip39() {
     let digest = sha256::Hash::hash(b"123456").to_byte_array();
     assert_eq!(

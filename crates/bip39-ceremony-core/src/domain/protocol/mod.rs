@@ -9,7 +9,6 @@ mod identity;
 mod jade;
 mod keystone_legacy;
 mod krux_d20;
-mod native_hash;
 mod specification;
 mod word_exact;
 
@@ -47,5 +46,4 @@ pub(crate) use exact::{ExactOutcome, exact_entropy};
 pub(crate) use jade::jade_entropy;
 pub(crate) use keystone_legacy::ascii_rolls as keystone_legacy_ascii_rolls;
 pub(crate) use krux_d20::ascii_rolls as krux_d20_ascii_rolls;
-pub(crate) use native_hash::header as native_hash_header;
 pub(crate) use word_exact::{parse_word_exact, word_exact_entropy};

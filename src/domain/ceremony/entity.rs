@@ -616,7 +616,7 @@ mod tests {
             .handle(Command::SelectTarget(EntropyTarget::Words12))
             .unwrap();
         ceremony
-            .handle(Command::SelectProtocol(ConversionProtocol::NativeHashV1))
+            .handle(Command::SelectProtocol(ConversionProtocol::ExactV1))
             .unwrap();
         ceremony.handle(Command::ReopenProtocolSelection).unwrap();
 
@@ -636,7 +636,7 @@ mod tests {
             .handle(Command::SelectTarget(EntropyTarget::Words12))
             .unwrap();
         safety
-            .handle(Command::SelectProtocol(ConversionProtocol::NativeHashV1))
+            .handle(Command::SelectProtocol(ConversionProtocol::ExactV1))
             .unwrap();
         assert_eq!(safety.state().phase(), Phase::Safety);
         let before = safety.events().len();
@@ -1047,8 +1047,8 @@ mod tests {
 
     #[test]
     fn non_rejecting_protocol_cannot_record_attempt_rejection() {
-        let mut ceremony = configured(ConversionProtocol::NativeHashV1);
-        add_rolls(&mut ceremony, 50);
+        let mut ceremony = configured(ConversionProtocol::WordExactV1);
+        add_rolls(&mut ceremony, 70);
         ceremony.handle(Command::ConfirmRolls).unwrap();
         assert_eq!(
             ceremony.record_attempt_rejected(),
@@ -1058,7 +1058,7 @@ mod tests {
 
     #[test]
     fn event_prefix_reconstructs_prior_state() {
-        let mut ceremony = configured(ConversionProtocol::NativeHashV1);
+        let mut ceremony = configured(ConversionProtocol::ExactV1);
         add_rolls(&mut ceremony, 2);
 
         let before_rolls = ceremony.state_at(3).unwrap();

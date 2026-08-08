@@ -83,5 +83,5 @@ Protocol requirements without an upstream oracle remain in
 - The Keystone legacy check executes its Android UI completion branches at
   49/50/98/99 rolls, then separately executes the post-capture dice mapping and
   hashing method.
-- Exact, Word Exact, and Native Hash are project-owned protocols without an
-  independent upstream implementation.
+- Exact and Word Exact are project-owned protocols without an independent
+  upstream implementation.

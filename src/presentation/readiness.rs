@@ -20,10 +20,6 @@ pub fn readiness_document(readiness: CaptureReadiness) -> Document {
             B::Paragraph("✓ ALL ENTROPY POSITIONS + FINAL TAIL ACCEPTED".to_owned()),
             B::Paragraph("○ BIP-39 checksum will be calculated, not rolled.".to_owned()),
         ],
-        ReadinessKind::NativeHash => vec![B::Paragraph(format!(
-            "✓ {} ROLLS · version + target + count bound",
-            readiness.recorded()
-        ))],
         ReadinessKind::Coldcard {
             strict_capacity_reached,
         } => {
