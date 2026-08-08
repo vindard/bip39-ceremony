@@ -144,6 +144,36 @@ tag. See [**Verifying releases**](docs/verifying-releases.md).
 All selectable protocols produce ordinary BIP-39 output. The protocol matters
 only when reproducing a mnemonic from its original rolls.
 
+### 🧪 Group compare — one entropy set, many wallets
+
+Press `g` on the protocol screen to enter **group compare**. You roll a single
+physical D6 tape, and every D6-native protocol is replayed against that *same*
+entropy so you can line up the seeds each wallet's method produces from
+identical rolls.
+
+A protocol only belongs to a set if it consumes **exactly** those rolls, all of
+them, with none rejected. Because the protocols complete at different lengths,
+results group into **entropy sets at roll-count checkpoints** — the current tape
+length plus each length where an exact-count protocol completes (`100` for the
+strict protocols, `140` for `Word-by-word Exact` at 24 words). So **166 rolls
+gives three sets** — `166`, `140`, `100`:
+
+| Set | Protocols that use exactly those rolls |
+| --- | --- |
+| **166** | `COLDCARD`, `Keystone` |
+| **140** | `Word-by-word Exact`, `COLDCARD`, `Keystone` |
+| **100** | `Exact`, `COLDCARD`, `Keystone` |
+
+The open-ended protocols (`COLDCARD`, `Keystone`) hash every roll, so they appear
+in every set at or above their minimum — with a *different* seed each time, since
+roll count is part of their entropy. A protocol never appears against a length it
+doesn't cleanly consume: `Exact` shows up only at `100`, `Word-by-word Exact`
+only at `140`. Accepted seeds reveal with `r`; a content **rejection** (`Exact`
+out-of-range, `COLDCARD` >30% one face, or a rejected `Word-by-word Exact`
+candidate) can't be fixed by rolling more, so the remedy is `n`, a fresh set —
+earlier captures stay for comparison. The same rolls usually yield *different*
+seeds per wallet, because entropy provenance is protocol-dependent.
+
 ## 🏗️ Architecture and testing
 
 | Layer | Owns | Boundary |
