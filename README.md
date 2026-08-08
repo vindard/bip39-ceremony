@@ -151,6 +151,14 @@ physical D6 tape, and every D6-native protocol is replayed against that *same*
 entropy so you can line up the seeds each wallet's method produces from
 identical rolls.
 
+<div align="center">
+
+<img src="docs/img/group-compare.gif" alt="Animated walkthrough of group compare: collect one D6 tape, entropy sets at roll-count checkpoints, reveal accepted seeds, protocol details, and per-seed derivation" width="820">
+
+<sub><i>One tape → entropy sets at checkpoints → reveal accepted seeds → protocol details → per-seed derivation. (Throwaway demo seeds — never use them.)</i></sub>
+
+</div>
+
 A protocol only belongs to a set if it consumes **exactly** those rolls, all of
 them, with none rejected. Because the protocols complete at different lengths,
 results group into **entropy sets at roll-count checkpoints** — the current tape
