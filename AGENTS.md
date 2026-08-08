@@ -1,5 +1,11 @@
 # Agent instructions
 
+## Crate boundaries — where new changes go
+
+`bip39-ceremony-core` is strictly the conversion math: turning physical capture into entropy and entropy into BIP-39 mnemonics (rolls/flips → entropy → checksum → words), plus the input-requirement metadata that describes each conversion (e.g. `minimum_observations`, `strict_roll_count`, `supports_target`). Keep it lean, simple, and readable by someone auditing the math, because that is where the security lives. It must take on **no** non-security responsibilities — no UX, presentation, comparison, orchestration, ceremony, or terminal logic — and no dependency on the app crate. The intent is for core to eventually be a standalone, broadly reusable crate: a secure, verified reference for how different projects convert entropy into mnemonics.
+
+Litmus test before adding anything to core: **"does this help someone validate the entropy→mnemonic math?"** If no, it belongs in the app layer (`src/`), which already consumes core's public API. Product, presentation, comparison, and policy features live in the app — even when they are pure and could compile inside core. Example: a multi-protocol comparison harness that replays one capture across several protocols is curation built on public core primitives, so it belongs in the app, not core.
+
 ## Guix validation
 
 Read `contrib/guix/README.md` before changing Guix packaging, dependencies, workspace layout, or release workflow.
