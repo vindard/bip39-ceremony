@@ -2,6 +2,7 @@
 
 mod derive;
 mod evidence;
+mod group;
 mod guidance;
 mod hash_preview;
 pub mod ports;
@@ -11,6 +12,7 @@ mod session;
 pub use bip39_ceremony_core::Calculation as Generation;
 pub use derive::DerivationProjection;
 pub use evidence::{BuildCapabilities, Capability, ReproductionReceipt};
+pub(crate) use group::{GroupSession, RollProgress};
 pub use guidance::{
     AssuranceSummary, CeremonyGuidance, ClaimId, EnvironmentEvidence, EvidenceClaim, EvidenceKind,
     SafetyAttestation, SoftwareEvidence, assurance_summary,
