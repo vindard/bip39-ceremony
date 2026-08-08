@@ -1,2 +1,8 @@
 .direnv/
 /target/
+
+# Nix build output symlink
+/result
+
+# Claude Code local working dir (agent worktrees, scratch)
+/.claude/
