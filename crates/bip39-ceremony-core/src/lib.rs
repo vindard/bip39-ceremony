@@ -2,6 +2,14 @@
 
 //! Deterministic, inspectable physical-capture to English BIP-39 calculations.
 //!
+//! Scope: this crate is strictly the conversion math — physical capture to
+//! entropy, and entropy to a BIP-39 mnemonic — plus the metadata describing
+//! each conversion's input requirements. It is meant to stay lean and auditable
+//! by a reader validating the math, since that is where the security lives, and
+//! to eventually stand alone as a reusable reference for how projects convert
+//! entropy into mnemonics. It takes on no non-security responsibilities (no UX,
+//! presentation, comparison, or orchestration); those belong to the app layer.
+//!
 //! Secret-bearing values redact their `Debug` output and zeroize owned buffers
 //! where practical. Accessors returning observations, entropy, evidence, or
 //! words deliberately reveal wallet-secret material.
