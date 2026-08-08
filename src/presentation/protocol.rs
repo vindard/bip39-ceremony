@@ -35,18 +35,6 @@ pub fn protocol_explanation(protocol: ConversionProtocol, target: EntropyTarget)
                 ],
             )
         }
-        ConversionProtocol::NativeHashV1 => Document::new(
-            "NATIVE HASH".to_owned(),
-            vec![
-                B::Heading("NATIVE HASH · DETERMINISTIC CONDITIONING".to_owned()),
-                B::Heading("PURPOSE".to_owned()),
-                B::Paragraph("Condition every ordered roll through SHA-256 while binding protocol version, entropy target, and roll count.".to_owned()),
-                B::Heading("CANONICAL INPUT".to_owned()),
-                B::Paragraph(format!("Input kind: {:?}. The versioned binary header prevents the same face digits under another target or count from meaning the same input.", specification.canonical_input())),
-                B::Paragraph("Hashing does not create entropy, certify fair dice, or repair a compromised device.".to_owned()),
-                B::Paragraph(format!("The selected target requires exactly {} recorded rolls.", specification.minimum_observations())),
-            ],
-        ),
         ConversionProtocol::ColdcardV1 => coldcard_explanation(specification, target),
         ConversionProtocol::KeystoneLegacyV1 => {
             keystone_legacy_explanation(specification, target)

@@ -6,7 +6,6 @@ use super::{ConversionProtocol, word_exact};
 pub enum CanonicalInputKind {
     Base6Integer,
     LocalizedBase6Candidates,
-    VersionedBinary,
     AsciiFaceDigits,
     AsciiFacesWithSixAsZero,
     TypedMixedDice,
@@ -110,12 +109,6 @@ impl ConversionProtocol {
                     false,
                 )
             }
-            Self::NativeHashV1 => (
-                CanonicalInputKind::VersionedBinary,
-                RejectionPolicy::None,
-                Compatibility::Bip39Ceremony,
-                false,
-            ),
             Self::ColdcardV1 => (
                 CanonicalInputKind::AsciiFaceDigits,
                 RejectionPolicy::WholeSequence,

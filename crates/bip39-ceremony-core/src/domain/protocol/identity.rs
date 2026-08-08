@@ -5,7 +5,6 @@ use crate::domain::bip39::EntropyTarget;
 pub enum ConversionProtocol {
     ExactV1,
     WordExactV1,
-    NativeHashV1,
     ColdcardV1,
     KeystoneLegacyV1,
     JadeDirectV1,
@@ -21,7 +20,6 @@ impl ConversionProtocol {
         match self {
             Self::ExactV1 => "exact-v1",
             Self::WordExactV1 => "word-exact-v1",
-            Self::NativeHashV1 => "native-hash-v1",
             Self::ColdcardV1 => "coldcard-v1",
             Self::KeystoneLegacyV1 => "keystone-legacy-v1",
             Self::JadeDirectV1 => "jade-direct-v1",
@@ -69,7 +67,6 @@ mod tests {
         let cases = [
             (ConversionProtocol::ExactV1, "exact-v1", 50, 100),
             (ConversionProtocol::WordExactV1, "word-exact-v1", 70, 140),
-            (ConversionProtocol::NativeHashV1, "native-hash-v1", 50, 100),
             (ConversionProtocol::ColdcardV1, "coldcard-v1", 50, 99),
             (
                 ConversionProtocol::KeystoneLegacyV1,

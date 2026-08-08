@@ -120,10 +120,6 @@ pub fn capture_protocol_context(protocol: ConversionProtocol) -> ChoiceContent {
             "Exact",
             "whole-stream base-6 rejection → target-width BIP-39 entropy",
         ),
-        ConversionProtocol::NativeHashV1 => (
-            "Native hash",
-            "versioned binary header + ASCII rolls → SHA-256",
-        ),
         ConversionProtocol::KeystoneLegacyV1 => (
             "Keystone legacy dice",
             "map face 6 to ASCII 0 → SHA-256 → 256-bit BIP-39 entropy",

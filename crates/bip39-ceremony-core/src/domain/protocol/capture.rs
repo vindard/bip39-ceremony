@@ -134,7 +134,7 @@ impl ConversionProtocol {
                 recorded,
                 required: self.minimum_observations(target),
             }),
-            Self::ExactV1 | Self::NativeHashV1 => {
+            Self::ExactV1 => {
                 let required = self.minimum_observations(target);
                 let progress = CaptureProgress::Fixed { recorded, required };
                 match recorded.cmp(&required) {
@@ -420,7 +420,7 @@ mod tests {
 
     #[test]
     fn fixed_capture_overrun_is_invalid() {
-        let overrun = ConversionProtocol::NativeHashV1
+        let overrun = ConversionProtocol::ExactV1
             .assess_capture(EntropyTarget::Words12, &repeated_rolls(1, 51));
 
         assert!(matches!(overrun, CaptureAssessment::Invalid(_)));

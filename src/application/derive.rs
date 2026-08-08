@@ -93,16 +93,6 @@ fn render_canonical_input(input: &CanonicalInput) -> String {
         CanonicalInput::LocalizedBase6Candidates(digits) => {
             format!("localized-base6-candidate-stream:{}", ascii(digits))
         }
-        CanonicalInput::VersionedBinary {
-            header,
-            ascii_rolls,
-        } => {
-            format!(
-                "hex-header:{} || ascii-rolls:{}",
-                hex(header),
-                ascii(ascii_rolls)
-            )
-        }
         CanonicalInput::AsciiFaceDigits(digits) => format!("ascii-rolls:{}", ascii(digits)),
         CanonicalInput::AsciiFacesWithSixAsZero(digits) => {
             format!("ascii-faces-6-as-0:{}", ascii(digits))

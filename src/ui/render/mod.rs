@@ -996,7 +996,6 @@ mod tests {
         ] {
             assert!(output.contains(expected), "missing {expected}");
         }
-        assert!(!output.contains("Native hash"));
         assert!(!output.contains(" v1"));
         assert!(!output.contains("↓ more — use Page Down"));
     }

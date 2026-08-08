@@ -15,8 +15,7 @@ use crate::domain::{
     protocol::{
         CanonicalInput, ConversionProtocol, ExactOutcome, ProtocolError, bitbox_entropy,
         coin_four_d6_entropy, coldcard_ascii_rolls, coldcard_distribution_rejected, exact_entropy,
-        jade_entropy, keystone_legacy_ascii_rolls, krux_d20_ascii_rolls, native_hash_header,
-        word_exact_entropy,
+        jade_entropy, keystone_legacy_ascii_rolls, krux_d20_ascii_rolls, word_exact_entropy,
     },
 };
 
@@ -255,9 +254,6 @@ pub fn calculate(
         (ConversionProtocol::WordExactV1, Capture::Dice(rolls)) => {
             word_exact_entropy(target, rolls)?
         }
-        (ConversionProtocol::NativeHashV1, Capture::Dice(rolls)) => {
-            native_hash_entropy(target, rolls)?
-        }
         (ConversionProtocol::ColdcardV1, Capture::Dice(rolls)) => {
             require_complete_capture(ConversionProtocol::ColdcardV1, target, rolls)?;
             if coldcard_distribution_rejected(rolls) {
@@ -279,16 +275,6 @@ pub fn calculate(
         mnemonic,
         evidence,
     }))
-}
-
-fn native_hash_entropy(
-    target: EntropyTarget,
-    rolls: &RollSequence,
-) -> Result<Entropy, ProtocolError> {
-    require_complete_capture(ConversionProtocol::NativeHashV1, target, rolls)?;
-    let header = native_hash_header(target);
-    let ascii = rolls.ascii_bytes();
-    Ok(hash_entropy(target, &[&header, ascii.as_slice()]))
 }
 
 fn keystone_legacy_entropy(
@@ -369,7 +355,7 @@ fn evidence(
     entropy: &Entropy,
 ) -> CalculationEvidence {
     let canonical_input = match capture {
-        Capture::Dice(rolls) => CanonicalInput::from_dice(protocol, target, rolls),
+        Capture::Dice(rolls) => CanonicalInput::from_dice(protocol, rolls),
         Capture::Jade(capture) => CanonicalInput::from_jade(capture),
         Capture::BitBox(capture) => CanonicalInput::from_bitbox(capture),
         Capture::CoinFourD6(capture) => CanonicalInput::from_coin_four_d6(capture),

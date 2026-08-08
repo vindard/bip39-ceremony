@@ -4,7 +4,6 @@ use crate::domain::{bip39::EntropyTarget, ceremony::CeremonyState, protocol::Con
 pub enum ReadinessKind {
     Exact,
     WordExact,
-    NativeHash,
     Coldcard { strict_capacity_reached: bool },
     KeystoneLegacy,
     JadeDirect,
@@ -34,7 +33,6 @@ impl CaptureReadiness {
         let kind = match protocol {
             ConversionProtocol::ExactV1 => ReadinessKind::Exact,
             ConversionProtocol::WordExactV1 => ReadinessKind::WordExact,
-            ConversionProtocol::NativeHashV1 => ReadinessKind::NativeHash,
             ConversionProtocol::ColdcardV1 => ReadinessKind::Coldcard {
                 strict_capacity_reached: recorded >= target.strict_roll_count(),
             },
