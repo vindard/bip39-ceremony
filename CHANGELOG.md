@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-08
+
+Adds a group-compare mode for studying how the same entropy becomes different
+seeds across wallets, sharpens the derivation view, and removes the
+non-standard native-hash protocol from `bip39-ceremony-core`. No changes to the
+conversion math of the protocols that remain.
+
+### Added
+
+- Group compare: roll ONE physical D6 tape, then replay it across the four
+  dice protocols (Exact, COLDCARD, Keystone legacy, Word-by-word Exact) to see
+  which accept the same entropy and what seed each produces. Results group into
+  entropy sets at roll-count checkpoints — e.g. 166 rolls yields sets at
+  {166, 140, 100} — because protocols complete at different lengths, and a
+  protocol appears in a set only if it consumes exactly those rolls.
+- Protocol details overlay (`[e]`) in group compare: the canonical, target-
+  specific explanation for each of the four protocols, stepped through with
+  `←/→`.
+- Per-seed derivation overlay (`[d]`) in group compare: the same numbered
+  BIP-39 breakdown as the single-protocol view (canonical input → entropy →
+  checksum → 11-bit word indices → recovery words) for every accepted seed.
+
+### Changed
+
+- Derivation canonical-input display: the encoding is now shown as its own
+  bold line above the raw input (e.g. `base-6 (0-5), msb-first (left-to-right),
+  global rejection`) instead of a `label:content` prefix, making explicit that
+  the encoding label is an annotation and never part of the hashed input.
+
+### Removed
+
+- `bip39-ceremony-core`: the non-standard **native-hash** protocol
+  (`ConversionProtocol::NativeHashV1`, id `native-hash-v1`) and its supporting
+  public `CanonicalInput` / `CanonicalInputKind` conditioning variants. It
+  matched no external wallet and had no reference oracle, so it could not be
+  cross-verified against an upstream implementation like the shipped protocols.
+  **Breaking** for direct `bip39-ceremony-core` API consumers. The ceremony TUI
+  never listed it as a selectable protocol, so end users are unaffected.
+
 ## [0.1.0] - 2026-08-06
 
 First release — a personal tool built for two reasons: to actually understand
@@ -45,5 +84,6 @@ verify it.
   (`nix run`); arm64 binaries and a crates.io publish of `bip39-ceremony-core`
   are follow-ups.
 
-[Unreleased]: https://github.com/vindard/bip39-ceremony/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/vindard/bip39-ceremony/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/vindard/bip39-ceremony/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/vindard/bip39-ceremony/releases/tag/v0.1.0
