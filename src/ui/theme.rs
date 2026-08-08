@@ -18,6 +18,7 @@ struct Palette {
     warning: u8,
     secret: u8,
     progress: u8,
+    white: u8,
 }
 
 #[derive(Clone, Copy, Eq, PartialEq)]
@@ -90,6 +91,7 @@ impl Theme {
                 warning: 209,
                 secret: 203,
                 progress: 214,
+                white: 231,
             }),
             Self::Plain => None,
         }
@@ -202,7 +204,7 @@ fn classify(line: &str, context: LineContext, palette: Palette) -> Option<Style>
     }
     if line.starts_with("encoding · ") {
         return Some(Style {
-            color: palette.primary,
+            color: palette.white,
             bold: true,
         });
     }
@@ -538,7 +540,7 @@ mod tests {
     }
 
     #[test]
-    fn canonical_input_encoding_line_is_bold() {
+    fn canonical_input_encoding_line_is_bold_white() {
         let mut output = Vec::new();
         Theme::Ember
             .write(
@@ -547,12 +549,13 @@ mod tests {
             )
             .unwrap();
         let rendered = String::from_utf8(output).unwrap();
-        // The style escape nearest before the label is bold weight (1), primary (220).
+        // The style escape nearest before the label is bold weight (1), white (231) —
+        // deliberately not the yellow primary (220) used for other headings.
         let label = rendered.find("encoding · ascii-rolls").unwrap();
         let escape = rendered[..label].rfind("\x1b[").unwrap();
         assert!(
-            rendered[escape..].starts_with("\x1b[1;38;5;220m"),
-            "encoding label is not bold-primary: {:?}",
+            rendered[escape..].starts_with("\x1b[1;38;5;231m"),
+            "encoding label is not bold-white: {:?}",
             &rendered[escape..label]
         );
     }
