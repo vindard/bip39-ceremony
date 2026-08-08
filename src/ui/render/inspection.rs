@@ -3,7 +3,7 @@ use std::fmt::Write;
 use zeroize::Zeroizing;
 
 use crate::{
-    application::BuildCapabilities,
+    application::{BuildCapabilities, DerivationProjection},
     domain::{bip39::EntropyTarget, ceremony::Phase},
     presentation::{
         derivation_guidance, phase_guidance, protocol_menu_explanation, trust_boundary,
@@ -60,10 +60,25 @@ fn render_derivation(output: &mut Lines, app: &App, width: usize) {
     let guidance = render_document(&derivation_guidance(), width);
     output.extend(guidance.iter().cloned());
     push(output, "");
+    render_derivation_projection(output, &derivation, width);
+}
+
+/// Renders the numbered BIP-39 derivation stages (protocol, canonical input,
+/// entropy, checksum, word indices, recovery words) for a projection. Shared by
+/// the ceremony inspector and the group-compare derivation overlay.
+pub(super) fn render_derivation_projection(
+    output: &mut Lines,
+    derivation: &DerivationProjection,
+    width: usize,
+) {
     push(output, "PROTOCOL");
     push(output, &format!("  {}", derivation.protocol()));
     push(output, "");
     push(output, "01 · CANONICAL INPUT");
+    push(
+        output,
+        &format!("  encoding · {}", derivation.canonical_input_encoding()),
+    );
     push_wrapped(output, "  ", derivation.canonical_input(), width);
     push(output, "");
     push(output, "02 · BIP-39 ENTROPY");

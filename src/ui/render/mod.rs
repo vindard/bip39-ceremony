@@ -1,4 +1,5 @@
 mod frame;
+mod group;
 mod inspection;
 mod protocol;
 mod reveal;
@@ -46,6 +47,11 @@ pub fn render(app: &App, width: u16, height: u16) -> Zeroizing<String> {
 
     let width = usize::from(width).min(MAX_CONTENT_WIDTH);
     let height = usize::from(height);
+    if !app.quit_pending()
+        && let Some(session) = app.group()
+    {
+        return group::compose_group_workspace(app, session, width, height);
+    }
     if app.inspector().is_none() && app.ceremony().state().phase() == Phase::Revealed {
         compose_reveal_workspace(app, width, height)
     } else {
@@ -62,6 +68,10 @@ pub(super) fn scroll_limit(app: &App, width: u16, height: u16) -> usize {
     let notice_lines = usize::from(app.message().is_some());
     let rows = height.saturating_sub(8 + notice_lines);
 
+    if let Some(session) = app.group() {
+        let body = group::group_body(app, session, width.saturating_sub(4));
+        return body.len().saturating_sub(rows.saturating_sub(1));
+    }
     if app.inspector().is_some() {
         let body = render_inspector(app, width.saturating_sub(4));
         let rows = if protocol_detail_open(app) {
@@ -318,7 +328,7 @@ fn render_protocol_step(app: &App) -> Lines {
         if protocol_detail_open(app) {
             "Details open below · [e/Esc/Tab] close"
         } else {
-            "[e] Explain selected protocol"
+            "[e] Explain selected protocol · [g] Group compare"
         },
     );
     output
@@ -496,9 +506,9 @@ fn footer_line(app: &App) -> String {
         }
         Phase::ChooseProtocol => {
             if app.selected_protocol().is_some() {
-                "[↑/↓] choose  [e] explain  [Enter] next  [q] cancel".to_owned()
+                "[↑/↓] choose  [e] explain  [Enter] next  [g] group  [q] cancel".to_owned()
             } else {
-                "[↑/↓] choose  [e] explain  [Enter] unavailable  [q] cancel".to_owned()
+                "[↑/↓] choose  [e] explain  [Enter] unavailable  [g] group".to_owned()
             }
         }
         Phase::Safety => "[q] cancel  [↑/↓] move  [Space] toggle  [c] all".to_owned(),
@@ -1869,5 +1879,157 @@ mod tests {
         assert!(checked.contains("[Enter/q] finish"));
         assert_eq!(checked.lines().count(), 40);
         assert!(checked.lines().all(|line| line.chars().count() <= 80));
+    }
+
+    fn group_results_app() -> App {
+        let mut app = App::default();
+        app.update(Key::Down); // 24 words
+        app.update(Key::Char('\n'));
+        app.update(Key::Char('g'));
+        for index in 0..100 {
+            let face = u8::try_from((index % 6) + 1).unwrap();
+            app.update(Key::Char(char::from(b'0' + face)));
+        }
+        app.update(Key::Char('\n'));
+        app
+    }
+
+    #[test]
+    fn group_collect_screen_shows_entry_guidance() {
+        let mut app = App::default();
+        app.update(Key::Down);
+        app.update(Key::Char('\n'));
+        app.update(Key::Char('g'));
+        let output = render(&app, 80, 40);
+
+        assert!(output.contains("◆ GROUP COMPARE  ›  COLLECT ROLLS"));
+        assert!(output.contains("┏━ GROUP COMPARE · COLLECT · FOCUS"));
+        assert!(output.contains("PHYSICAL D6 CAPTURE · ROLLS ARE SECRET"));
+        assert!(output.contains("NEXT PHYSICAL ROLL · #001"));
+        assert!(output.contains("[Enter] compare"));
+        assert_eq!(output.lines().count(), 40);
+    }
+
+    #[test]
+    fn group_results_conceal_seeds_until_reveal() {
+        let mut app = group_results_app();
+        let concealed = render(&app, 80, 40);
+
+        // 100-roll capture: one entropy set at 100 (word-exact needs 140, so it
+        // isn't in any set yet).
+        assert!(concealed.contains("◆ ENTROPY SET · 100 ROLLS"));
+        assert!(concealed.contains("✓ Exact"));
+        assert!(concealed.contains("accepted"));
+        assert!(concealed.contains("[r] reveals the accepted seeds."));
+
+        let report = app.group().unwrap().comparison_at(0);
+        let first_word = report
+            .sets()
+            .iter()
+            .find(|s| s.rolls == 100)
+            .unwrap()
+            .protocols[0]
+            .1
+            .calculation()
+            .unwrap()
+            .mnemonic()
+            .words()[0]
+            .clone();
+        assert!(!concealed.contains(&format!("      {first_word}")));
+
+        app.update(Key::Char('r'));
+        let revealed = render(&app, 80, 40);
+        assert!(!revealed.contains("[r] reveals the accepted seeds."));
+        assert!(revealed.contains(&first_word));
+    }
+
+    #[test]
+    fn group_help_panel_explains_the_entropy_set_model() {
+        let mut app = App::default();
+        app.update(Key::Down);
+        app.update(Key::Char('\n'));
+        app.update(Key::Char('g'));
+        app.update(Key::Char('?'));
+        let output = render(&app, 80, 44);
+
+        assert!(output.contains("◆ GROUP COMPARE  ›  HELP"));
+        assert!(output.contains("GROUP COMPARE · HOW IT WORKS"));
+        assert!(output.contains("checkpoint"));
+        assert!(output.contains("ENTROPY SETS"));
+        assert!(output.contains("[?/Esc] close"));
+    }
+
+    #[test]
+    fn group_details_card_shows_the_protocol_explanation() {
+        let mut app = App::default();
+        app.update(Key::Down); // 24 words
+        app.update(Key::Char('\n'));
+        app.update(Key::Char('g'));
+        app.update(Key::Char('e')); // open details on the first protocol (Exact)
+        let exact = render(&app, 80, 44);
+
+        assert!(exact.contains("◆ GROUP COMPARE  ›  PROTOCOL DETAILS"));
+        assert!(exact.contains("┏━ GROUP COMPARE · DETAILS · FOCUS"));
+        assert!(exact.contains("PROTOCOL DETAILS · 1 OF 4"));
+        assert!(exact.contains("▶ Exact"));
+        assert!(exact.contains("[←/→] protocol"));
+
+        // Stepping right renders the next protocol's document (COLDCARD).
+        app.update(Key::Right);
+        let coldcard = render(&app, 80, 44);
+        assert!(coldcard.contains("PROTOCOL DETAILS · 2 OF 4"));
+        assert!(coldcard.contains("▶ COLDCARD"));
+        assert!(coldcard.contains("COLDCARD HASH"));
+    }
+
+    #[test]
+    fn group_derivation_card_shows_entropy_and_word_stages() {
+        let mut app = group_results_app(); // 100 fair rolls, on the results screen
+        app.update(Key::Char('d'));
+        let output = render(&app, 80, 44);
+
+        // Same numbered BIP-39 stages as the single-protocol derivation view.
+        assert!(output.contains("◆ GROUP COMPARE  ›  DERIVATION"));
+        assert!(output.contains("● SECRET EXPOSED"));
+        assert!(output.contains("GROUP COMPARE · DERIVATION · 1 OF"));
+        assert!(output.contains("◆ ENTROPY SET · 100 ROLLS"));
+        assert!(output.contains("01 · CANONICAL INPUT"));
+        assert!(output.contains("02 · BIP-39 ENTROPY"));
+        assert!(output.contains("04 · 11-BIT WORD INDICES"));
+        assert!(output.contains("05 · BIP-39 RECOVERY WORDS"));
+        assert!(output.contains("[←/→] seed"));
+    }
+
+    #[test]
+    fn derivation_puts_the_encoding_label_above_the_unlabelled_input() {
+        let output = {
+            let mut app = group_results_app(); // first accepted seed: Exact (base6)
+            app.update(Key::Char('d'));
+            render(&app, 80, 44)
+        };
+        // The encoding sits on its own line above the input…
+        assert!(
+            output.contains("encoding · base-6 (0-5), msb-first (left-to-right), global rejection")
+        );
+        // …and the input line no longer carries the "label:content" prefix.
+        assert!(!output.contains("global rejection:"));
+    }
+
+    #[test]
+    fn group_invalid_set_explains_the_fresh_set_remedy() {
+        let mut app = App::default();
+        app.update(Key::Down);
+        app.update(Key::Char('\n'));
+        app.update(Key::Char('g'));
+        for _ in 0..100 {
+            app.update(Key::Char('6'));
+        }
+        app.update(Key::Char('\n'));
+        let output = render(&app, 80, 40);
+
+        assert!(output.contains("✗ Exact"));
+        assert!(output.contains("rejected · value out of range"));
+        assert!(output.contains("for a fresh set"));
+        assert!(output.contains("[n] fresh"));
     }
 }

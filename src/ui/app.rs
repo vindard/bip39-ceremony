@@ -5,7 +5,7 @@ const ALL_SAFETY_CHECKS: u8 = (1 << SAFETY_ITEM_COUNT) - 1;
 use crate::{
     application::{
         BackupSubmission, CeremonySession, ColdcardHashPreview, DerivationProjection, Generation,
-        SafetyAttestation,
+        GroupSession, RollProgress, SafetyAttestation,
     },
     domain::{
         bip39::{BackupVerifier, EntropyTarget},
@@ -54,6 +54,34 @@ enum WordExactLedgerView {
     Raw,
 }
 
+/// Which group sub-screen is showing. Pure view state — the domain service
+/// does not know screens exist.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(super) enum GroupScreen {
+    /// Collecting rolls into the current capture.
+    #[default]
+    Rolls,
+    /// Showing the per-protocol accept/incomplete/invalid cards.
+    Results,
+}
+
+/// Group-compare view state. `viewing` is which capture the Results screen is
+/// browsing — a pure navigation cursor; it never determines a write target
+/// (writes always extend the current/newest capture in the domain service).
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+struct GroupView {
+    screen: GroupScreen,
+    viewing: usize,
+    revealed: bool,
+    help: bool,
+    /// Which group protocol's explanation is open, if any. An overlay over the
+    /// current screen — a fixed index into [`crate::domain::group::GROUP_PROTOCOLS`].
+    details: Option<usize>,
+    /// Which accepted seed's derivation is open, if any — an index into the
+    /// browsed capture's flattened accepted-seed list. Exposes secret material.
+    derivation: Option<usize>,
+}
+
 #[derive(Eq, PartialEq)]
 struct VisibleState {
     event_count: usize,
@@ -71,6 +99,9 @@ struct VisibleState {
     word_exact_ledger_view: WordExactLedgerView,
     safety_cursor: usize,
     safety_checks: u8,
+    group_captures: usize,
+    group_roll_progress: Option<RollProgress>,
+    group_view: GroupView,
 }
 
 pub struct App {
@@ -88,6 +119,8 @@ pub struct App {
     word_exact_ledger_view: WordExactLedgerView,
     safety_cursor: usize,
     safety_checks: u8,
+    group: Option<GroupSession>,
+    group_view: GroupView,
     scroll_limit: usize,
 }
 
@@ -109,6 +142,8 @@ impl App {
             word_exact_ledger_view: WordExactLedgerView::Assignments,
             safety_cursor: 0,
             safety_checks: 0,
+            group: None,
+            group_view: GroupView::default(),
             scroll_limit: usize::MAX,
         }
     }
@@ -135,6 +170,9 @@ impl VisibleState {
             word_exact_ledger_view: app.word_exact_ledger_view,
             safety_cursor: app.safety_cursor,
             safety_checks: app.safety_checks,
+            group_captures: app.group.as_ref().map_or(0, GroupSession::set_count),
+            group_roll_progress: app.group.as_ref().map(GroupSession::roll_progress),
+            group_view: app.group_view,
         }
     }
 }
@@ -153,6 +191,41 @@ impl App {
     #[must_use]
     pub fn coldcard_hash_preview(&self) -> Option<ColdcardHashPreview> {
         self.session.coldcard_hash_preview()
+    }
+
+    #[must_use]
+    pub(super) const fn group(&self) -> Option<&GroupSession> {
+        self.group.as_ref()
+    }
+
+    #[must_use]
+    pub(super) const fn group_screen(&self) -> GroupScreen {
+        self.group_view.screen
+    }
+
+    #[must_use]
+    pub(super) const fn group_viewing(&self) -> usize {
+        self.group_view.viewing
+    }
+
+    #[must_use]
+    pub(super) const fn group_revealed(&self) -> bool {
+        self.group_view.revealed
+    }
+
+    #[must_use]
+    pub(super) const fn group_help(&self) -> bool {
+        self.group_view.help
+    }
+
+    #[must_use]
+    pub(super) const fn group_details(&self) -> Option<usize> {
+        self.group_view.details
+    }
+
+    #[must_use]
+    pub(super) const fn group_derivation(&self) -> Option<usize> {
+        self.group_view.derivation
     }
 
     #[must_use]
@@ -289,6 +362,9 @@ impl App {
             self.update_inspector(key);
             return true;
         }
+        if self.group.is_some() {
+            return self.update_group(key);
+        }
         if matches!(key, Key::Char('q') | Key::Ctrl('c')) {
             self.quit_pending = true;
             return true;
@@ -370,15 +446,28 @@ impl App {
                 ProtocolMenuChoice::ALL.len(),
                 direction,
             );
-        } else if matches!(key, Key::Char('e')) {
-            self.open_inspector(InspectorView::ProtocolExplanation);
-        } else if matches!(key, Key::Char('h') | Key::Left) {
-            self.handle(Command::ReopenTargetSelection);
-        } else if matches!(key, Key::Char('\n' | 'l') | Key::Right) {
-            self.choose_selected_protocol();
-        } else if matches!(key, Key::Char(_)) {
-            self.message = Some("Use ↑/↓ to choose, Enter to continue, ← to go back.".to_owned());
+            return;
         }
+        match key {
+            Key::Char('e') => self.open_inspector(InspectorView::ProtocolExplanation),
+            Key::Char('h') | Key::Left => self.handle(Command::ReopenTargetSelection),
+            Key::Char('\n' | 'l') | Key::Right => self.choose_selected_protocol(),
+            Key::Char('g') => self.enter_group_mode(),
+            Key::Char(_) => {
+                self.message =
+                    Some("Use ↑/↓ to choose, Enter to continue, ← to go back.".to_owned());
+            }
+            _ => {}
+        }
+    }
+
+    fn enter_group_mode(&mut self) {
+        let Some(target) = self.ceremony().state().target() else {
+            return;
+        };
+        self.group = Some(GroupSession::new(target));
+        self.group_view = GroupView::default();
+        self.roll_scroll = 0;
     }
 
     fn choose_selected_protocol(&mut self) {
@@ -673,6 +762,198 @@ impl App {
     fn word_exact_assignments_active(&self) -> bool {
         self.ceremony().state().protocol() == Some(ConversionProtocol::WordExactV1)
             && !self.word_exact_raw_ledger()
+    }
+
+    fn update_group(&mut self, key: Key) -> bool {
+        if matches!(key, Key::Char('q') | Key::Ctrl('c')) {
+            self.quit_pending = true;
+            return true;
+        }
+        if self.group_view.help {
+            if matches!(key, Key::Char('?') | Key::Esc) {
+                self.group_view.help = false;
+            }
+            return true;
+        }
+        if self.group_view.details.is_some() {
+            self.group_browse_details(key);
+            return true;
+        }
+        if self.group_view.derivation.is_some() {
+            self.group_browse_derivation(key);
+            return true;
+        }
+        if matches!(key, Key::Char('?')) {
+            self.group_view.help = true;
+            return true;
+        }
+        if matches!(key, Key::Char('e')) {
+            self.group_view.details = Some(0);
+            self.roll_scroll = 0;
+            return true;
+        }
+        match self.group_view.screen {
+            GroupScreen::Rolls => self.group_enter_roll(key),
+            GroupScreen::Results => self.group_review(key),
+        }
+        true
+    }
+
+    /// Keys while a protocol-details overlay is open: cycle protocols, scroll,
+    /// or close back to the underlying screen.
+    fn group_browse_details(&mut self, key: Key) {
+        let count = crate::domain::group::GROUP_PROTOCOLS.len();
+        match key {
+            Key::Char('e') | Key::Esc => {
+                self.group_view.details = None;
+                self.roll_scroll = 0;
+            }
+            Key::Left => {
+                self.group_view.details = self.group_view.details.map(|i| (i + count - 1) % count);
+                self.roll_scroll = 0;
+            }
+            Key::Right => {
+                self.group_view.details = self.group_view.details.map(|i| (i + 1) % count);
+                self.roll_scroll = 0;
+            }
+            Key::Up => self.roll_scroll = self.roll_scroll.saturating_sub(1),
+            Key::Down => {
+                self.roll_scroll = self.roll_scroll.saturating_add(1).min(self.scroll_limit);
+            }
+            Key::PageUp => self.roll_scroll = self.roll_scroll.saturating_sub(4),
+            Key::PageDown => {
+                self.roll_scroll = self.roll_scroll.saturating_add(4).min(self.scroll_limit);
+            }
+            _ => {}
+        }
+    }
+
+    /// Keys while a derivation overlay is open: step through accepted seeds,
+    /// scroll, or close back to the results screen.
+    fn group_browse_derivation(&mut self, key: Key) {
+        let count = self.group_accepted_count().max(1);
+        match key {
+            Key::Char('d') | Key::Esc => {
+                self.group_view.derivation = None;
+                self.roll_scroll = 0;
+            }
+            Key::Left => {
+                self.group_view.derivation =
+                    self.group_view.derivation.map(|i| (i + count - 1) % count);
+                self.roll_scroll = 0;
+            }
+            Key::Right => {
+                self.group_view.derivation = self.group_view.derivation.map(|i| (i + 1) % count);
+                self.roll_scroll = 0;
+            }
+            Key::Up => self.roll_scroll = self.roll_scroll.saturating_sub(1),
+            Key::Down => {
+                self.roll_scroll = self.roll_scroll.saturating_add(1).min(self.scroll_limit);
+            }
+            Key::PageUp => self.roll_scroll = self.roll_scroll.saturating_sub(4),
+            Key::PageDown => {
+                self.roll_scroll = self.roll_scroll.saturating_add(4).min(self.scroll_limit);
+            }
+            _ => {}
+        }
+    }
+
+    /// Accepted-seed count for the capture the results screen is browsing.
+    fn group_accepted_count(&self) -> usize {
+        self.group
+            .as_ref()
+            .map_or(0, |session| session.accepted_count(self.group_view.viewing))
+    }
+
+    fn group_enter_roll(&mut self, key: Key) {
+        match key {
+            Key::Char(character @ '1'..='6') => {
+                if let Ok(face) = DieFace::try_from(character)
+                    && let Some(session) = self.group.as_mut()
+                {
+                    session.record_roll(face);
+                }
+            }
+            Key::Backspace | Key::Delete => {
+                if let Some(session) = self.group.as_mut() {
+                    session.undo_roll();
+                }
+            }
+            Key::Char('\n') => {
+                // Show the capture just built: browse starts on the current one.
+                self.group_view.revealed = false;
+                self.group_view.screen = GroupScreen::Results;
+                self.group_view.viewing = self.group_current_index();
+                self.roll_scroll = 0;
+            }
+            Key::Up => self.roll_scroll = self.roll_scroll.saturating_sub(1),
+            Key::Down => {
+                self.roll_scroll = self.roll_scroll.saturating_add(1).min(self.scroll_limit);
+            }
+            Key::PageUp => self.roll_scroll = self.roll_scroll.saturating_sub(4),
+            Key::PageDown => {
+                self.roll_scroll = self.roll_scroll.saturating_add(4).min(self.scroll_limit);
+            }
+            Key::Char(_) => {
+                self.message = Some("Only digits 1–6 are valid rolls.".to_owned());
+            }
+            _ => {}
+        }
+    }
+
+    /// Index of the current (newest) capture — the write target.
+    fn group_current_index(&self) -> usize {
+        self.group
+            .as_ref()
+            .map_or(0, |session| session.set_count().saturating_sub(1))
+    }
+
+    fn group_review(&mut self, key: Key) {
+        match key {
+            Key::Char('c') => {
+                self.group_view.screen = GroupScreen::Rolls;
+                self.roll_scroll = 0;
+            }
+            Key::Char('n') => {
+                self.group_view.revealed = false;
+                self.group_view.screen = GroupScreen::Rolls;
+                self.roll_scroll = 0;
+                if let Some(session) = self.group.as_mut() {
+                    session.start_fresh_set();
+                }
+                self.group_view.viewing = self.group_current_index();
+            }
+            Key::Char('r') => self.group_view.revealed = !self.group_view.revealed,
+            Key::Char('d') => {
+                if self.group_accepted_count() > 0 {
+                    self.group_view.derivation = Some(0);
+                    self.roll_scroll = 0;
+                } else {
+                    self.message =
+                        Some("No accepted seed to derive in this capture yet.".to_owned());
+                }
+            }
+            Key::Left | Key::Char('h') => {
+                self.roll_scroll = 0;
+                self.group_view.revealed = false;
+                self.group_view.viewing = self.group_view.viewing.saturating_sub(1);
+            }
+            Key::Right | Key::Char('l') => {
+                self.roll_scroll = 0;
+                self.group_view.revealed = false;
+                let last = self.group_current_index();
+                self.group_view.viewing = (self.group_view.viewing + 1).min(last);
+            }
+            Key::Up => self.roll_scroll = self.roll_scroll.saturating_sub(1),
+            Key::Down => {
+                self.roll_scroll = self.roll_scroll.saturating_add(1).min(self.scroll_limit);
+            }
+            Key::PageUp => self.roll_scroll = self.roll_scroll.saturating_sub(4),
+            Key::PageDown => {
+                self.roll_scroll = self.roll_scroll.saturating_add(4).min(self.scroll_limit);
+            }
+            _ => {}
+        }
     }
 
     fn restart_attempt(&mut self, key: Key) {
@@ -1507,5 +1788,241 @@ mod tests {
         assert!(!app.mnemonic_hidden());
         assert_eq!(app.inspector().unwrap().view, InspectorView::Derivation);
         assert_eq!(app.ceremony().events().len(), events);
+    }
+
+    fn group_app() -> App {
+        let mut app = App::default();
+        app.update(Key::Down); // 24 words
+        app.update(Key::Char('\n'));
+        app.update(Key::Char('g'));
+        app
+    }
+
+    fn group_push_fair(app: &mut App, count: usize) {
+        for index in 0..count {
+            let face = u8::try_from((index % 6) + 1).expect("1..=6 fits u8");
+            app.update(Key::Char(char::from(b'0' + face)));
+        }
+    }
+
+    #[test]
+    fn group_mode_starts_from_the_protocol_screen_and_creates_no_domain_events() {
+        let mut app = App::default();
+        app.update(Key::Down);
+        app.update(Key::Char('\n'));
+        let events = app.ceremony().events().len();
+
+        assert!(app.group().is_none());
+        app.update(Key::Char('g'));
+        assert!(app.group().is_some());
+        // Group compare lives in the app layer; the ceremony aggregate is untouched.
+        assert_eq!(app.ceremony().events().len(), events);
+        assert_eq!(app.ceremony().state().phase(), Phase::ChooseProtocol);
+    }
+
+    #[test]
+    fn group_collects_rolls_then_enter_switches_to_results() {
+        let mut app = group_app();
+        group_push_fair(&mut app, 100);
+        assert_eq!(app.group().unwrap().roll_progress().recorded, 100);
+        assert_eq!(app.group_screen(), GroupScreen::Rolls);
+
+        app.update(Key::Char('\n'));
+        assert_eq!(app.group_screen(), GroupScreen::Results);
+
+        // Fair 100-roll tape: every protocol in the 100 set accepts.
+        let report = app.group().unwrap().comparison_at(0);
+        let set = report.sets().iter().find(|s| s.rolls == 100).unwrap();
+        assert!(set.protocols.iter().all(|(_, s)| s.calculation().is_some()));
+    }
+
+    #[test]
+    fn group_undo_removes_the_latest_roll() {
+        let mut app = group_app();
+        group_push_fair(&mut app, 3);
+        app.update(Key::Backspace);
+        assert_eq!(app.group().unwrap().roll_progress().recorded, 2);
+    }
+
+    #[test]
+    fn group_invalid_set_is_only_cleared_by_a_fresh_capture() {
+        let mut app = group_app();
+        for _ in 0..100 {
+            app.update(Key::Char('6')); // all sixes: exact out-of-range and coldcard >30%
+        }
+        app.update(Key::Char('\n'));
+        let report = app.group().unwrap().comparison_at(0);
+        let set = report.sets().iter().find(|s| s.rolls == 100).unwrap();
+        assert!(set.protocols.iter().any(|(_, status)| status.is_rejected()));
+
+        app.update(Key::Char('n'));
+        assert_eq!(app.group().unwrap().set_count(), 2);
+        assert_eq!(app.group_viewing(), 1);
+        assert_eq!(app.group().unwrap().roll_progress().recorded, 0);
+        assert_eq!(app.group_screen(), GroupScreen::Rolls);
+    }
+
+    #[test]
+    fn group_reveal_toggles_without_touching_the_tape() {
+        let mut app = group_app();
+        group_push_fair(&mut app, 100);
+        app.update(Key::Char('\n'));
+        assert!(!app.group_revealed());
+
+        app.update(Key::Char('r'));
+        assert!(app.group_revealed());
+        assert_eq!(app.group().unwrap().roll_progress().recorded, 100);
+
+        // Switching captures re-conceals for safety.
+        app.update(Key::Char('n'));
+        assert!(!app.group_revealed());
+    }
+
+    #[test]
+    fn group_quit_still_requires_confirmation() {
+        let mut app = group_app();
+        assert_eq!(app.update(Key::Char('q')), UpdateOutcome::Changed);
+        assert!(app.quit_pending());
+    }
+
+    #[test]
+    fn group_help_toggles_without_disturbing_the_tape() {
+        let mut app = group_app();
+        group_push_fair(&mut app, 12);
+
+        app.update(Key::Char('?'));
+        assert!(app.group_help());
+        // Rolls are ignored while help is open, and the tape is preserved.
+        app.update(Key::Char('1'));
+        assert_eq!(app.group().unwrap().roll_progress().recorded, 12);
+
+        app.update(Key::Esc);
+        assert!(!app.group_help());
+        app.update(Key::Char('1'));
+        assert_eq!(app.group().unwrap().roll_progress().recorded, 13);
+    }
+
+    #[test]
+    fn group_details_cycles_the_protocols_and_preserves_the_tape() {
+        let mut app = group_app();
+        group_push_fair(&mut app, 8);
+
+        // [e] opens the details overlay on the first group protocol.
+        app.update(Key::Char('e'));
+        assert_eq!(app.group_details(), Some(0));
+
+        // Arrows step through every group protocol and wrap around.
+        let count = crate::domain::group::GROUP_PROTOCOLS.len();
+        app.update(Key::Right);
+        assert_eq!(app.group_details(), Some(1));
+        app.update(Key::Left);
+        app.update(Key::Left);
+        assert_eq!(app.group_details(), Some(count - 1));
+
+        // Digits are inert while details are open; the tape is untouched.
+        app.update(Key::Char('1'));
+        assert_eq!(app.group().unwrap().roll_progress().recorded, 8);
+
+        // Esc closes back to the collect screen and rolling resumes.
+        app.update(Key::Esc);
+        assert_eq!(app.group_details(), None);
+        assert_eq!(app.group_screen(), GroupScreen::Rolls);
+        app.update(Key::Char('1'));
+        assert_eq!(app.group().unwrap().roll_progress().recorded, 9);
+    }
+
+    #[test]
+    fn group_derivation_steps_through_accepted_seeds_and_exposes_the_secret() {
+        let mut app = group_app();
+        group_push_fair(&mut app, 100); // fair tape: several protocols accept
+        app.update(Key::Char('\n')); // results
+
+        let accepted = app.group().unwrap().accepted_count(0);
+        assert!(accepted > 1, "fair 100-roll tape accepts several protocols");
+
+        // [d] opens the derivation overlay on the first accepted seed.
+        app.update(Key::Char('d'));
+        assert_eq!(app.group_derivation(), Some(0));
+
+        // Arrows step through every accepted seed and wrap.
+        app.update(Key::Right);
+        assert_eq!(app.group_derivation(), Some(1));
+        app.update(Key::Left);
+        app.update(Key::Left);
+        assert_eq!(app.group_derivation(), Some(accepted - 1));
+
+        // Esc closes back to results.
+        app.update(Key::Esc);
+        assert_eq!(app.group_derivation(), None);
+        assert_eq!(app.group_screen(), GroupScreen::Results);
+    }
+
+    #[test]
+    fn group_derivation_needs_an_accepted_seed() {
+        let mut app = group_app();
+        group_push_fair(&mut app, 20); // too few rolls: no protocol completes
+        app.update(Key::Char('\n')); // results
+        assert_eq!(app.group().unwrap().accepted_count(0), 0);
+
+        app.update(Key::Char('d'));
+        assert_eq!(app.group_derivation(), None);
+        assert!(app.message().is_some());
+    }
+
+    #[test]
+    fn group_details_open_from_results_and_return_there() {
+        let mut app = group_app();
+        group_push_fair(&mut app, 100);
+        app.update(Key::Char('\n')); // results
+        assert_eq!(app.group_screen(), GroupScreen::Results);
+
+        app.update(Key::Char('e'));
+        assert_eq!(app.group_details(), Some(0));
+        app.update(Key::Char('e')); // toggle closed
+        assert_eq!(app.group_details(), None);
+        assert_eq!(app.group_screen(), GroupScreen::Results);
+    }
+
+    #[test]
+    fn group_browsing_is_view_only_and_writes_target_the_current_capture() {
+        let mut app = group_app();
+        group_push_fair(&mut app, 5); // capture 0: 5 rolls
+        app.update(Key::Char('\n')); // results
+        app.update(Key::Char('n')); // fresh capture 1 (current), back to rolls
+        group_push_fair(&mut app, 3); // capture 1: 3 rolls
+        assert_eq!(app.group().unwrap().set_count(), 2);
+        assert_eq!(app.group().unwrap().roll_progress().recorded, 3);
+
+        app.update(Key::Char('\n')); // results, viewing starts on the current capture
+        assert_eq!(app.group_viewing(), 1);
+        app.update(Key::Left); // browse to the older capture
+        assert_eq!(app.group_viewing(), 0);
+        // Browsing moved no write target: capture 0 frozen, current still capture 1.
+        assert_eq!(
+            app.group()
+                .unwrap()
+                .comparison_at(0)
+                .sets()
+                .first()
+                .unwrap()
+                .rolls,
+            5
+        );
+        assert_eq!(app.group().unwrap().roll_progress().recorded, 3);
+
+        // Rolling more continues the current capture, not the browsed one.
+        app.update(Key::Char('c'));
+        group_push_fair(&mut app, 2);
+        assert_eq!(app.group().unwrap().roll_progress().recorded, 5);
+        assert_eq!(
+            app.group()
+                .unwrap()
+                .comparison_at(0)
+                .sets()
+                .first()
+                .unwrap()
+                .rolls,
+            5
+        );
     }
 }

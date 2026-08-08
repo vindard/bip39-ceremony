@@ -200,6 +200,12 @@ fn classify(line: &str, context: LineContext, palette: Palette) -> Option<Style>
             bold: true,
         });
     }
+    if line.starts_with("encoding · ") {
+        return Some(Style {
+            color: palette.primary,
+            bold: true,
+        });
+    }
     if line.starts_with('[') && line.contains('█') {
         return Some(Style {
             color: palette.progress,
@@ -529,6 +535,26 @@ mod tests {
             .write(&mut selection, "│   ▶ 12 words        │")
             .unwrap();
         assert!(String::from_utf8(selection).unwrap().contains("48;5;214"));
+    }
+
+    #[test]
+    fn canonical_input_encoding_line_is_bold() {
+        let mut output = Vec::new();
+        Theme::Ember
+            .write(
+                &mut output,
+                "BIP-39 CEREMONY\n┏━ CARD ━┓\n┃ 01 · CANONICAL INPUT ┃\n┃   encoding · ascii-rolls ┃\n┗━━━━━━━━┛",
+            )
+            .unwrap();
+        let rendered = String::from_utf8(output).unwrap();
+        // The style escape nearest before the label is bold weight (1), primary (220).
+        let label = rendered.find("encoding · ascii-rolls").unwrap();
+        let escape = rendered[..label].rfind("\x1b[").unwrap();
+        assert!(
+            rendered[escape..].starts_with("\x1b[1;38;5;220m"),
+            "encoding label is not bold-primary: {:?}",
+            &rendered[escape..label]
+        );
     }
 
     #[test]
