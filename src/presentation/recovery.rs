@@ -72,6 +72,10 @@ pub fn attempt_rejection(protocol: ConversionProtocol, required_rolls: usize) ->
             "COLDCARD ATTEMPT REJECTED",
             "Some face occurred more than 30% of the time, so Coldcard's enforced workflow rejects the sequence.",
         ),
+        ConversionProtocol::BitcoinLibBase6V1 => (
+            "BASE-6 READING REJECTED",
+            "The base-6 reading of these rolls does not encode to exactly the target entropy width, and this reading pads nothing.",
+        ),
         _ => (
             "EXACT ATTEMPT REJECTED",
             "Expected protocol outcome preserving a uniform conversion.",
