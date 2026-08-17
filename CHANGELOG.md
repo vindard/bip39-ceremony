@@ -24,7 +24,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   construction — so it is included in group compare, where the same 99 rolls
   now show COLDCARD and this reading producing mnemonics with no words in
   common.
-- Group compare covers five protocols and checkpoints at 99 rolls.
+- Group compare covers six protocols and checkpoints at 99 rolls.
+- `bluewallet-bitpack-v1`: a compatibility profile for implementations that pack
+  dice faces straight into entropy bits with no hash, pinned to BlueWallet
+  8.0.1. Faces `1`-`4` carry two bits and `5`/`6` carry one, so the tape length
+  depends on the faces rolled — 64 to 128 rolls for 12 words — and the roll that
+  overshoots the width keeps only its leading bits. Vectors were reproduced from
+  an independent transcription of the source reducer.
+- Group compare's roll-count checkpoints now include wherever bit packing fills
+  the entropy width on the tape in hand, which is the first checkpoint derived
+  from the faces rolled rather than from the target.
 
 ### Changed
 

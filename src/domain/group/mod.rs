@@ -17,17 +17,22 @@ mod capture;
 
 pub use capture::{EntropySet, GroupCapture, GroupReport, GroupStatus};
 
+use bip39_ceremony_core::bitpack_progress;
+
 use crate::domain::{bip39::EntropyTarget, protocol::ConversionProtocol};
 
-use ConversionProtocol::{BitcoinLibBase6V1, ColdcardV1, ExactV1, KeystoneLegacyV1, WordExactV1};
+use ConversionProtocol::{
+    BitcoinLibBase6V1, BlueWalletBitPackV1, ColdcardV1, ExactV1, KeystoneLegacyV1, WordExactV1,
+};
 
 /// The dice-based wallet protocols the comparison covers, in display order.
-pub const GROUP_PROTOCOLS: [ConversionProtocol; 5] = [
+pub const GROUP_PROTOCOLS: [ConversionProtocol; 6] = [
     ExactV1,
     ColdcardV1,
     KeystoneLegacyV1,
     WordExactV1,
     BitcoinLibBase6V1,
+    BlueWalletBitPackV1,
 ];
 
 /// The set lengths for a capture of `n` rolls, largest first: the current `n`
@@ -40,11 +45,13 @@ pub const GROUP_PROTOCOLS: [ConversionProtocol; 5] = [
 /// on the longer length, so that (valid) word-exact seed is never surfaced as an
 /// `Accepted` set — it reads `Incomplete` at the minimum and `InvalidSurplus` at
 /// `n`. Acceptable because the comparison is about clean, rejection-free tapes.
-fn checkpoint_lengths(target: EntropyTarget, n: usize) -> Vec<usize> {
+fn checkpoint_lengths(capture: &GroupCapture) -> Vec<usize> {
+    let target = capture.target();
+    let n = capture.len();
     let strict = target.strict_roll_count();
     let word_exact = WordExactV1.minimum_observations(target);
     let base6 = BitcoinLibBase6V1.minimum_observations(target);
-    let mut lengths: Vec<usize> = [strict, word_exact, base6, n]
+    let mut lengths: Vec<usize> = [strict, word_exact, base6, bitpack_length(capture), n]
         .into_iter()
         .filter(|&length| length <= n)
         .collect();
@@ -54,12 +61,21 @@ fn checkpoint_lengths(target: EntropyTarget, n: usize) -> Vec<usize> {
     lengths
 }
 
+fn bitpack_length(capture: &GroupCapture) -> usize {
+    let progress = bitpack_progress(capture.target(), capture.tape());
+    if progress.is_filled() {
+        progress.consumed()
+    } else {
+        capture.len()
+    }
+}
+
 /// Evaluate a capture into its entropy sets. Each set lists the protocols that
 /// complete using exactly its rolls (accepted, or attempted and content-
 /// rejected); protocols that would leave rolls unused, or need more, are omitted
 /// from that set.
 fn evaluate(capture: &GroupCapture) -> GroupReport {
-    let sets = checkpoint_lengths(capture.target(), capture.len())
+    let sets = checkpoint_lengths(capture)
         .into_iter()
         .map(|length| {
             let prefix = capture.prefix(length);
@@ -183,32 +199,57 @@ mod tests {
     #[test]
     fn checkpoints_are_current_plus_completion_lengths() {
         assert_eq!(
-            checkpoint_lengths(EntropyTarget::Words24, 166),
-            [166, 140, 100, 99]
+            checkpoint_lengths(&fair(EntropyTarget::Words24, 166)),
+            [166, 153, 140, 100, 99]
         );
         assert_eq!(
-            checkpoint_lengths(EntropyTarget::Words24, 140),
+            checkpoint_lengths(&fair(EntropyTarget::Words24, 140)),
             [140, 100, 99]
         );
         assert_eq!(
-            checkpoint_lengths(EntropyTarget::Words24, 105),
+            checkpoint_lengths(&fair(EntropyTarget::Words24, 105)),
             [105, 100, 99]
         );
-        assert_eq!(checkpoint_lengths(EntropyTarget::Words24, 100), [100, 99]);
-        assert_eq!(checkpoint_lengths(EntropyTarget::Words24, 99), [99]);
-        assert_eq!(checkpoint_lengths(EntropyTarget::Words24, 90), [90]);
-        // At 12 words the unhashed reading shares Exact's count, so it adds no
-        // checkpoint of its own.
-        assert_eq!(checkpoint_lengths(EntropyTarget::Words12, 50), [50]);
+        assert_eq!(
+            checkpoint_lengths(&fair(EntropyTarget::Words24, 100)),
+            [100, 99]
+        );
+        assert_eq!(checkpoint_lengths(&fair(EntropyTarget::Words24, 99)), [99]);
+        assert_eq!(checkpoint_lengths(&fair(EntropyTarget::Words24, 90)), [90]);
+        assert_eq!(checkpoint_lengths(&fair(EntropyTarget::Words12, 50)), [50]);
     }
 
     #[test]
-    fn one_hundred_sixty_six_yields_four_sets() {
+    fn the_bit_packing_checkpoint_depends_on_the_faces_rolled() {
+        let uniform = |target: EntropyTarget, face: u8, n: usize| {
+            let mut capture = GroupCapture::new(target);
+            for _ in 0..n {
+                capture.push(DieFace::new(face).expect("valid face"));
+            }
+            capture
+        };
+        assert_eq!(bitpack_length(&uniform(EntropyTarget::Words12, 1, 100)), 64);
+        assert_eq!(
+            bitpack_length(&uniform(EntropyTarget::Words12, 5, 100)),
+            100
+        );
+        assert_eq!(
+            bitpack_length(&uniform(EntropyTarget::Words12, 5, 128)),
+            128
+        );
+    }
+
+    #[test]
+    fn one_hundred_sixty_six_yields_five_sets() {
         let report = evaluate(&fair(EntropyTarget::Words24, 166));
         let set_lengths: Vec<usize> = report.sets().iter().map(|s| s.rolls).collect();
-        assert_eq!(set_lengths, [166, 140, 100, 99]);
+        assert_eq!(set_lengths, [166, 153, 140, 100, 99]);
 
         assert_eq!(protocols_in(&report, 166), [ColdcardV1, KeystoneLegacyV1]);
+        assert_eq!(
+            protocols_in(&report, 153),
+            [ColdcardV1, KeystoneLegacyV1, BlueWalletBitPackV1]
+        );
         assert_eq!(
             protocols_in(&report, 140),
             [ColdcardV1, KeystoneLegacyV1, WordExactV1]

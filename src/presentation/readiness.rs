@@ -25,6 +25,14 @@ pub fn readiness_document(readiness: CaptureReadiness) -> Document {
                 "! The base-6 reading is used unhashed and may miss the target width.".to_owned(),
             ),
         ],
+        ReadinessKind::BlueWalletBitPack => vec![
+            B::Paragraph(format!(
+                "✓ ENTROPY WIDTH PACKED · {} rolls used",
+                readiness.recorded()
+            )),
+            B::Paragraph("✓ Every entropy bit traces to one roll; nothing is hashed.".to_owned()),
+            B::Paragraph("! Further rolls would not be used. Record this tape length.".to_owned()),
+        ],
         ReadinessKind::WordExact => vec![
             B::Paragraph("✓ ALL ENTROPY POSITIONS + FINAL TAIL ACCEPTED".to_owned()),
             B::Paragraph("○ BIP-39 checksum will be calculated, not rolled.".to_owned()),

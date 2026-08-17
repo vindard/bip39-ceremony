@@ -220,6 +220,132 @@ fn bitcoinlib_base6_narrow_and_wide_readings_are_rejected() {
     }
 }
 
+/// Vectors read off `BlueWallet` 8.0.1 `ProvideEntropy.tsx` and reproduced by an
+/// independent transcription of its reducer, then carried through BIP-39 here.
+#[test]
+fn bluewallet_bitpack_two_bit_faces_cross_packing_and_bip39_boundaries() {
+    let low = accepted(
+        EntropyTarget::Words12,
+        ConversionProtocol::BlueWalletBitPackV1,
+        Capture::Dice(&rolls(&"1".repeat(64))),
+    );
+    assert_eq!(
+        entropy_hex(low.entropy()),
+        "00000000000000000000000000000000"
+    );
+    assert_eq!(
+        low.mnemonic().words().join(" "),
+        "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
+    );
+
+    let high = accepted(
+        EntropyTarget::Words12,
+        ConversionProtocol::BlueWalletBitPackV1,
+        Capture::Dice(&rolls(&"4".repeat(64))),
+    );
+    assert_eq!(
+        entropy_hex(high.entropy()),
+        "ffffffffffffffffffffffffffffffff"
+    );
+    assert_eq!(
+        high.mnemonic().words().join(" "),
+        "zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo wrong"
+    );
+}
+
+/// Faces 5 and 6 carry one bit, so the same entropy needs twice the rolls.
+#[test]
+fn bluewallet_bitpack_one_bit_faces_reach_the_same_entropy() {
+    let low = accepted(
+        EntropyTarget::Words12,
+        ConversionProtocol::BlueWalletBitPackV1,
+        Capture::Dice(&rolls(&"5".repeat(128))),
+    );
+    let high = accepted(
+        EntropyTarget::Words12,
+        ConversionProtocol::BlueWalletBitPackV1,
+        Capture::Dice(&rolls(&"6".repeat(128))),
+    );
+    assert_eq!(
+        entropy_hex(low.entropy()),
+        "00000000000000000000000000000000"
+    );
+    assert_eq!(
+        entropy_hex(high.entropy()),
+        "ffffffffffffffffffffffffffffffff"
+    );
+}
+
+#[test]
+fn bluewallet_bitpack_repeating_tape_crosses_both_targets() {
+    let tape: String = "123456".chars().cycle().take(76).collect();
+    let twelve = accepted(
+        EntropyTarget::Words12,
+        ConversionProtocol::BlueWalletBitPackV1,
+        Capture::Dice(&rolls(&tape)),
+    );
+    assert_eq!(
+        entropy_hex(twelve.entropy()),
+        "1b46d1b46d1b46d1b46d1b46d1b46d1b"
+    );
+    assert_eq!(
+        twelve.mnemonic().words().join(" "),
+        "brave custom home surface refuse hand spider pet egg misery brave current"
+    );
+
+    let long_tape: String = "123456".chars().cycle().take(153).collect();
+    let twenty_four = accepted(
+        EntropyTarget::Words24,
+        ConversionProtocol::BlueWalletBitPackV1,
+        Capture::Dice(&rolls(&long_tape)),
+    );
+    assert_eq!(
+        entropy_hex(twenty_four.entropy()),
+        "1b46d1b46d1b46d1b46d1b46d1b46d1b46d1b46d1b46d1b46d1b46d1b46d1b46"
+    );
+    assert_eq!(
+        twenty_four.mnemonic().words().join(" "),
+        "brave custom home surface refuse hand spider pet egg misery brave custom home surface refuse hand spider pet egg misery brave custom home symbol"
+    );
+}
+
+/// The overshooting roll keeps its leading bit. Face 4 is `11`; with one bit of
+/// room left it contributes `1`, not `0`.
+#[test]
+fn bluewallet_bitpack_truncates_the_overshooting_roll_from_the_top() {
+    let mut tape = rolls(&"5".repeat(127));
+    tape.push(DieFace::new(4).unwrap());
+    let calculation = accepted(
+        EntropyTarget::Words12,
+        ConversionProtocol::BlueWalletBitPackV1,
+        Capture::Dice(&tape),
+    );
+    assert_eq!(
+        entropy_hex(calculation.entropy()),
+        "00000000000000000000000000000001"
+    );
+    assert_eq!(calculation.mnemonic().words()[11], "actual");
+}
+
+/// Packing and hashing disagree on one tape, so the recorded rolls alone do not
+/// identify which wallet made a seed.
+#[test]
+fn bluewallet_bitpack_and_coldcard_disagree_on_one_tape() {
+    let tape: String = "123456".chars().cycle().take(76).collect();
+    let rolls = rolls(&tape);
+    let packed = accepted(
+        EntropyTarget::Words12,
+        ConversionProtocol::BlueWalletBitPackV1,
+        Capture::Dice(&rolls),
+    );
+    let hashed = accepted(
+        EntropyTarget::Words12,
+        ConversionProtocol::ColdcardV1,
+        Capture::Dice(&rolls),
+    );
+    assert_ne!(entropy_hex(packed.entropy()), entropy_hex(hashed.entropy()));
+}
+
 #[test]
 fn exact_zero_crosses_conversion_and_bip39_boundaries() {
     let rolls = rolls(&"1".repeat(50));

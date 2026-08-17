@@ -323,7 +323,9 @@ fn render_protocol_step(app: &App) -> Lines {
             &protocol_choices(target),
         )
     };
-    push(&mut output, "");
+    if !protocol_detail_open(app) {
+        push(&mut output, "");
+    }
     push(
         &mut output,
         if protocol_detail_open(app) {
@@ -1047,6 +1049,7 @@ mod tests {
         assert!(output.contains("COLDCARD"));
         assert!(output.contains("SeedSigner coin flips"));
         assert!(output.contains("bitcoinlib base-6 (no hash)"));
+        assert!(output.contains("BlueWallet bit packing"));
         assert!(!output.contains("↓ more — use Page Down"));
     }
 
@@ -1068,6 +1071,7 @@ mod tests {
             "Coin + four-D6 direct words",
             "SeedSigner coin flips",
             "bitcoinlib base-6 (no hash)",
+            "BlueWallet bit packing",
         ] {
             assert!(output.contains(expected), "missing {expected}");
         }
@@ -2113,14 +2117,14 @@ mod tests {
 
         assert!(exact.contains("◆ GROUP COMPARE  ›  PROTOCOL DETAILS"));
         assert!(exact.contains("┏━ GROUP COMPARE · DETAILS · FOCUS"));
-        assert!(exact.contains("PROTOCOL DETAILS · 1 OF 5"));
+        assert!(exact.contains("PROTOCOL DETAILS · 1 OF 6"));
         assert!(exact.contains("▶ Exact"));
         assert!(exact.contains("[←/→] protocol"));
 
         // Stepping right renders the next protocol's document (COLDCARD).
         app.update(Key::Right);
         let coldcard = render(&app, 80, 44);
-        assert!(coldcard.contains("PROTOCOL DETAILS · 2 OF 5"));
+        assert!(coldcard.contains("PROTOCOL DETAILS · 2 OF 6"));
         assert!(coldcard.contains("▶ COLDCARD"));
         assert!(coldcard.contains("COLDCARD HASH"));
     }

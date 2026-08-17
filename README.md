@@ -165,12 +165,14 @@ tag. See [**Verifying releases**](docs/verifying-releases.md).
 | **Coin + four-D6 direct words** | 12 | D6 + coin | One coin and four ordered D6 faces select each direct index using the pinned [Bip39-diceware table][coin-four-d6-table]. Whole rejected candidates retry; 12 accepted candidates provide 128 entropy bits before deterministic checksum replacement. |
 | **SeedSigner coin flips** | 12 · 24 | Coin | Exactly 128 or 256 physical flips serialized as ASCII `0`/`1`, hashed with SHA-256, then truncated for 12 words when needed. |
 | **bitcoinlib base-6 (no hash)** | 12 · 24 | D6 | Reads exactly 50 or 99 rolls as one base-6 integer and uses it directly as entropy — no SHA-256 and no rejection sampling — matching [RooSoft/bitcoinlib][bitcoinlib-base6]. Not uniform. A reading whose minimal big-endian encoding is not exactly 16 or 32 bytes is rejected rather than padded or truncated; roughly three in five 50-roll tapes reject. |
+| **BlueWallet bit packing** | 12 · 24 | D6 | Packs faces straight into entropy bits with no hash, matching [BlueWallet][bluewallet-bitpack]: faces `1`–`4` give two bits (`00`–`11`), faces `5`/`6` give one (`0`/`1`), ≈1.67 bits per roll. The tape length varies with the faces rolled — 64–128 rolls for 12 words — and the roll that overshoots keeps only its leading bits. Requires the full width; BlueWallet fills a shortfall from the phone's RNG, which is not reproducible. |
 
 [jade-guide]: https://help.blockstream.com/blockstream-jade/add-more-security-functionality/create-a-recovery-phrase-using-dice
 [bitbox-guide]: https://blog.bitbox.swiss/en/roll-the-dice-generate-your-own-seed/
 [krux-guide]: https://selfcustody.github.io/krux/getting-started/usage/generating-a-mnemonic/
 [coin-four-d6-table]: https://github.com/taelfrinn/Bip39-diceware/blob/5320c9978fe89b5e068f6c0cafe45effe900e74c/README.md
 [bitcoinlib-base6]: https://github.com/RooSoft/bitcoinlib/blob/a998a61caad66d074772ec4a10ba5268aa65ca40/lib/key/hd/entropy.ex#L41-L79
+[bluewallet-bitpack]: https://github.com/BlueWallet/BlueWallet/blob/8.0.1/screen/wallets/ProvideEntropy.tsx#L103-L125
 
 All selectable protocols produce ordinary BIP-39 output. The protocol matters
 only when reproducing a mnemonic from its original rolls.
@@ -185,14 +187,17 @@ identical rolls.
 A protocol only belongs to a set if it consumes **exactly** those rolls, all of
 them, with none rejected. Because the protocols complete at different lengths,
 results group into **entropy sets at roll-count checkpoints** — the current tape
-length plus each length where an exact-count protocol completes (`100` for the
-strict protocols, `140` for `Word-by-word Exact` at 24 words, `99` for the
-unhashed base-6 reading). So **166 rolls gives four sets** — `166`, `140`, `100`,
-`99`:
+length plus each length where a fixed-count protocol completes (`100` for the
+strict protocols, `140` for `Word-by-word Exact` at 24 words, and `99` for the
+unhashed base-6 reading), plus wherever `BlueWallet bit packing` fills the
+entropy width on *this* tape. That checkpoint depends on the faces rolled rather
+than only the target. A fair 166-roll tape **gives five sets** — `166`, `153`,
+`140`, `100`, and `99`:
 
 | Set | Protocols that use exactly those rolls |
 | --- | --- |
 | **166** | `COLDCARD`, `Keystone` |
+| **153** | `BlueWallet bit packing`, `COLDCARD`, `Keystone` |
 | **140** | `Word-by-word Exact`, `COLDCARD`, `Keystone` |
 | **100** | `Exact`, `COLDCARD`, `Keystone` |
 | **99** | `bitcoinlib base-6`, `COLDCARD`, `Keystone` |
@@ -200,6 +205,10 @@ unhashed base-6 reading). So **166 rolls gives four sets** — `166`, `140`, `10
 The `99` set is the one worth staring at: `COLDCARD` and `bitcoinlib base-6` both
 complete on the same 99 rolls and produce mnemonics with no words in common. The
 roll count that signals a hashed construction does not identify one.
+
+`BlueWallet bit packing` is the one checkpoint that moves: an all-`1`–`4` tape
+fills 128 bits in 64 rolls where an all-`5`/`6` tape needs 128, so the same tape
+length can put it in a different set.
 
 The open-ended protocols (`COLDCARD`, `Keystone`) hash every roll, so they appear
 in every set at or above their minimum — with a *different* seed each time, since

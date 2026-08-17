@@ -7,9 +7,10 @@ use crate::domain::{
     dice::RollSequence,
     jade::{JadeCapture, JadeObservation},
     protocol::{
-        BitBoxProgress, BitBoxStage, CoinFourD6Progress, CoinFourD6Stage, ConversionProtocol,
-        JadeDieKind, JadeProgress, WordExactParse, WordExactProgress, bitbox_progress,
-        coin_four_d6_progress, jade_expected_die, jade_progress, parse_word_exact,
+        BitBoxProgress, BitBoxStage, BitPackProgress, CoinFourD6Progress, CoinFourD6Stage,
+        ConversionProtocol, JadeDieKind, JadeProgress, WordExactParse, WordExactProgress,
+        bitbox_progress, bitpack_progress, coin_four_d6_progress, jade_expected_die, jade_progress,
+        parse_word_exact,
     },
 };
 
@@ -26,6 +27,7 @@ pub enum CaptureProgress {
     Jade(JadeProgress),
     BitBox(BitBoxProgress),
     CoinFourD6(CoinFourD6Progress),
+    BitPack(BitPackProgress),
     WordExact(WordExactProgress),
     WordExactComplete {
         accepted_words: usize,
@@ -134,6 +136,20 @@ impl ConversionProtocol {
                 recorded,
                 required: self.minimum_observations(target),
             }),
+            Self::BlueWalletBitPackV1 => {
+                let bitpack = bitpack_progress(target, rolls);
+                let progress = CaptureProgress::BitPack(bitpack);
+                if !bitpack.is_filled() {
+                    CaptureAssessment::Collecting(progress)
+                } else if bitpack.uses_every_roll() {
+                    CaptureAssessment::Complete {
+                        progress,
+                        accepts_optional_rolls: false,
+                    }
+                } else {
+                    CaptureAssessment::Invalid(progress)
+                }
+            }
             Self::ExactV1 | Self::BitcoinLibBase6V1 => {
                 let required = self.minimum_observations(target);
                 let progress = CaptureProgress::Fixed { recorded, required };

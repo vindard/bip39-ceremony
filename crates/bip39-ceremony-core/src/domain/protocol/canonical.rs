@@ -3,12 +3,13 @@ use core::fmt;
 use zeroize::Zeroizing;
 
 use crate::domain::{
-    bitbox::BitBoxCapture, coin::FlipSequence, coin_four_d6::CoinFourD6Capture,
-    d20::D20RollSequence, dice::RollSequence, jade::JadeCapture,
+    bip39::EntropyTarget, bitbox::BitBoxCapture, coin::FlipSequence,
+    coin_four_d6::CoinFourD6Capture, d20::D20RollSequence, dice::RollSequence, jade::JadeCapture,
 };
 
 use super::{
     ConversionProtocol, coldcard_ascii_rolls, keystone_legacy_ascii_rolls, krux_d20_ascii_rolls,
+    packed_bits,
 };
 
 /// Secret protocol input represented without presentation wording.
@@ -21,14 +22,22 @@ pub enum CanonicalInput {
     TypedD6AndCoins(Zeroizing<Vec<u8>>),
     AsciiHyphenatedD20(Zeroizing<Vec<u8>>),
     AsciiCoinFlips(Zeroizing<Vec<u8>>),
+    PackedFaceBits(Zeroizing<Vec<u8>>),
 }
 
 impl CanonicalInput {
     #[must_use]
-    pub(crate) fn from_dice(protocol: ConversionProtocol, rolls: &RollSequence) -> Self {
+    pub(crate) fn from_dice(
+        protocol: ConversionProtocol,
+        target: EntropyTarget,
+        rolls: &RollSequence,
+    ) -> Self {
         match protocol {
             ConversionProtocol::ExactV1 | ConversionProtocol::BitcoinLibBase6V1 => {
                 Self::Base6Integer(base6_digits(rolls))
+            }
+            ConversionProtocol::BlueWalletBitPackV1 => {
+                Self::PackedFaceBits(packed_bits(target, rolls))
             }
             ConversionProtocol::WordExactV1 => Self::LocalizedBase6Candidates(base6_digits(rolls)),
             ConversionProtocol::ColdcardV1 => Self::AsciiFaceDigits(coldcard_ascii_rolls(rolls)),
@@ -92,9 +101,11 @@ mod tests {
         rolls.push(DieFace::new(1).unwrap());
         rolls.push(DieFace::new(6).unwrap());
 
-        let CanonicalInput::Base6Integer(digits) =
-            CanonicalInput::from_dice(ConversionProtocol::ExactV1, &rolls)
-        else {
+        let CanonicalInput::Base6Integer(digits) = CanonicalInput::from_dice(
+            ConversionProtocol::ExactV1,
+            crate::domain::bip39::EntropyTarget::Words12,
+            &rolls,
+        ) else {
             panic!("base-6 representation expected");
         };
         assert_eq!(digits.as_slice(), b"05");

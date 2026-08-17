@@ -353,6 +353,12 @@ pub(super) fn roll_count_status(count: usize, assessment: Option<CaptureAssessme
             progress.required_words(),
             progress.rejected_faces()
         ),
+        CaptureProgress::BitPack(progress) => format!(
+            "{} recorded · {}/{} entropy bits packed",
+            progress.recorded(),
+            progress.bits(),
+            progress.required_bits()
+        ),
         CaptureProgress::CoinFourD6(progress) => format!(
             "{} recorded · {}/12 accepted · {} rejected candidates",
             progress.recorded(),
