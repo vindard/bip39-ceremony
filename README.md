@@ -129,7 +129,7 @@ tag. See [**Verifying releases**](docs/verifying-releases.md).
 | **COLDCARD** | 12 · 24 | D6 | SHA-256 over ASCII roll digits, compatible for an identical ordered sequence. Minimums are 50 rolls for 12 words and COLDCARD's documented 99 rolls for 24 words; additional rolls are accepted. |
 | **Word-by-word Exact** | 12 · 24 | D6 | Exact localized rejection over six-roll 11-bit candidates and a final entropy-tail candidate. Minimums are 70 or 140 rolls; rejected groups never discard accepted positions. |
 | **Exact** | 12 · 24 | D6 | Exact base-6 rejection mapping. Uniform under independent fair dice; ≈16% of 50-roll and ≈11% of 100-roll attempts reject. |
-| **Keystone legacy dice** | 24 | D6 | 24-word compatibility profile that maps face `6` to ASCII `0`, permits completion from 50 mapped rolls, recommends continuing to 99, and uses the full digest. |
+| **Keystone legacy dice** | 24 | D6 | 24-word compatibility profile that maps face `6` to ASCII `0`, permits completion from 50 mapped rolls, recommends continuing to 100, and uses the full digest. [Keystone firmware][keystone-dice] enables confirm at 50 rolls, treats 100 as its 256-bit threshold, and refuses input past 256 rolls; this profile does not cap the tape. |
 | **Jade direct words** | 12 · 24 | D16/D8 | D16/D16/D8 triples select the first 11 or 23 BIP-39 indices using [Blockstream's published table order][jade-guide]. A final D16/D8 or D8 roll supplies the remaining entropy bits before checksum calculation. |
 | **BitBox02 Diceware** | 12 · 24 | D6 + coin | Reproduces BitBox02's external printed-table workflow; the firmware does not capture the dice rolls. Five D6 faces accepted only in `1`–`4` plus one coin side select each direct word using the [published table][bitbox-guide]. Rejected `5`/`6` retry locally; final coins supply the entropy tail before the words are entered on the device. |
 | **Krux D20** | 12 · 24 | D20 | At least 30 or 60 D20 rolls serialized as hyphen-separated decimal faces, matching [Krux's documented implementation][krux-guide]. Additional rolls are accepted before hashing with SHA-256. |
@@ -140,6 +140,7 @@ tag. See [**Verifying releases**](docs/verifying-releases.md).
 [bitbox-guide]: https://blog.bitbox.swiss/en/roll-the-dice-generate-your-own-seed/
 [krux-guide]: https://selfcustody.github.io/krux/getting-started/usage/generating-a-mnemonic/
 [coin-four-d6-table]: https://github.com/taelfrinn/Bip39-diceware/blob/5320c9978fe89b5e068f6c0cafe45effe900e74c/README.md
+[keystone-dice]: https://github.com/KeystoneHQ/keystone3-firmware/blob/3.0.2/src/ui/gui_widgets/gui_dice_rolls_widgets.c#L11-L13
 
 All selectable protocols produce ordinary BIP-39 output. The protocol matters
 only when reproducing a mnemonic from its original rolls.

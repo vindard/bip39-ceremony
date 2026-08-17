@@ -329,7 +329,8 @@ fn keystone_legacy_explanation(
             B::Heading("3 · USE THE FULL DIGEST AS BIP-39 ENTROPY".to_owned()),
             B::Paragraph("Use all 32 digest bytes as 256-bit entropy, calculate the eight-bit BIP-39 checksum, and split the resulting 264 bits into 24 English word indices.".to_owned()),
             B::Heading("ROLL REQUIREMENT".to_owned()),
-            B::Paragraph(format!("Legacy Keystone permits generation from {} D6 rolls, warns that the entropy may be insufficient, and recommends continuing to 99. This profile matches that completion threshold and accepts additional rolls. A 24-word mnemonic does not make 50 physical rolls a 256-bit entropy source.", specification.minimum_observations())),
+            B::Paragraph(format!("Legacy Keystone permits generation from {} D6 rolls, warns that the entropy may be insufficient, and recommends continuing to 100. This profile matches that completion threshold and accepts additional rolls. A 24-word mnemonic does not make 50 physical rolls a 256-bit entropy source.", specification.minimum_observations())),
+            B::Paragraph("Keystone firmware enables its confirm action at 50 rolls, treats 100 rolls as its 256-bit threshold, and stops accepting input at 256 rolls. Roll tapes longer than 256 cannot be re-entered on the device.".to_owned()),
             B::Paragraph("Same mapped rolls and target produce the same mnemonic. Hashing does not create entropy or establish that the physical die was fair.".to_owned()),
         ],
     )
@@ -390,7 +391,8 @@ mod tests {
         assert!(text.contains("24 WORDS ONLY"));
         assert!(text.contains("mapped text:   123450"));
         assert!(text.contains("permits generation from 50 D6 rolls"));
-        assert!(text.contains("recommends continuing to 99"));
+        assert!(text.contains("recommends continuing to 100"));
+        assert!(text.contains("stops accepting input at 256 rolls"));
 
         let unsupported = format!(
             "{:?}",

@@ -202,6 +202,65 @@ fn keystone_legacy_documented_vector_matches_mapping_and_bip39() {
     );
 }
 
+/// Third-party survey vector (kdmukai-bot seedsigner-ai-analysis, "Hash the
+/// rolls as typed"): 50 ASCII face digits, SHA-256, truncated to 16 bytes.
+#[test]
+fn coldcard_external_survey_vector_matches_twelve_words() {
+    let rolls = rolls("65515223131652132161133154444123616466443112153441");
+    let calculation = accepted(
+        EntropyTarget::Words12,
+        ConversionProtocol::ColdcardV1,
+        Capture::Dice(&rolls),
+    );
+    assert_eq!(
+        entropy_hex(calculation.entropy()),
+        "6cb09af855050dcde6fe2adc3181c250"
+    );
+    assert_eq!(
+        calculation.mnemonic().words().join(" "),
+        "hole luggage safe present express tragic orbit shed switch metal identify path"
+    );
+}
+
+/// Same survey, 99 ASCII face digits with no truncation.
+#[test]
+fn coldcard_external_survey_vector_matches_twenty_four_words() {
+    let rolls = rolls(
+        "655152231316521321611331544441236164664431121534415633526456254462245546236542364246312613322234612",
+    );
+    let calculation = accepted(
+        EntropyTarget::Words24,
+        ConversionProtocol::ColdcardV1,
+        Capture::Dice(&rolls),
+    );
+    assert_eq!(
+        entropy_hex(calculation.entropy()),
+        "51531761ec7a738946e0b9f46bb11320a695495430e345c14f01ad8b3b898a6d"
+    );
+    assert_eq!(
+        calculation.mnemonic().words().join(" "),
+        "eyebrow obvious such suggest poet seven breeze blame virtual frown dynamic donor harsh pigeon express broccoli easy apology scatter force recipe shadow claim radio"
+    );
+}
+
+/// The same 99 rolls under the 6-to-0 rewrite share no words with the
+/// as-typed reading, which is the divergence the survey warns about.
+#[test]
+fn keystone_legacy_external_survey_vector_diverges_from_as_typed() {
+    let rolls = rolls(
+        "655152231316521321611331544441236164664431121534415633526456254462245546236542364246312613322234612",
+    );
+    let calculation = accepted(
+        EntropyTarget::Words24,
+        ConversionProtocol::KeystoneLegacyV1,
+        Capture::Dice(&rolls),
+    );
+    assert_eq!(
+        calculation.mnemonic().words().join(" "),
+        "police guard reject concert debate curtain width great miss uncover lift kitten observe soap fun dog always spirit camera ten grant rate across engage"
+    );
+}
+
 #[test]
 fn keystone_legacy_generation_crosses_all_boundaries() {
     let rolls = rolls(&"6".repeat(99));
