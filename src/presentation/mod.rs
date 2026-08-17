@@ -1,6 +1,7 @@
 mod document;
 mod evidence;
 mod guidance;
+mod physical;
 mod protocol;
 mod readiness;
 mod recovery;
@@ -10,6 +11,7 @@ mod setup;
 pub use document::{ContentBlock, Document};
 pub use evidence::{reproduction_receipt, trust_boundary};
 pub use guidance::{assurance_line, phase_guidance};
+pub use physical::physical_entropy_guidance;
 pub use protocol::{protocol_explanation, protocol_menu_explanation};
 pub use readiness::readiness_document;
 pub use recovery::{

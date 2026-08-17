@@ -1,6 +1,6 @@
 use termion::event::Key;
 pub(super) const SAFETY_ITEM_COUNT: usize = SafetyAttestation::ALL.len();
-const ALL_SAFETY_CHECKS: u8 = (1 << SAFETY_ITEM_COUNT) - 1;
+const ALL_SAFETY_CHECKS: u16 = (1 << SAFETY_ITEM_COUNT) - 1;
 
 use crate::{
     application::{
@@ -26,6 +26,7 @@ use crate::{
 pub enum InspectorView {
     Derivation,
     ProtocolExplanation,
+    PhysicalEntropy,
     Help,
 }
 
@@ -98,7 +99,7 @@ struct VisibleState {
     roll_visibility: RollVisibility,
     word_exact_ledger_view: WordExactLedgerView,
     safety_cursor: usize,
-    safety_checks: u8,
+    safety_checks: u16,
     group_captures: usize,
     group_roll_progress: Option<RollProgress>,
     group_view: GroupView,
@@ -118,7 +119,7 @@ pub struct App {
     roll_visibility: RollVisibility,
     word_exact_ledger_view: WordExactLedgerView,
     safety_cursor: usize,
-    safety_checks: u8,
+    safety_checks: u16,
     group: Option<GroupSession>,
     group_view: GroupView,
     scroll_limit: usize,
@@ -487,6 +488,7 @@ impl App {
             return;
         }
         match key {
+            Key::Char('t') => self.open_inspector(InspectorView::PhysicalEntropy),
             Key::Char(' ') => self.safety_checks ^= 1 << self.safety_cursor,
             Key::Char('c') => self.safety_checks = ALL_SAFETY_CHECKS,
             Key::Char('h') | Key::Left => self.leave_safety(),
@@ -701,6 +703,7 @@ impl App {
     fn enter_capture_control(&mut self, key: Key) -> bool {
         match key {
             Key::Char('e') => self.open_inspector(InspectorView::ProtocolExplanation),
+            Key::Char('t') => self.open_inspector(InspectorView::PhysicalEntropy),
             Key::Char('h') => {
                 self.roll_visibility = match self.roll_visibility {
                     RollVisibility::LatestOnly => RollVisibility::All,
@@ -1081,6 +1084,9 @@ impl App {
                 self.inspector = None;
                 self.mnemonic_hidden = true;
                 return;
+            }
+            Key::Char('t') if inspector.view == InspectorView::PhysicalEntropy => {
+                self.inspector = None;
             }
             Key::Esc | Key::Char('\t') => self.inspector = None,
             Key::Up => inspector.scroll = inspector.scroll.saturating_sub(1),
@@ -1556,6 +1562,48 @@ mod tests {
         assert_eq!(app.inspector().map(|inspector| inspector.scroll), Some(1));
         assert_eq!(app.update(Key::Char('\t')), UpdateOutcome::Changed);
         assert!(app.inspector().is_none());
+    }
+
+    #[test]
+    fn physical_entropy_guidance_opens_from_capture_without_domain_events() {
+        let mut app = App::default();
+        configure(&mut app, ConversionProtocol::ExactV1);
+        app.update(Key::Char('4'));
+        let events = app.ceremony().events().len();
+        let recorded = app.ceremony().state().capture_count();
+
+        app.update(Key::Char('t'));
+        assert_eq!(
+            app.inspector().map(|inspector| inspector.view),
+            Some(InspectorView::PhysicalEntropy)
+        );
+        assert_eq!(app.ceremony().events().len(), events);
+
+        // The same key closes it and the live capture is untouched.
+        app.update(Key::Char('t'));
+        assert!(app.inspector().is_none());
+        assert_eq!(app.ceremony().state().capture_count(), recorded);
+        assert_eq!(app.ceremony().events().len(), events);
+    }
+
+    #[test]
+    fn physical_entropy_guidance_opens_from_the_safety_checklist() {
+        let mut app = App::default();
+        app.update(Key::Char('\n'));
+        app.update(Key::Char('\n'));
+        let checked = app.safety_check_count();
+
+        app.update(Key::Char('t'));
+        assert_eq!(
+            app.inspector().map(|inspector| inspector.view),
+            Some(InspectorView::PhysicalEntropy)
+        );
+        // Opening guidance must not tick a box on the operator's behalf.
+        assert_eq!(app.safety_check_count(), checked);
+
+        app.update(Key::Esc);
+        assert!(app.inspector().is_none());
+        assert_eq!(app.safety_check_count(), checked);
     }
 
     #[test]

@@ -6,7 +6,8 @@ use crate::{
     application::{BuildCapabilities, DerivationProjection},
     domain::{bip39::EntropyTarget, ceremony::Phase},
     presentation::{
-        derivation_guidance, phase_guidance, protocol_menu_explanation, trust_boundary,
+        derivation_guidance, phase_guidance, physical_entropy_guidance, protocol_menu_explanation,
+        trust_boundary,
     },
 };
 
@@ -38,6 +39,9 @@ pub(super) fn render_inspector(app: &App, width: usize) -> Lines {
             } else {
                 lines(&["Protocol explanation unavailable."])
             }
+        }
+        Some(InspectorView::PhysicalEntropy) => {
+            render_document(&physical_entropy_guidance(), width)
         }
         Some(InspectorView::Help) => {
             let mut output = Lines::new(Vec::new());

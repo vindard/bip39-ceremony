@@ -83,6 +83,35 @@ step, with transcription and backup-verification guidance.</i></sub>
 </tr>
 </table>
 
+## 🎲 How you throw
+
+Every protocol here is deterministic, so all of the unpredictability has to come
+from the dice — and that is the one part no software can check. Press `t` on the
+safety checklist or during capture for the figures; the short version:
+
+- **The die barely matters.** The largest bias measured in ordinary dice is about
+  1.4% ([Labby 2009][labby], 315,672 rolls; [Iversen et al. 1971][iversen],
+  4,380,000 throws). At 24 words a 2% bias costs 2.9 bits of 255.9. Buying casino
+  dice does not buy a better seed.
+- **The throw matters a lot.** A die dropped without bouncing ends up with the
+  same face down as it started **54.8%** of the time; with 4–5 bounces, 19.9%,
+  against 16.7% for a fair die ([Kapitaniak et al. 2012][kapitaniak]). Fair by
+  symmetry is not fair by dynamics.
+- **So: give every roll a thorough tumble.** A closed box with room to shake
+  bounces the dice off the walls and each other — the part a hand throw has to
+  get right and often does not.
+- **More rolls do not help.** The roll count fills the seed rather than
+  exceeding a floor: 99 fair rolls carry 255.9 of 256 bits. For protocols that
+  hash every roll, extra rolls make a *different* seed, not a stronger one.
+- **Face-frequency guards prove nothing.** COLDCARD's 30%-per-face rejection and
+  Shannon-entropy meters see *which* faces appeared, not what order. A repeating
+  `1 2 3 4 5 6 …` tape has a flat distribution and passes every such check while
+  being entirely predictable.
+
+[kapitaniak]: https://doi.org/10.1063/1.4746038
+[labby]: https://doi.org/10.1080/09332480.2009.10722977
+[iversen]: https://doi.org/10.1007/BF02291418
+
 ## 🛡️ Security boundary
 
 Rolls, flips, entropy, derivations, and words are wallet-secret material —

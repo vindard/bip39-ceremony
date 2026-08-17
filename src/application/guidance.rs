@@ -8,17 +8,19 @@ pub enum SafetyAttestation {
     PrivateTranscriptionReady,
     CopyChannelsAvoided,
     PhysicalRollPolicyFixed,
+    ThrowMethodFixed,
     DerivedValuesSecret,
 }
 
 impl SafetyAttestation {
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 8] = [
         Self::DeviceIsolated,
         Self::RecordingDisabled,
         Self::CamerasRemoved,
         Self::PrivateTranscriptionReady,
         Self::CopyChannelsAvoided,
         Self::PhysicalRollPolicyFixed,
+        Self::ThrowMethodFixed,
         Self::DerivedValuesSecret,
     ];
 }

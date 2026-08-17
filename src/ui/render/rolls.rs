@@ -63,6 +63,7 @@ pub(super) fn render_roll_entry(app: &App, width: usize) -> Lines {
     let mut output = lines(&[
         capture_heading,
         &protocol_line,
+        "[t] PHYSICAL ENTROPY · throwing method",
         &rule_line,
         &cursor,
         capture_instruction,

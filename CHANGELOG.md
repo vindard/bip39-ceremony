@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Physical-entropy guidance (`t` on the safety checklist or during capture): the
+  measured cost of dice bias, how often a die lands on the face it started on
+  when it is not tumbled, what to do about it, how roll-count effects differ by
+  method, and why a face-frequency guard cannot see a patterned tape. Every
+  figure is cited.
+- A "Throwing method fixed" safety attestation, so the throw is something the
+  operator commits to before rolling rather than improvises mid-ceremony.
+
 ### Fixed
 
 - Roll capture no longer advertises a next roll once the capture is closed. A

@@ -245,6 +245,7 @@ fn workspace_card_title(app: &App) -> &'static str {
     match app.inspector().map(|inspector| inspector.view) {
         Some(InspectorView::Derivation) => "DERIVATION · ALL VALUES SECRET · FOCUS",
         Some(InspectorView::ProtocolExplanation) => "PROTOCOL DETAILS · FOCUS",
+        Some(InspectorView::PhysicalEntropy) => "PHYSICAL ENTROPY · FOCUS",
         Some(InspectorView::Help) => "HELP · FOCUS",
         None if app.ceremony().state().phase() == Phase::Safety => "SAFETY PREFLIGHT · FOCUS",
         None if app.ceremony().state().phase() == Phase::EnterRolls => "ROLL CAPTURE · FOCUS",
@@ -456,8 +457,10 @@ fn render_safety(app: &App, width: usize) -> Lines {
             &mut output,
             "Ready. Press Enter to acknowledge and begin rolling.",
         );
+        push(&mut output, "[t] physical entropy · how to throw");
     } else {
         push(&mut output, "[Space] toggle selected · [c] check all");
+        push(&mut output, "[t] physical entropy · how to throw");
     }
     output
 }
@@ -538,6 +541,9 @@ fn inspector_footer(view: InspectorView, derivation_available: bool, phase: Phas
     };
     if view == InspectorView::Derivation {
         return format!("[h] hide   {quit}   [↑/↓] scroll   [Tab/Esc] live");
+    }
+    if view == InspectorView::PhysicalEntropy {
+        return format!("{quit}  [↑/↓] scroll  [t/Esc/Tab] back");
     }
     if view == InspectorView::ProtocolExplanation {
         let destination = if phase == Phase::ChooseProtocol {
@@ -891,7 +897,7 @@ mod tests {
         let initial = render(&app, 52, 40);
 
         assert!(initial.contains("┏━ SAFETY PREFLIGHT · FOCUS"));
-        assert!(initial.contains("0 / 7 checked"));
+        assert!(initial.contains("0 / 8 checked"));
         assert!(initial.contains("▶ □ Device isolated"));
         assert!(initial.contains("[Space] toggle selected"));
         assert_eq!(initial.lines().count(), 40);
@@ -901,7 +907,7 @@ mod tests {
         let checked = render(&app, 52, 40);
         assert!(checked.contains("▶ ✓ Recording disabled"));
         assert!(checked.contains("Disable terminal or tmux logging"));
-        assert!(checked.contains("1 / 7 checked"));
+        assert!(checked.contains("1 / 8 checked"));
     }
 
     #[test]
@@ -910,7 +916,7 @@ mod tests {
         app.update(Key::Char('c'));
         let ready = render(&app, 52, 40);
 
-        assert!(ready.contains("7 / 7 checked"));
+        assert!(ready.contains("8 / 8 checked"));
         assert!(ready.contains("Ready. Press Enter"));
         assert!(!ready.contains("more — use Page"));
     }
@@ -960,6 +966,54 @@ mod tests {
         let roll_help = render(&app, 80, 40);
         assert!(roll_help.contains("verifies valid protocol input keys"));
         assert!(roll_help.contains("cannot know whether a key matched"));
+    }
+
+    #[test]
+    fn physical_entropy_card_leads_with_the_throw_and_scrolls() {
+        let mut app = App::default();
+        app.update(Key::Char('\n'));
+        app.update(Key::Char('\n'));
+        app.update(Key::Char('t'));
+
+        let first = render(&app, 52, 40);
+        assert!(first.contains("PHYSICAL ENTROPY · FOCUS"));
+        assert!(first.contains("[t/Esc/Tab] back"));
+        assert_eq!(first.lines().count(), 40);
+        // Longer than the minimum terminal, so it must offer scrolling rather
+        // than silently dropping the throwing figures.
+        assert!(first.contains("↓ more — use Page Down"));
+
+        for _ in 0..3 {
+            app.update(Key::PageDown);
+        }
+        let scrolled = render(&app, 52, 40);
+        assert_ne!(first, scrolled);
+        assert!(
+            scrolled.contains("54.8%"),
+            "the throwing figures must be reachable"
+        );
+        assert!(scrolled.contains("thorough tumble"));
+    }
+
+    #[test]
+    fn safety_checklist_offers_the_throwing_method_and_its_guidance() {
+        let app = safety_app();
+        let output = render(&app, 52, 40);
+
+        assert!(output.contains("Throwing method fixed"));
+        assert!(output.contains("[t] physical entropy"));
+    }
+
+    #[test]
+    fn roll_capture_points_at_the_throwing_guidance() {
+        let mut app = App::default();
+        app.update(Key::Char('\n'));
+        app.update(Key::Char('\n'));
+        app.update(Key::Char('c'));
+        app.update(Key::Char('\n'));
+
+        let output = render(&app, 52, 40);
+        assert!(output.contains("[t] PHYSICAL ENTROPY · throwing method"));
     }
 
     #[test]

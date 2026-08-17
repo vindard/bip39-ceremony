@@ -44,6 +44,10 @@ pub const fn safety_content(item: SafetyAttestation) -> SafetyContent {
             label: "Physical outcome policy fixed",
             detail: "Define invalid rolls or flips now; never replace a valid result because its outcome looks unusual.",
         },
+        SafetyAttestation::ThrowMethodFixed => SafetyContent {
+            label: "Throwing method fixed",
+            detail: "Commit to a tumbling throw now — a closed box works well. A die set down gently keeps its starting face over half the time, and no check here can detect that.",
+        },
         SafetyAttestation::DerivedValuesSecret => SafetyContent {
             label: "All derived values are secret",
             detail: "Treat rolls or flips, entropy, indices, words, and every derivation value as wallet-secret material.",
