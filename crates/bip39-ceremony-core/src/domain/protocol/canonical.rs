@@ -8,8 +8,8 @@ use crate::domain::{
 };
 
 use super::{
-    ConversionProtocol, coldcard_ascii_rolls, keystone_legacy_ascii_rolls, krux_d20_ascii_rolls,
-    packed_bits,
+    ConversionProtocol, coldcard_ascii_rolls, iancoleman_raw_bits, keystone_legacy_ascii_rolls,
+    krux_d20_ascii_rolls, packed_bits,
 };
 
 /// Secret protocol input represented without presentation wording.
@@ -23,6 +23,7 @@ pub enum CanonicalInput {
     AsciiHyphenatedD20(Zeroizing<Vec<u8>>),
     AsciiCoinFlips(Zeroizing<Vec<u8>>),
     PackedFaceBits(Zeroizing<Vec<u8>>),
+    PackedBase6Bits(Zeroizing<Vec<u8>>),
 }
 
 impl CanonicalInput {
@@ -39,9 +40,14 @@ impl CanonicalInput {
             ConversionProtocol::BlueWalletBitPackV1 => {
                 Self::PackedFaceBits(packed_bits(target, rolls))
             }
+            ConversionProtocol::IanColemanRawV1 => {
+                Self::PackedBase6Bits(iancoleman_raw_bits(rolls))
+            }
+
             ConversionProtocol::WordExactV1 => Self::LocalizedBase6Candidates(base6_digits(rolls)),
             ConversionProtocol::ColdcardV1 => Self::AsciiFaceDigits(coldcard_ascii_rolls(rolls)),
-            ConversionProtocol::KeystoneLegacyV1 => {
+            // The web tool's fixed-length path applies the same rewrite.
+            ConversionProtocol::KeystoneLegacyV1 | ConversionProtocol::IanColemanDiceV1 => {
                 Self::AsciiFacesWithSixAsZero(keystone_legacy_ascii_rolls(rolls))
             }
             _ => unreachable!("typed protocols use typed canonical constructors"),

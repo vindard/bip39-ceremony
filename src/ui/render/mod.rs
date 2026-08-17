@@ -1070,6 +1070,7 @@ mod tests {
         assert!(output.contains("SeedSigner coin flips"));
         assert!(output.contains("bitcoinlib base-6 (no hash)"));
         assert!(output.contains("BlueWallet bit packing"));
+        assert!(output.contains("iancoleman dice (raw)"));
         assert!(!output.contains("↓ more — use Page Down"));
     }
 
@@ -1092,6 +1093,8 @@ mod tests {
             "SeedSigner coin flips",
             "bitcoinlib base-6 (no hash)",
             "BlueWallet bit packing",
+            "iancoleman dice (fixed length)",
+            "iancoleman dice (raw)",
         ] {
             assert!(output.contains(expected), "missing {expected}");
         }
@@ -1355,7 +1358,11 @@ mod tests {
         app.update(Key::Char('e'));
         let details = render(&app, 80, 40);
         assert!(details.contains("KEYSTONE LEGACY HASH · 24 WORDS ONLY"));
-        assert!(details.contains("mapped text:   123450"));
+        // The mapping example sits below the fold now that the catalog is
+        // longer and the detail pane is correspondingly shorter.
+        app.update(Key::PageDown);
+        let scrolled = render(&app, 80, 40);
+        assert!(scrolled.contains("mapped text:   123450"));
     }
 
     #[test]
@@ -1474,7 +1481,10 @@ mod tests {
 
         assert!(output.contains("┏━ PROTOCOL DETAILS · FOCUS"));
         assert!(output.contains("WORD-BY-WORD EXACT · LOCALIZED REJECTION"));
-        assert!(output.contains("reroll only these six dice"));
+        // The detail pane shares the workspace with the protocol list, so it
+        // gets shorter as the catalog grows; the rule is a scroll away.
+        app.update(Key::PageDown);
+        assert!(render(&app, 80, 40).contains("reroll only these six dice"));
     }
 
     #[test]

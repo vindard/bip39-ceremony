@@ -34,6 +34,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Group compare's roll-count checkpoints now include wherever bit packing fills
   the entropy width on the tape in hand, which is the first checkpoint derived
   from the faces rolled rather than from the target.
+- `iancoleman-dice-v1` and `iancoleman-raw-v1`, the two constructions the web
+  tool produces from one dice tape depending on its length dropdown. Choosing a
+  word count hashes the digits after the 6-to-0 rewrite — the same construction
+  Keystone's legacy application uses, but offered at 12 words as well, which
+  Keystone never was. Leaving the dropdown on its default packs base-6 bits and
+  keeps only the trailing whole 32-bit groups, so the word count follows the
+  tape and the first rolls can fall out of the seed entirely.
+- `reference-iancoleman-dice` executes the tool's own `setMnemonicFromEntropy`
+  for both branches and compares with the core driver.
 
 ### Changed
 

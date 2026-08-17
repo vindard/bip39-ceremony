@@ -18,6 +18,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some("jade-direct-v1") => ConversionProtocol::JadeDirectV1,
         Some("bitcoinlib-base6-v1") => ConversionProtocol::BitcoinLibBase6V1,
         Some("bluewallet-bitpack-v1") => ConversionProtocol::BlueWalletBitPackV1,
+        Some("iancoleman-dice-v1") => ConversionProtocol::IanColemanDiceV1,
+        Some("iancoleman-raw-v1") => ConversionProtocol::IanColemanRawV1,
         _ => return Err("expected a supported protocol".into()),
     };
     let target = match arguments.next().as_deref() {

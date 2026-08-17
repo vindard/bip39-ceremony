@@ -15,8 +15,9 @@ use crate::domain::{
     protocol::{
         Base6Outcome, CanonicalInput, ConversionProtocol, ExactOutcome, ProtocolError,
         bitbox_entropy, bitcoinlib_base6_entropy, bluewallet_bitpack_entropy, coin_four_d6_entropy,
-        coldcard_ascii_rolls, coldcard_distribution_rejected, exact_entropy, jade_entropy,
-        keystone_legacy_ascii_rolls, krux_d20_ascii_rolls, word_exact_entropy,
+        coldcard_ascii_rolls, coldcard_distribution_rejected, exact_entropy,
+        iancoleman_raw_entropy, jade_entropy, keystone_legacy_ascii_rolls, krux_d20_ascii_rolls,
+        word_exact_entropy,
     },
 };
 
@@ -259,8 +260,13 @@ pub fn calculate(
                 Base6Outcome::Rejected => return Ok(CalculationOutcome::Base6WidthRejected),
             }
         }
-        (ConversionProtocol::BlueWalletBitPackV1, Capture::Dice(rolls)) => {
-            bluewallet_bitpack_entropy(target, rolls)?
+        (
+            protocol @ (ConversionProtocol::BlueWalletBitPackV1
+            | ConversionProtocol::IanColemanRawV1),
+            Capture::Dice(rolls),
+        ) => packed_entropy(protocol, target, rolls)?,
+        (ConversionProtocol::IanColemanDiceV1, Capture::Dice(rolls)) => {
+            iancoleman_dice_entropy(target, rolls)?
         }
         (ConversionProtocol::WordExactV1, Capture::Dice(rolls)) => {
             word_exact_entropy(target, rolls)?
@@ -281,6 +287,18 @@ pub fn calculate(
     accepted_calculation(protocol, target, capture, entropy)
 }
 
+fn packed_entropy(
+    protocol: ConversionProtocol,
+    target: EntropyTarget,
+    rolls: &RollSequence,
+) -> Result<Entropy, ProtocolError> {
+    match protocol {
+        ConversionProtocol::BlueWalletBitPackV1 => bluewallet_bitpack_entropy(target, rolls),
+        ConversionProtocol::IanColemanRawV1 => iancoleman_raw_entropy(target, rolls),
+        _ => unreachable!("only packed protocols are dispatched here"),
+    }
+}
+
 fn accepted_calculation(
     protocol: ConversionProtocol,
     target: EntropyTarget,
@@ -295,6 +313,16 @@ fn accepted_calculation(
         mnemonic,
         evidence,
     }))
+}
+
+/// The web tool's fixed-length path, which is the legacy Keystone mapping.
+fn iancoleman_dice_entropy(
+    target: EntropyTarget,
+    rolls: &RollSequence,
+) -> Result<Entropy, ProtocolError> {
+    require_complete_capture(ConversionProtocol::IanColemanDiceV1, target, rolls)?;
+    let ascii = keystone_legacy_ascii_rolls(rolls);
+    Ok(hash_entropy(target, &[ascii.as_slice()]))
 }
 
 fn keystone_legacy_entropy(

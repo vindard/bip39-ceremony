@@ -65,6 +65,16 @@ current pinned executable boundaries are:
   rolls contributed, and the entropy. BlueWallet fills a shortfall from the
   phone's RNG, which is not reproducible, so the check asserts core declines a
   tape that misses the width rather than inventing the remainder.
+- **Ian Coleman dice paths**
+  ([source](https://github.com/iancoleman/bip39/tree/de71c22328b24e0848bbe1bd12ac8974ca83b5b8)):
+  executes the exact extracted `setMnemonicFromEntropy` against the tool's own
+  `entropy.js`, `jsbip39.js` and `sjcl-bip39.js`, driving both branches — a
+  chosen word count, which hashes the rewritten digits, and the default "raw"
+  setting, which packs base-6 bits and keeps the trailing whole 32-bit groups.
+  The function is DOM-bound, so the runner stubs what it reads and captures the
+  phrase it writes. `bip39-libs.js` is a browserify bundle that will not load
+  outside a browser: `zxcvbn` (a crack-time readout) and `BigInteger` (hex to
+  binary string) are supplied instead. Neither decides the construction.
 - **Ian Coleman BIP-39 tool**
   ([source](https://github.com/iancoleman/bip39/tree/de71c22328b24e0848bbe1bd12ac8974ca83b5b8)):
   executes its entropy-to-English-mnemonic encoder using independently fixed
@@ -85,8 +95,9 @@ Checks are independently addressable:
 - `reference-iancoleman-bip39`
 - `reference-bitcoinlib-base6`
 - `reference-bluewallet-bitpack`
+- `reference-iancoleman-dice`
 
-`reference-implementations` composes the nine upstream comparisons; the harness
+`reference-implementations` composes the ten upstream comparisons; the harness
 remains an independently targeted infrastructure check. Profiles without an
 executable upstream artifact are not included as reference validations.
 

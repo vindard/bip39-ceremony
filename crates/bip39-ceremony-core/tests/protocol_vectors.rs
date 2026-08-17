@@ -346,6 +346,65 @@ fn bluewallet_bitpack_and_coldcard_disagree_on_one_tape() {
     assert_ne!(entropy_hex(packed.entropy()), entropy_hex(hashed.entropy()));
 }
 
+/// One dropdown decides the construction, so the same tape has two answers.
+#[test]
+fn iancoleman_paths_disagree_on_one_tape() {
+    let tape: String = "123456".chars().cycle().take(77).collect();
+    let rolls = rolls(&tape);
+    let hashed = accepted(
+        EntropyTarget::Words12,
+        ConversionProtocol::IanColemanDiceV1,
+        Capture::Dice(&rolls),
+    );
+    let packed = accepted(
+        EntropyTarget::Words12,
+        ConversionProtocol::IanColemanRawV1,
+        Capture::Dice(&rolls),
+    );
+    assert_ne!(entropy_hex(hashed.entropy()), entropy_hex(packed.entropy()));
+}
+
+/// The fixed-length path is the construction Keystone's legacy application
+/// uses, so at 24 words the two profiles must agree on every tape.
+#[test]
+fn iancoleman_fixed_length_matches_the_keystone_mapping() {
+    let rolls = rolls(&"123456".chars().cycle().take(100).collect::<String>());
+    let ian = accepted(
+        EntropyTarget::Words24,
+        ConversionProtocol::IanColemanDiceV1,
+        Capture::Dice(&rolls),
+    );
+    let keystone = accepted(
+        EntropyTarget::Words24,
+        ConversionProtocol::KeystoneLegacyV1,
+        Capture::Dice(&rolls),
+    );
+    assert_eq!(entropy_hex(ian.entropy()), entropy_hex(keystone.entropy()));
+
+    // Keystone never offered 12 words from dice; the web tool does.
+    assert!(!ConversionProtocol::KeystoneLegacyV1.supports_target(EntropyTarget::Words12));
+    assert!(ConversionProtocol::IanColemanDiceV1.supports_target(EntropyTarget::Words12));
+}
+
+/// Raw mode keeps the trailing whole groups, so two extra bits shift the seed
+/// rather than extending it.
+#[test]
+fn iancoleman_raw_discards_the_leading_remainder() {
+    let exact = rolls(&"123456".chars().cycle().take(77).collect::<String>());
+    let spilled = rolls(&"123456".chars().cycle().take(78).collect::<String>());
+    let first = accepted(
+        EntropyTarget::Words12,
+        ConversionProtocol::IanColemanRawV1,
+        Capture::Dice(&exact),
+    );
+    let second = accepted(
+        EntropyTarget::Words12,
+        ConversionProtocol::IanColemanRawV1,
+        Capture::Dice(&spilled),
+    );
+    assert_ne!(entropy_hex(first.entropy()), entropy_hex(second.entropy()));
+}
+
 #[test]
 fn exact_zero_crosses_conversion_and_bip39_boundaries() {
     let rolls = rolls(&"1".repeat(50));

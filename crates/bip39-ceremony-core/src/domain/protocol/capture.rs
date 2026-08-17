@@ -8,9 +8,9 @@ use crate::domain::{
     jade::{JadeCapture, JadeObservation},
     protocol::{
         BitBoxProgress, BitBoxStage, BitPackProgress, CoinFourD6Progress, CoinFourD6Stage,
-        ConversionProtocol, JadeDieKind, JadeProgress, WordExactParse, WordExactProgress,
-        bitbox_progress, bitpack_progress, coin_four_d6_progress, jade_expected_die, jade_progress,
-        parse_word_exact,
+        ConversionProtocol, IanColemanRawProgress, JadeDieKind, JadeProgress, WordExactParse,
+        WordExactProgress, bitbox_progress, bitpack_progress, coin_four_d6_progress,
+        iancoleman_raw_progress, jade_expected_die, jade_progress, parse_word_exact,
     },
 };
 
@@ -28,6 +28,7 @@ pub enum CaptureProgress {
     BitBox(BitBoxProgress),
     CoinFourD6(CoinFourD6Progress),
     BitPack(BitPackProgress),
+    IanColemanRaw(IanColemanRawProgress),
     WordExact(WordExactProgress),
     WordExactComplete {
         accepted_words: usize,
@@ -85,6 +86,21 @@ impl CaptureAssessment {
     }
 }
 
+fn assess_iancoleman_raw(target: EntropyTarget, rolls: &RollSequence) -> CaptureAssessment {
+    let raw = iancoleman_raw_progress(target, rolls);
+    let progress = CaptureProgress::IanColemanRaw(raw);
+    if raw.is_overrun() {
+        CaptureAssessment::Invalid(progress)
+    } else if raw.is_on_target() {
+        CaptureAssessment::Complete {
+            progress,
+            accepts_optional_rolls: true,
+        }
+    } else {
+        CaptureAssessment::Collecting(progress)
+    }
+}
+
 impl ConversionProtocol {
     #[must_use]
     pub fn assess_capture(self, target: EntropyTarget, rolls: &RollSequence) -> CaptureAssessment {
@@ -116,7 +132,8 @@ impl ConversionProtocol {
                     }
                 }
             },
-            Self::ColdcardV1 | Self::KeystoneLegacyV1 => {
+            Self::IanColemanRawV1 => assess_iancoleman_raw(target, rolls),
+            Self::ColdcardV1 | Self::KeystoneLegacyV1 | Self::IanColemanDiceV1 => {
                 let minimum = self.minimum_observations(target);
                 let progress = CaptureProgress::OpenEnded { recorded, minimum };
                 if recorded >= minimum {

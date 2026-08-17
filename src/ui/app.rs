@@ -1176,6 +1176,8 @@ mod tests {
             ConversionProtocol::SeedSignerCoinsV1 => 8,
             ConversionProtocol::BitcoinLibBase6V1 => 9,
             ConversionProtocol::BlueWalletBitPackV1 => 10,
+            ConversionProtocol::IanColemanDiceV1 => 11,
+            ConversionProtocol::IanColemanRawV1 => 12,
             ConversionProtocol::KeystoneLegacyV1 => unreachable!(),
         };
         for _ in 0..steps {

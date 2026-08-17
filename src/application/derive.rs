@@ -116,6 +116,10 @@ fn canonical_input_parts(input: &CanonicalInput) -> (&'static str, String) {
             "packed face bits (1-4 two bits, 5-6 one bit), msb-first",
             ascii(bits).to_owned(),
         ),
+        CanonicalInput::PackedBase6Bits(bits) => (
+            "base-6 packed bits (6 rewritten to 0), trailing whole 32-bit groups",
+            ascii(bits).to_owned(),
+        ),
         CanonicalInput::AsciiFacesWithSixAsZero(digits) => {
             ("ascii-faces-6-as-0", ascii(digits).to_owned())
         }

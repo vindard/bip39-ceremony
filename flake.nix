@@ -205,6 +205,14 @@
                 --output adapter.ts
               esbuild --format=cjs --platform=node adapter.ts --outfile=$out/adapter.js
             '';
+          iancolemanDiceAdapter = pkgs.runCommand "iancoleman-dice-adapter"
+            { nativeBuildInputs = [ pkgs.python3Minimal ]; }
+            ''
+              mkdir -p $out
+              python ${./tests/references/iancoleman/dice-extract.py} \
+                --source ${iancoleman} \
+                --output $out/adapter.js
+            '';
           pythonCheck = name: path: extraInputs: extraPythonPath: command:
             pkgs.runCommand name
               { nativeBuildInputs = [ pkgs.python3Minimal ] ++ extraInputs; }
@@ -278,6 +286,15 @@
               + " --runner ${./tests/references/bluewallet/runner.js}"
               + " --adapter ${bluewalletAdapter}/adapter.js"
               + " --bignumber ${bluewallet-bignumber}/bignumber.js");
+          referenceIanDice = pythonCheck
+            "reference-iancoleman-dice"
+            ./tests/references/iancoleman/dice.py
+            [ pkgs.nodejs ]
+            ""
+            ("--node ${pkgs.nodejs}/bin/node"
+              + " --runner ${./tests/references/iancoleman/dice-runner.js}"
+              + " --source ${iancoleman}"
+              + " --adapter ${iancolemanDiceAdapter}/adapter.js");
           referenceImplementationChecks = {
             reference-coldcard = referenceColdcard;
             reference-seedsigner = referenceSeedSigner;
@@ -288,6 +305,7 @@
             reference-iancoleman-bip39 = referenceIanBip39;
             reference-bitcoinlib-base6 = referenceBitcoinLib;
             reference-bluewallet-bitpack = referenceBlueWallet;
+            reference-iancoleman-dice = referenceIanDice;
           };
           referenceChecks = referenceImplementationChecks // {
             reference-harness = referenceHarness;

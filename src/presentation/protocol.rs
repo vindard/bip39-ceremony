@@ -14,6 +14,8 @@ pub fn protocol_explanation(protocol: ConversionProtocol, target: EntropyTarget)
         ConversionProtocol::BitcoinLibBase6V1 => {
             bitcoinlib_base6_explanation(specification, target)
         }
+        ConversionProtocol::IanColemanDiceV1 => iancoleman_dice_explanation(specification, target),
+        ConversionProtocol::IanColemanRawV1 => iancoleman_raw_explanation(specification, target),
         ConversionProtocol::WordExactV1 => {
             let RejectionPolicy::Localized {
                 word_candidate_rolls,
@@ -175,7 +177,9 @@ pub fn protocol_menu_explanation(choice: ProtocolMenuChoice, target: EntropyTarg
         | ProtocolMenuChoice::WordExact
         | ProtocolMenuChoice::Exact
         | ProtocolMenuChoice::BitcoinLibBase6
-        | ProtocolMenuChoice::BlueWalletBitPack => unreachable!(),
+        | ProtocolMenuChoice::BlueWalletBitPack
+        | ProtocolMenuChoice::IanColemanDice
+        | ProtocolMenuChoice::IanColemanRaw => unreachable!(),
     };
 
     Document::new(
@@ -253,6 +257,55 @@ fn bitpack_explanation(specification: ProtocolSpecification, target: EntropyTarg
             B::Heading("SCOPE OF COMPATIBILITY".to_owned()),
             B::Paragraph(format!("Protocol {} is pinned to one source reading. Other tools that pack dice bits assign the faces differently, or rewrite face 6 to 0 first, and none of them agree with each other on the same tape.", specification.id())),
             B::Paragraph("The source implementation fills any shortfall from the phone's own random number generator. A tape that stops short of the width is therefore not reproducible here, and this protocol requires the full width rather than inventing the remainder.".to_owned()),
+        ],
+    )
+}
+
+fn iancoleman_dice_explanation(
+    specification: ProtocolSpecification,
+    target: EntropyTarget,
+) -> Document {
+    Document::new(
+        "IANCOLEMAN DICE · FIXED LENGTH".to_owned(),
+        vec![
+            B::Heading("IANCOLEMAN DICE · FIXED LENGTH".to_owned()),
+            B::Heading("PURPOSE".to_owned()),
+            B::Paragraph("Reproduce the web tool's dice output when a word count was chosen from its dropdown rather than left on the default.".to_owned()),
+            B::Heading("1 · REWRITE, THEN HASH".to_owned()),
+            B::Paragraph("Face 6 becomes ASCII 0 and the other faces keep their digit. The rewritten string is hashed once with SHA-256.".to_owned()),
+            B::Verbatim("rolls:         1 2 3 4 5 6\nmapped text:   123450".to_owned()),
+            B::Paragraph(format!("The first {} digest bytes are the entropy; BIP-39 calculates the checksum.", target.entropy_bytes())),
+            B::Heading("SAME MAPPING, DIFFERENT PRODUCT".to_owned()),
+            B::Paragraph("This is the construction Keystone's legacy application also uses, so at 24 words the two profiles agree on every tape. They are listed separately because they are different products with different roll requirements, not because the arithmetic differs.".to_owned()),
+            B::Paragraph("Unlike the Keystone profile, this one covers 12 words, because the web tool offers that length for the same mapping.".to_owned()),
+            B::Heading("ROLL REQUIREMENT".to_owned()),
+            B::Paragraph(format!("The tool enforces no minimum at all — it warns about weak entropy and proceeds. This profile requires {} rolls, the count that fills the target under fair dice, and accepts more. A shorter tape made in the tool cannot be reproduced here.", specification.minimum_observations())),
+            B::Paragraph("Hashing does not create entropy or establish that the die was fair.".to_owned()),
+        ],
+    )
+}
+
+fn iancoleman_raw_explanation(
+    specification: ProtocolSpecification,
+    target: EntropyTarget,
+) -> Document {
+    Document::new(
+        "IANCOLEMAN DICE · RAW".to_owned(),
+        vec![
+            B::Heading("IANCOLEMAN DICE · RAW · NO HASH".to_owned()),
+            B::Heading("PURPOSE".to_owned()),
+            B::Paragraph("Reproduce the web tool's dice output when the length dropdown was left alone. Raw is its default, so this is what a tape becomes unless the operator changed it.".to_owned()),
+            B::Heading("1 · REWRITE, THEN PACK".to_owned()),
+            B::Paragraph("Face 6 becomes digit 0 first, so the bit table is shifted against implementations that pack faces directly.".to_owned()),
+            B::Verbatim("1 → 01    4 → 0\n2 → 10    5 → 1\n3 → 11    6 → 00".to_owned()),
+            B::Paragraph("Four digits carry two bits and two carry one, so a face that is worth one bit here is worth two elsewhere. The same tape read by another packer gives a different seed.".to_owned()),
+            B::Heading("2 · KEEP WHOLE GROUPS, FROM THE END".to_owned()),
+            B::Paragraph("Only complete 32-bit groups are used, and the leading remainder is discarded. The last rolls decide the seed and the first ones can fall out of it entirely.".to_owned()),
+            B::Verbatim(format!("packed bits → keep the last {} bits\nanything before that is dropped", target.entropy_bits())),
+            B::Heading("3 · THE WORD COUNT IS AN OUTCOME".to_owned()),
+            B::Paragraph(format!("The tool emits three words per 32 bits, so the length follows the tape. This profile accepts a tape only while it reduces to exactly {} bits; one more whole group would be a longer phrase upstream, not this one.", target.entropy_bits())),
+            B::Paragraph(format!("The shortest tape that can reach the target is {} rolls, if every face carries two bits.", specification.minimum_observations())),
+            B::Paragraph(format!("Protocol {} is pinned to one source reading.", specification.id())),
         ],
     )
 }
