@@ -41,6 +41,10 @@
       url = "github:Blockstream/Jade/1.0.40";
       flake = false;
     };
+    bitcoinlib = {
+      url = "github:RooSoft/bitcoinlib/a998a61caad66d074772ec4a10ba5268aa65ca40";
+      flake = false;
+    };
     jade-libwally = {
       # Matches Jade's components/libwally-core/upstream gitlink.
       url = "github:ElementsProject/libwally-core/43b97bed2e5b6347a909bfd1113242528826a8a2";
@@ -53,7 +57,7 @@
     };
   };
 
-  outputs = { self, nixpkgs, coldcard, seedsigner, embit, iancoleman, krux, bitbox02, bitbox-bip39, keystone-legacy, jade, jade-libwally, jade-secp256k1, ... }:
+  outputs = { self, nixpkgs, coldcard, seedsigner, embit, iancoleman, krux, bitbox02, bitbox-bip39, keystone-legacy, jade, jade-libwally, jade-secp256k1, bitcoinlib, ... }:
     let
       systems = [
         "aarch64-darwin"
@@ -241,6 +245,12 @@
             [ pkgs.nodejs ]
             ianPythonPath
             ianArguments;
+          referenceBitcoinLib = pythonCheck
+            "reference-bitcoinlib-base6"
+            ./tests/references/bitcoinlib/check.py
+            [ pkgs.beam_minimal.packages.erlang.elixir ]
+            ""
+            "--elixir ${pkgs.beam_minimal.packages.erlang.elixir}/bin/elixir --adapter ${./tests/references/bitcoinlib/adapter.exs} --source ${bitcoinlib}";
           referenceImplementationChecks = {
             reference-coldcard = referenceColdcard;
             reference-seedsigner = referenceSeedSigner;
@@ -249,6 +259,7 @@
             reference-keystone-legacy = referenceKeystone;
             reference-jade-checksum = referenceJade;
             reference-iancoleman-bip39 = referenceIanBip39;
+            reference-bitcoinlib-base6 = referenceBitcoinLib;
           };
           referenceChecks = referenceImplementationChecks // {
             reference-harness = referenceHarness;

@@ -1,7 +1,7 @@
 # Reproducibility + upstream reference validation.
 #
 # `nix flake check` builds every pinned derivation and runs the flake `checks`:
-# the seven upstream reference comparisons (Coldcard, SeedSigner, Krux, BitBox02,
+# the eight upstream reference comparisons (Coldcard, SeedSigner, Krux, BitBox02,
 # Keystone, Jade, Ian Coleman) plus the static/dynamic release artifacts and
 # their PTY smoke tests. Every upstream revision is pinned by flake.lock, so a
 # green run is per-PR proof that our output still matches the real wallet code.

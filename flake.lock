@@ -34,6 +34,23 @@
         "type": "github"
       }
     },
+    "bitcoinlib": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1693240534,
+        "narHash": "sha256-jvfv/6KK1C9XuxRQrmSo1CUbEG1tmEiny2QTXzyCStI=",
+        "owner": "RooSoft",
+        "repo": "bitcoinlib",
+        "rev": "a998a61caad66d074772ec4a10ba5268aa65ca40",
+        "type": "github"
+      },
+      "original": {
+        "owner": "RooSoft",
+        "repo": "bitcoinlib",
+        "rev": "a998a61caad66d074772ec4a10ba5268aa65ca40",
+        "type": "github"
+      }
+    },
     "coldcard": {
       "flake": false,
       "locked": {
@@ -188,6 +205,7 @@
       "inputs": {
         "bitbox-bip39": "bitbox-bip39",
         "bitbox02": "bitbox02",
+        "bitcoinlib": "bitcoinlib",
         "coldcard": "coldcard",
         "embit": "embit",
         "iancoleman": "iancoleman",
