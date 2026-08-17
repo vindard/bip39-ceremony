@@ -1638,6 +1638,50 @@ mod tests {
         assert!(earlier.contains("126 recorded · documented minimum met"));
     }
 
+    /// A capture that will refuse the next roll must not advertise one.
+    #[test]
+    fn a_closed_capture_stops_advertising_a_next_roll() {
+        let output = render(&roll_entry_app(2, 100), 80, 40);
+
+        assert!(output.contains("NO FURTHER ROLL"));
+        assert!(output.contains("This capture is closed"));
+        assert!(!output.contains("NEXT · #101"));
+        assert!(!output.contains("Roll once, observe"));
+        // The latest roll is still reported; only the invitation goes away.
+        assert!(output.contains("LATEST RECORDED · #100"));
+    }
+
+    /// COLDCARD accepts rolls past its minimum, so its invitation stays.
+    #[test]
+    fn an_open_capture_still_invites_the_next_roll() {
+        let output = render(&roll_entry_app(3, 100), 80, 40);
+
+        assert!(output.contains("NEXT · #101"));
+        assert!(output.contains("Roll once, observe"));
+        assert!(!output.contains("NO FURTHER ROLL"));
+    }
+
+    #[test]
+    fn a_closed_coin_capture_stops_advertising_a_next_flip() {
+        let mut app = App::default();
+        app.update(Key::Down);
+        app.update(Key::Char('\n'));
+        for _ in 0..8 {
+            app.update(Key::Down);
+        }
+        app.update(Key::Char('\n'));
+        app.update(Key::Char('c'));
+        app.update(Key::Char('\n'));
+        for _ in 0..256 {
+            app.update(Key::Char('1'));
+        }
+
+        let output = render(&app, 80, 40);
+        assert!(output.contains("NO FURTHER FLIP"));
+        assert!(output.contains("no further flip is recorded"));
+        assert!(!output.contains("NEXT · #257"));
+    }
+
     #[test]
     fn fixed_roll_completion_replaces_record_control() {
         let app = roll_entry_app(2, 100);
