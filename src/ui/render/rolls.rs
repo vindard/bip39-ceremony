@@ -29,6 +29,13 @@ pub(super) fn render_roll_entry(app: &App, width: usize) -> Lines {
     }
     let count = state.capture_count();
     let required = state.required_rolls().unwrap_or(0);
+    // Bit packing has no fixed tape length, so measuring the bar in rolls would
+    // read "74 / 64". Its progress is the entropy width it has filled.
+    let packed = match state.capture_assessment().map(CaptureAssessment::progress) {
+        Some(CaptureProgress::BitPack(bitpack)) => Some((bitpack.bits(), bitpack.required_bits())),
+        _ => None,
+    };
+    let (bar_count, bar_required) = packed.unwrap_or((count, required));
     let coin_capture = state.protocol() == Some(ConversionProtocol::SeedSignerCoinsV1);
     let word_exact = state.protocol() == Some(ConversionProtocol::WordExactV1);
     let ledger_title = capture_ledger_title(app, word_exact, coin_capture);
@@ -68,7 +75,7 @@ pub(super) fn render_roll_entry(app: &App, width: usize) -> Lines {
         &cursor,
         capture_instruction,
         "",
-        &progress(count, required, width),
+        &progress(bar_count, bar_required, width),
         &roll_count_status(count, state.capture_assessment()),
     ]);
 

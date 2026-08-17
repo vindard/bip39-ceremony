@@ -979,6 +979,28 @@ mod tests {
         assert!(roll_help.contains("cannot know whether a key matched"));
     }
 
+    /// Bit packing fills a bit budget, not a roll quota, so the bar must not
+    /// read "74 / 64" once the tape passes its shortest possible length.
+    #[test]
+    fn bit_packing_progress_is_measured_in_bits_not_rolls() {
+        let mut app = App::default();
+        app.update(Key::Char('\n'));
+        for _ in 0..9 {
+            app.update(Key::Down);
+        }
+        app.update(Key::Char('\n'));
+        app.update(Key::Char('c'));
+        app.update(Key::Char('\n'));
+        for _ in 0..70 {
+            app.update(Key::Char('1'));
+        }
+
+        let output = render(&app, 80, 40);
+        assert!(output.contains("128 / 128"), "bar should count bits");
+        assert!(!output.contains("/ 64"), "bar must not count rolls");
+        assert!(output.contains("entropy bits packed"));
+    }
+
     #[test]
     fn physical_entropy_card_leads_with_the_throw_and_scrolls() {
         let mut app = App::default();
