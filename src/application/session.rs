@@ -126,7 +126,8 @@ impl CeremonySession {
                 Ok(SessionGeneration::Generated)
             }
             CalculationOutcome::ExactRejected
-            | CalculationOutcome::ColdcardDistributionRejected => {
+            | CalculationOutcome::ColdcardDistributionRejected
+            | CalculationOutcome::Base6WidthRejected => {
                 self.ceremony.record_attempt_rejected()?;
                 Ok(SessionGeneration::AttemptRejected)
             }

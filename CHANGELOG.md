@@ -16,6 +16,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   figure is cited.
 - A "Throwing method fixed" safety attestation, so the throw is something the
   operator commits to before rolling rather than improvises mid-ceremony.
+- `bitcoinlib-base6-v1`: a compatibility profile for implementations that read
+  the roll tape as one base-6 integer and use it directly as BIP-39 entropy,
+  with no SHA-256 and no rejection sampling, pinned to `RooSoft/bitcoinlib`.
+  Reproduces that library's own 50-roll and 99-roll test vectors. It demands
+  exactly 50 or 99 rolls — the counts that elsewhere signal a hashed
+  construction — so it is included in group compare, where the same 99 rolls
+  now show COLDCARD and this reading producing mnemonics with no words in
+  common.
+- Group compare covers five protocols and checkpoints at 99 rolls.
+
+### Changed
+
+- The setup menus drop the blank line between rows once a list exceeds nine
+  entries, so the whole protocol catalog still fits the minimum supported
+  terminal without scrolling.
 
 ### Fixed
 

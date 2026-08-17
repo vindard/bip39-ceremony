@@ -16,6 +16,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some("bitbox02-direct-v1") => ConversionProtocol::BitBox02DirectV1,
         Some("keystone-legacy-v1") => ConversionProtocol::KeystoneLegacyV1,
         Some("jade-direct-v1") => ConversionProtocol::JadeDirectV1,
+        Some("bitcoinlib-base6-v1") => ConversionProtocol::BitcoinLibBase6V1,
         _ => return Err("expected a supported protocol".into()),
     };
     let target = match arguments.next().as_deref() {
@@ -73,6 +74,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
         }
         Ok(CalculationOutcome::ExactRejected) => println!("rejected\texact-range"),
+        Ok(CalculationOutcome::Base6WidthRejected) => {
+            println!("rejected\tbase6-width");
+        }
         Ok(CalculationOutcome::ColdcardDistributionRejected) => {
             println!("rejected\tdice-distribution");
         }

@@ -136,6 +136,90 @@ fn accepted(
     calculation
 }
 
+/// bitcoinlib's own `from_dice_rolls/1` doctest, carried end to end.
+#[test]
+fn bitcoinlib_base6_source_vector_crosses_base6_and_bip39_boundaries() {
+    let tape: String = "123456".chars().cycle().take(50).collect();
+    let calculation = accepted(
+        EntropyTarget::Words12,
+        ConversionProtocol::BitcoinLibBase6V1,
+        Capture::Dice(&rolls(&tape)),
+    );
+    assert_eq!(
+        entropy_hex(calculation.entropy()),
+        "184ec4bed56eb86aacaaa224b5672f45"
+    );
+    assert_eq!(
+        calculation.mnemonic().words().join(" "),
+        "blue involve cook print twist crystal razor february caution private slim medal"
+    );
+}
+
+/// The same tape read as a hashed construction, at the roll count that
+/// signals one, produces an unrelated phrase. This is the whole hazard:
+/// 50 and 99 rolls look like COLDCARD's counts and are not.
+#[test]
+fn bitcoinlib_base6_and_coldcard_disagree_on_one_tape() {
+    let tape: String = "123456".chars().cycle().take(50).collect();
+    let rolls = rolls(&tape);
+    let base6 = accepted(
+        EntropyTarget::Words12,
+        ConversionProtocol::BitcoinLibBase6V1,
+        Capture::Dice(&rolls),
+    );
+    let coldcard = accepted(
+        EntropyTarget::Words12,
+        ConversionProtocol::ColdcardV1,
+        Capture::Dice(&rolls),
+    );
+
+    assert_ne!(
+        entropy_hex(base6.entropy()),
+        entropy_hex(coldcard.entropy())
+    );
+    let shared = base6
+        .mnemonic()
+        .words()
+        .iter()
+        .filter(|word| coldcard.mnemonic().words().contains(word))
+        .count();
+    assert_eq!(shared, 0, "the two readings share no words");
+}
+
+/// Exact reads the same base-6 integer from the same tape but requires 100
+/// rolls for 24 words where this reading requires 99, so no 24-word tape is
+/// valid for both.
+#[test]
+fn bitcoinlib_base6_and_exact_cannot_share_a_twenty_four_word_tape() {
+    let ninety_nine = rolls(&"3".repeat(99));
+    assert!(
+        ConversionProtocol::BitcoinLibBase6V1
+            .assess_capture(EntropyTarget::Words24, &ninety_nine)
+            .is_complete()
+    );
+    assert!(
+        !ConversionProtocol::ExactV1
+            .assess_capture(EntropyTarget::Words24, &ninety_nine)
+            .is_complete()
+    );
+}
+
+/// A reading that does not land on the target width is refused, not padded.
+#[test]
+fn bitcoinlib_base6_narrow_and_wide_readings_are_rejected() {
+    for tape in ["1".repeat(50), "6".repeat(50)] {
+        assert!(matches!(
+            calculate(
+                EntropyTarget::Words12,
+                ConversionProtocol::BitcoinLibBase6V1,
+                Capture::Dice(&rolls(&tape)),
+            )
+            .unwrap(),
+            CalculationOutcome::Base6WidthRejected
+        ));
+    }
+}
+
 #[test]
 fn exact_zero_crosses_conversion_and_bip39_boundaries() {
     let rolls = rolls(&"1".repeat(50));

@@ -134,7 +134,7 @@ impl ConversionProtocol {
                 recorded,
                 required: self.minimum_observations(target),
             }),
-            Self::ExactV1 => {
+            Self::ExactV1 | Self::BitcoinLibBase6V1 => {
                 let required = self.minimum_observations(target);
                 let progress = CaptureProgress::Fixed { recorded, required };
                 match recorded.cmp(&required) {

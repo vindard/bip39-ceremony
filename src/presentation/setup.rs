@@ -54,10 +54,11 @@ pub enum ProtocolMenuChoice {
     KruxD20,
     CoinFourD6Direct,
     SeedSignerCoins,
+    BitcoinLibBase6,
 }
 
 impl ProtocolMenuChoice {
-    pub const ALL: [Self; 9] = [
+    pub const ALL: [Self; 10] = [
         Self::Coldcard,
         Self::WordExact,
         Self::Exact,
@@ -67,6 +68,7 @@ impl ProtocolMenuChoice {
         Self::KruxD20,
         Self::CoinFourD6Direct,
         Self::SeedSignerCoins,
+        Self::BitcoinLibBase6,
     ];
 
     #[must_use]
@@ -85,6 +87,7 @@ impl ProtocolMenuChoice {
                 Some(ConversionProtocol::CoinFourD6DirectV1)
             }
             Self::SeedSignerCoins => Some(ConversionProtocol::SeedSignerCoinsV1),
+            Self::BitcoinLibBase6 => Some(ConversionProtocol::BitcoinLibBase6V1),
             Self::KeystoneLegacyDice | Self::CoinFourD6Direct => None,
         }
     }
@@ -101,6 +104,7 @@ impl ProtocolMenuChoice {
             Self::KruxD20 => "Krux D20",
             Self::CoinFourD6Direct => "Coin + four-D6 direct words",
             Self::SeedSignerCoins => "SeedSigner coin flips",
+            Self::BitcoinLibBase6 => "bitcoinlib base-6 (no hash)",
         }
     }
 }
@@ -144,6 +148,10 @@ pub fn capture_protocol_context(protocol: ConversionProtocol) -> ChoiceContent {
             "SeedSigner coin flips",
             "ASCII 0/1 flip string → SHA-256 → target-width BIP-39 entropy",
         ),
+        ConversionProtocol::BitcoinLibBase6V1 => (
+            "bitcoinlib base-6 (no hash)",
+            "base-6 integer used directly · no hash · rejected off target width",
+        ),
     };
     ChoiceContent::new(name.to_owned(), detail.to_owned())
 }
@@ -184,6 +192,9 @@ pub fn protocol_choices(target: EntropyTarget) -> Vec<ChoiceContent> {
                         ProtocolMenuChoice::SeedSignerCoins => {
                             "Coin compatibility · fixed ASCII binary capture"
                         }
+                        ProtocolMenuChoice::BitcoinLibBase6 => {
+                            "Hashed roll counts, unhashed reading · often rejects"
+                        }
                     };
                     let roll_requirement = if protocol == ConversionProtocol::SeedSignerCoinsV1 {
                         format!("exactly {} flips", specification.minimum_observations())
@@ -202,7 +213,9 @@ pub fn protocol_choices(target: EntropyTarget) -> Vec<ChoiceContent> {
                             "min {} outcomes + rejected D6 retries",
                             specification.minimum_observations()
                         )
-                    } else if protocol == ConversionProtocol::ExactV1 {
+                    } else if protocol == ConversionProtocol::ExactV1
+                        || protocol == ConversionProtocol::BitcoinLibBase6V1
+                    {
                         format!("exactly {} rolls", specification.minimum_observations())
                     } else {
                         format!("min {} rolls", specification.minimum_observations())

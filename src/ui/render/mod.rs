@@ -389,16 +389,23 @@ fn choices(
     push(&mut output, title);
     push(&mut output, description);
     push(&mut output, "");
+    let separated = choices.len() <= SEPARATED_CHOICE_LIMIT;
     for (index, (name, detail)) in choices.iter().enumerate() {
         let marker = if index == selected { '▶' } else { '○' };
         push(&mut output, &format!("  {marker} {name}"));
         push(&mut output, &format!("    {detail}"));
-        if index + 1 < choices.len() {
+        if separated && index + 1 < choices.len() {
             push(&mut output, "");
         }
     }
     output
 }
+
+/// Longest choice list that still fits the minimum supported terminal with a
+/// blank line between rows. A longer catalog drops the blank rather than
+/// scrolling, because a protocol the operator cannot see is a protocol they
+/// cannot compare.
+const SEPARATED_CHOICE_LIMIT: usize = 9;
 
 fn render_attempt_rejected(app: &App, width: usize) -> Lines {
     let required = app.ceremony().state().required_rolls().unwrap_or(0);
@@ -1039,6 +1046,7 @@ mod tests {
         assert!(output.contains("SETUP · STEP 2 OF 2 · Protocol"));
         assert!(output.contains("COLDCARD"));
         assert!(output.contains("SeedSigner coin flips"));
+        assert!(output.contains("bitcoinlib base-6 (no hash)"));
         assert!(!output.contains("↓ more — use Page Down"));
     }
 
@@ -1059,6 +1067,7 @@ mod tests {
             "Krux D20",
             "Coin + four-D6 direct words",
             "SeedSigner coin flips",
+            "bitcoinlib base-6 (no hash)",
         ] {
             assert!(output.contains(expected), "missing {expected}");
         }
@@ -2104,14 +2113,14 @@ mod tests {
 
         assert!(exact.contains("◆ GROUP COMPARE  ›  PROTOCOL DETAILS"));
         assert!(exact.contains("┏━ GROUP COMPARE · DETAILS · FOCUS"));
-        assert!(exact.contains("PROTOCOL DETAILS · 1 OF 4"));
+        assert!(exact.contains("PROTOCOL DETAILS · 1 OF 5"));
         assert!(exact.contains("▶ Exact"));
         assert!(exact.contains("[←/→] protocol"));
 
         // Stepping right renders the next protocol's document (COLDCARD).
         app.update(Key::Right);
         let coldcard = render(&app, 80, 44);
-        assert!(coldcard.contains("PROTOCOL DETAILS · 2 OF 4"));
+        assert!(coldcard.contains("PROTOCOL DETAILS · 2 OF 5"));
         assert!(coldcard.contains("▶ COLDCARD"));
         assert!(coldcard.contains("COLDCARD HASH"));
     }

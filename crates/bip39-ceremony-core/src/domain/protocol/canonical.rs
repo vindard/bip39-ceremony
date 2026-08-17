@@ -27,7 +27,9 @@ impl CanonicalInput {
     #[must_use]
     pub(crate) fn from_dice(protocol: ConversionProtocol, rolls: &RollSequence) -> Self {
         match protocol {
-            ConversionProtocol::ExactV1 => Self::Base6Integer(base6_digits(rolls)),
+            ConversionProtocol::ExactV1 | ConversionProtocol::BitcoinLibBase6V1 => {
+                Self::Base6Integer(base6_digits(rolls))
+            }
             ConversionProtocol::WordExactV1 => Self::LocalizedBase6Candidates(base6_digits(rolls)),
             ConversionProtocol::ColdcardV1 => Self::AsciiFaceDigits(coldcard_ascii_rolls(rolls)),
             ConversionProtocol::KeystoneLegacyV1 => {

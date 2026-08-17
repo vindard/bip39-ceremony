@@ -11,6 +11,7 @@ pub enum ReadinessKind {
     KruxD20,
     CoinFourD6Direct,
     SeedSignerCoins,
+    BitcoinLibBase6,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -42,6 +43,7 @@ impl CaptureReadiness {
             ConversionProtocol::KruxD20V1 => ReadinessKind::KruxD20,
             ConversionProtocol::CoinFourD6DirectV1 => ReadinessKind::CoinFourD6Direct,
             ConversionProtocol::SeedSignerCoinsV1 => ReadinessKind::SeedSignerCoins,
+            ConversionProtocol::BitcoinLibBase6V1 => ReadinessKind::BitcoinLibBase6,
         };
         Some(Self {
             kind,

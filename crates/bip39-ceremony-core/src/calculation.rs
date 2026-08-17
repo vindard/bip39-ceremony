@@ -13,9 +13,10 @@ use crate::domain::{
     dice::RollSequence,
     jade::JadeCapture,
     protocol::{
-        CanonicalInput, ConversionProtocol, ExactOutcome, ProtocolError, bitbox_entropy,
-        coin_four_d6_entropy, coldcard_ascii_rolls, coldcard_distribution_rejected, exact_entropy,
-        jade_entropy, keystone_legacy_ascii_rolls, krux_d20_ascii_rolls, word_exact_entropy,
+        Base6Outcome, CanonicalInput, ConversionProtocol, ExactOutcome, ProtocolError,
+        bitbox_entropy, bitcoinlib_base6_entropy, coin_four_d6_entropy, coldcard_ascii_rolls,
+        coldcard_distribution_rejected, exact_entropy, jade_entropy, keystone_legacy_ascii_rolls,
+        krux_d20_ascii_rolls, word_exact_entropy,
     },
 };
 
@@ -137,6 +138,7 @@ pub enum CalculationOutcome {
     Accepted(Calculation),
     ExactRejected,
     ColdcardDistributionRejected,
+    Base6WidthRejected,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -249,6 +251,12 @@ pub fn calculate(
             match exact_entropy(target, rolls)? {
                 ExactOutcome::Accepted(entropy) => entropy,
                 ExactOutcome::Rejected => return Ok(CalculationOutcome::ExactRejected),
+            }
+        }
+        (ConversionProtocol::BitcoinLibBase6V1, Capture::Dice(rolls)) => {
+            match bitcoinlib_base6_entropy(target, rolls)? {
+                Base6Outcome::Accepted(entropy) => entropy,
+                Base6Outcome::Rejected => return Ok(CalculationOutcome::Base6WidthRejected),
             }
         }
         (ConversionProtocol::WordExactV1, Capture::Dice(rolls)) => {

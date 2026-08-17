@@ -2,8 +2,8 @@ use zeroize::Zeroizing;
 
 use crate::domain::{
     bip39::{Entropy, EntropyTarget},
-    dice::{DieFace, RollSequence},
-    protocol::ProtocolError,
+    dice::RollSequence,
+    protocol::{ProtocolError, base6},
 };
 
 /// Result of exact uniform conversion, which can reject a complete attempt.
@@ -30,9 +30,7 @@ pub fn exact_entropy(
     require_roll_count(target.strict_roll_count(), rolls.len())?;
 
     let mut value = Zeroizing::new(vec![0_u8; target.entropy_bytes() + 1]);
-    for face in rolls.faces() {
-        multiply_add_base6(&mut value, *face);
-    }
+    base6::accumulate(&mut value, rolls);
 
     let accepted_quotients = match target {
         EntropyTarget::Words12 => 2,
@@ -54,19 +52,10 @@ fn require_roll_count(expected: usize, actual: usize) -> Result<(), ProtocolErro
     }
 }
 
-fn multiply_add_base6(value: &mut [u8], face: DieFace) {
-    let mut carry = u16::from(face.base6_digit());
-    for byte in value.iter_mut().rev() {
-        let next = u16::from(*byte) * 6 + carry;
-        *byte = u8::try_from(next & 0xff).expect("masked byte fits u8");
-        carry = next >> 8;
-    }
-    assert_eq!(carry, 0, "fixed buffer holds the configured roll count");
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::dice::DieFace;
 
     fn rolls(value: &str) -> RollSequence {
         let mut result = RollSequence::new();

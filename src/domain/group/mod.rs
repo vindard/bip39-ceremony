@@ -19,16 +19,21 @@ pub use capture::{EntropySet, GroupCapture, GroupReport, GroupStatus};
 
 use crate::domain::{bip39::EntropyTarget, protocol::ConversionProtocol};
 
-use ConversionProtocol::{ColdcardV1, ExactV1, KeystoneLegacyV1, WordExactV1};
+use ConversionProtocol::{BitcoinLibBase6V1, ColdcardV1, ExactV1, KeystoneLegacyV1, WordExactV1};
 
 /// The dice-based wallet protocols the comparison covers, in display order.
-pub const GROUP_PROTOCOLS: [ConversionProtocol; 4] =
-    [ExactV1, ColdcardV1, KeystoneLegacyV1, WordExactV1];
+pub const GROUP_PROTOCOLS: [ConversionProtocol; 5] = [
+    ExactV1,
+    ColdcardV1,
+    KeystoneLegacyV1,
+    WordExactV1,
+    BitcoinLibBase6V1,
+];
 
 /// The set lengths for a capture of `n` rolls, largest first: the current `n`
-/// plus each checkpoint (the strict count and word-exact's minimum) at or below
-/// `n`. Open-ended protocols do not add checkpoints; they populate every set at
-/// or above their own minimum.
+/// plus each checkpoint (the strict count, word-exact's minimum, and the
+/// unhashed base-6 reading's count) at or below `n`. Open-ended protocols do not
+/// add checkpoints; they populate every set at or above their own minimum.
 ///
 /// Known limitation: word-exact only checkpoints at its *minimum*. If mid-tape
 /// rejections push its actual completion past that minimum, no checkpoint lands
@@ -38,7 +43,8 @@ pub const GROUP_PROTOCOLS: [ConversionProtocol; 4] =
 fn checkpoint_lengths(target: EntropyTarget, n: usize) -> Vec<usize> {
     let strict = target.strict_roll_count();
     let word_exact = WordExactV1.minimum_observations(target);
-    let mut lengths: Vec<usize> = [strict, word_exact, n]
+    let base6 = BitcoinLibBase6V1.minimum_observations(target);
+    let mut lengths: Vec<usize> = [strict, word_exact, base6, n]
         .into_iter()
         .filter(|&length| length <= n)
         .collect();
@@ -178,19 +184,29 @@ mod tests {
     fn checkpoints_are_current_plus_completion_lengths() {
         assert_eq!(
             checkpoint_lengths(EntropyTarget::Words24, 166),
-            [166, 140, 100]
+            [166, 140, 100, 99]
         );
-        assert_eq!(checkpoint_lengths(EntropyTarget::Words24, 140), [140, 100]);
-        assert_eq!(checkpoint_lengths(EntropyTarget::Words24, 105), [105, 100]);
-        assert_eq!(checkpoint_lengths(EntropyTarget::Words24, 100), [100]);
+        assert_eq!(
+            checkpoint_lengths(EntropyTarget::Words24, 140),
+            [140, 100, 99]
+        );
+        assert_eq!(
+            checkpoint_lengths(EntropyTarget::Words24, 105),
+            [105, 100, 99]
+        );
+        assert_eq!(checkpoint_lengths(EntropyTarget::Words24, 100), [100, 99]);
+        assert_eq!(checkpoint_lengths(EntropyTarget::Words24, 99), [99]);
         assert_eq!(checkpoint_lengths(EntropyTarget::Words24, 90), [90]);
+        // At 12 words the unhashed reading shares Exact's count, so it adds no
+        // checkpoint of its own.
+        assert_eq!(checkpoint_lengths(EntropyTarget::Words12, 50), [50]);
     }
 
     #[test]
-    fn one_hundred_sixty_six_yields_three_sets() {
+    fn one_hundred_sixty_six_yields_four_sets() {
         let report = evaluate(&fair(EntropyTarget::Words24, 166));
         let set_lengths: Vec<usize> = report.sets().iter().map(|s| s.rolls).collect();
-        assert_eq!(set_lengths, [166, 140, 100]);
+        assert_eq!(set_lengths, [166, 140, 100, 99]);
 
         assert_eq!(protocols_in(&report, 166), [ColdcardV1, KeystoneLegacyV1]);
         assert_eq!(
@@ -200,6 +216,12 @@ mod tests {
         assert_eq!(
             protocols_in(&report, 100),
             [ExactV1, ColdcardV1, KeystoneLegacyV1]
+        );
+        // 99 is the count the unhashed reading needs and no other fixed-count
+        // protocol accepts.
+        assert_eq!(
+            protocols_in(&report, 99),
+            [ColdcardV1, KeystoneLegacyV1, BitcoinLibBase6V1]
         );
     }
 
@@ -244,6 +266,27 @@ mod tests {
         };
         assert_ne!(coldcard_seed(100), coldcard_seed(140));
         assert_ne!(coldcard_seed(140), coldcard_seed(166));
+    }
+
+    /// The point of putting the unhashed reading in the comparison: at 99 rolls
+    /// it and COLDCARD both complete on one tape and disagree on the seed.
+    #[test]
+    fn the_unhashed_reading_and_coldcard_disagree_inside_one_set() {
+        let report = evaluate(&fair(EntropyTarget::Words24, 99));
+        let set = report.sets().iter().find(|s| s.rolls == 99).unwrap();
+        let seed = |protocol: ConversionProtocol| {
+            set.protocols
+                .iter()
+                .find(|(p, _)| *p == protocol)
+                .unwrap()
+                .1
+                .calculation()
+                .map(|c| c.mnemonic().words().join(" "))
+        };
+
+        let base6 = seed(BitcoinLibBase6V1).expect("this tape lands on the target width");
+        let coldcard = seed(ColdcardV1).expect("hashing always produces a seed");
+        assert_ne!(base6, coldcard);
     }
 
     #[test]
