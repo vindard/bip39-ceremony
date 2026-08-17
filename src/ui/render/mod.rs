@@ -272,7 +272,7 @@ fn render_live(app: &App, width: usize) -> Lines {
             "",
             "The conversion is deterministic and runs entirely in memory.",
         ]),
-        Phase::AttemptRejected => render_attempt_rejected(app),
+        Phase::AttemptRejected => render_attempt_rejected(app, width),
         Phase::Result => render_concealed_result(app, width),
         Phase::Revealed => render_mnemonic(app, width),
         Phase::Cancelled => lines(&[
@@ -400,7 +400,7 @@ fn choices(
     output
 }
 
-fn render_attempt_rejected(app: &App) -> Lines {
+fn render_attempt_rejected(app: &App, width: usize) -> Lines {
     let required = app.ceremony().state().required_rolls().unwrap_or(0);
     let protocol = app
         .ceremony()
@@ -408,11 +408,13 @@ fn render_attempt_rejected(app: &App) -> Lines {
         .protocol()
         .unwrap_or(ConversionProtocol::ExactV1);
     let document = attempt_rejection(protocol, required);
-    let mut output = render_document(&document, MAX_CONTENT_WIDTH);
+    let mut output = render_document(&document, width);
     push(&mut output, "");
-    push(
+    push_wrapped(
         &mut output,
+        "",
         "Press [r] or Enter to start a fresh roll attempt.",
+        width,
     );
     output
 }
@@ -1469,6 +1471,40 @@ mod tests {
         assert!(end.contains("PUBLIC 12-WORD RESULT"));
         assert!(end.contains("payment owner"));
         assert!(end.contains("at least 50 rolls"));
+    }
+
+    /// The rejection screen tells the operator what to do next, so losing the
+    /// end of those lines to the card edge is the worst place for it. Every
+    /// other phase wraps to the terminal; this one used a fixed width.
+    #[test]
+    fn rejection_copy_is_not_truncated_on_the_minimum_terminal() {
+        let mut app = App::default();
+        app.update(Key::Down);
+        app.update(Key::Char('\n'));
+        app.update(Key::Down);
+        app.update(Key::Down);
+        app.update(Key::Char('\n'));
+        app.update(Key::Char('c'));
+        app.update(Key::Char('\n'));
+        for _ in 0..100 {
+            app.update(Key::Char('6'));
+        }
+        app.update(Key::Char('\n'));
+
+        for width in [52_u16, 60, 80, 100] {
+            let output = render(&app, width, 40);
+            assert!(
+                output.contains("EXACT ATTEMPT REJECTED"),
+                "rejection screen missing at {width}"
+            );
+            let truncated: Vec<&str> = output.lines().filter(|l| l.contains('…')).collect();
+            assert!(
+                truncated.is_empty(),
+                "rejection copy truncated at width {width}: {truncated:?}"
+            );
+        }
+        // The instruction survives whole at the narrowest supported terminal.
+        assert!(render(&app, 52, 40).contains("re-roll all 100"));
     }
 
     #[test]
