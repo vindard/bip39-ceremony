@@ -23,6 +23,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fixed-count protocol that had met its count still showed `NEXT · #051` and
   "Roll once, observe, then press…", inviting an entry the ceremony would
   refuse. Open-ended captures, which really do accept more, are unchanged.
+- The attempt-rejection screen wrapped its text to a fixed width instead of the
+  terminal's, so on narrower terminals the card clipped every line. At the
+  minimum supported 52 columns that included the remedy itself, which read
+  "re-roll all 100 physical…". It now wraps to the available width like every
+  other phase.
 
 ## [0.2.0] - 2026-08-08
 
