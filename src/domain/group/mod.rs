@@ -17,22 +17,25 @@ mod capture;
 
 pub use capture::{EntropySet, GroupCapture, GroupReport, GroupStatus};
 
-use bip39_ceremony_core::bitpack_progress;
+use bip39_ceremony_core::{bitpack_progress, iancoleman_raw_progress};
 
 use crate::domain::{bip39::EntropyTarget, protocol::ConversionProtocol};
 
 use ConversionProtocol::{
-    BitcoinLibBase6V1, BlueWalletBitPackV1, ColdcardV1, ExactV1, KeystoneLegacyV1, WordExactV1,
+    BitcoinLibBase6V1, BlueWalletBitPackV1, ColdcardV1, ExactV1, IanColemanDiceV1, IanColemanRawV1,
+    KeystoneLegacyV1, WordExactV1,
 };
 
 /// The dice-based wallet protocols the comparison covers, in display order.
-pub const GROUP_PROTOCOLS: [ConversionProtocol; 6] = [
+pub const GROUP_PROTOCOLS: [ConversionProtocol; 8] = [
     ExactV1,
     ColdcardV1,
     KeystoneLegacyV1,
     WordExactV1,
     BitcoinLibBase6V1,
     BlueWalletBitPackV1,
+    IanColemanDiceV1,
+    IanColemanRawV1,
 ];
 
 /// The set lengths for a capture of `n` rolls, largest first: the current `n`
@@ -51,10 +54,17 @@ fn checkpoint_lengths(capture: &GroupCapture) -> Vec<usize> {
     let strict = target.strict_roll_count();
     let word_exact = WordExactV1.minimum_observations(target);
     let base6 = BitcoinLibBase6V1.minimum_observations(target);
-    let mut lengths: Vec<usize> = [strict, word_exact, base6, bitpack_length(capture), n]
-        .into_iter()
-        .filter(|&length| length <= n)
-        .collect();
+    let mut lengths: Vec<usize> = [
+        strict,
+        word_exact,
+        base6,
+        bitpack_length(capture),
+        iancoleman_raw_length(capture),
+        n,
+    ]
+    .into_iter()
+    .filter(|&length| length <= n)
+    .collect();
     lengths.sort_unstable();
     lengths.dedup();
     lengths.reverse();
@@ -68,6 +78,16 @@ fn bitpack_length(capture: &GroupCapture) -> usize {
     } else {
         capture.len()
     }
+}
+
+fn iancoleman_raw_length(capture: &GroupCapture) -> usize {
+    (1..=capture.len())
+        .find(|&length| {
+            let prefix = capture.prefix(length);
+            let progress = iancoleman_raw_progress(capture.target(), prefix.tape());
+            progress.bits() == progress.required_bits()
+        })
+        .unwrap_or_else(|| capture.len())
 }
 
 /// Evaluate a capture into its entropy sets. Each set lists the protocols that
@@ -220,7 +240,7 @@ mod tests {
     }
 
     #[test]
-    fn the_bit_packing_checkpoint_depends_on_the_faces_rolled() {
+    fn packed_checkpoints_depend_on_the_faces_rolled() {
         let uniform = |target: EntropyTarget, face: u8, n: usize| {
             let mut capture = GroupCapture::new(target);
             for _ in 0..n {
@@ -237,6 +257,18 @@ mod tests {
             bitpack_length(&uniform(EntropyTarget::Words12, 5, 128)),
             128
         );
+        assert_eq!(
+            iancoleman_raw_length(&uniform(EntropyTarget::Words12, 1, 100)),
+            64
+        );
+        assert_eq!(
+            iancoleman_raw_length(&uniform(EntropyTarget::Words12, 4, 100)),
+            100
+        );
+        assert_eq!(
+            iancoleman_raw_length(&uniform(EntropyTarget::Words12, 4, 128)),
+            128
+        );
     }
 
     #[test]
@@ -245,18 +277,27 @@ mod tests {
         let set_lengths: Vec<usize> = report.sets().iter().map(|s| s.rolls).collect();
         assert_eq!(set_lengths, [166, 153, 140, 100, 99]);
 
-        assert_eq!(protocols_in(&report, 166), [ColdcardV1, KeystoneLegacyV1]);
+        assert_eq!(
+            protocols_in(&report, 166),
+            [ColdcardV1, KeystoneLegacyV1, IanColemanDiceV1]
+        );
         assert_eq!(
             protocols_in(&report, 153),
-            [ColdcardV1, KeystoneLegacyV1, BlueWalletBitPackV1]
+            [
+                ColdcardV1,
+                KeystoneLegacyV1,
+                BlueWalletBitPackV1,
+                IanColemanDiceV1,
+                IanColemanRawV1,
+            ]
         );
         assert_eq!(
             protocols_in(&report, 140),
-            [ColdcardV1, KeystoneLegacyV1, WordExactV1]
+            [ColdcardV1, KeystoneLegacyV1, WordExactV1, IanColemanDiceV1,]
         );
         assert_eq!(
             protocols_in(&report, 100),
-            [ExactV1, ColdcardV1, KeystoneLegacyV1]
+            [ExactV1, ColdcardV1, KeystoneLegacyV1, IanColemanDiceV1]
         );
         // 99 is the count the unhashed reading needs and no other fixed-count
         // protocol accepts.
@@ -272,16 +313,19 @@ mod tests {
         let at100 = evaluate(&fair(EntropyTarget::Words24, 100));
         assert_eq!(
             protocols_in(&at100, 100),
-            [ExactV1, ColdcardV1, KeystoneLegacyV1]
+            [ExactV1, ColdcardV1, KeystoneLegacyV1, IanColemanDiceV1]
         );
 
         // At 105, the fixed-count protocols stay in the 100 set (not the 105
         // set) — rolling past 100 never quotes them against 105.
         let at105 = evaluate(&fair(EntropyTarget::Words24, 105));
-        assert_eq!(protocols_in(&at105, 105), [ColdcardV1, KeystoneLegacyV1]);
+        assert_eq!(
+            protocols_in(&at105, 105),
+            [ColdcardV1, KeystoneLegacyV1, IanColemanDiceV1]
+        );
         assert_eq!(
             protocols_in(&at105, 100),
-            [ExactV1, ColdcardV1, KeystoneLegacyV1]
+            [ExactV1, ColdcardV1, KeystoneLegacyV1, IanColemanDiceV1]
         );
     }
 

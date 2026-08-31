@@ -144,17 +144,11 @@ fn group_details_body(session: &GroupSession, index: usize, width: usize) -> Lin
     output
 }
 
-/// A one-line tab bar marking the protocol whose details are open.
 fn details_selector(selected: usize) -> String {
-    GROUP_PROTOCOLS
-        .iter()
-        .enumerate()
-        .map(|(index, protocol)| {
-            let marker = if index == selected { '▶' } else { '·' };
-            format!("{marker} {}", protocol_label(*protocol))
-        })
-        .collect::<Vec<_>>()
-        .join("   ")
+    format!(
+        "▶ {} · ←/→ change protocol",
+        protocol_label(GROUP_PROTOCOLS[selected])
+    )
 }
 
 fn group_help_body() -> Lines {
@@ -168,10 +162,10 @@ fn group_help_body() -> Lines {
         "A protocol appears in a set only if it consumes EXACTLY those",
         "rolls. Because protocols finish at different lengths, results group",
         "into ENTROPY SETS at roll-count checkpoints — the current tape, plus",
-        "each length where an exact-count protocol completes (100 for Exact,",
-        "140 for Word-by-word Exact, at 24 words). COLDCARD and Keystone use",
-        "every roll, so they appear in each set at or above their minimum,",
-        "with a different seed each time.",
+        "each length where a fixed-count protocol completes (99, 100, and",
+        "140 at 24 words), plus where either packed method reaches its target.",
+        "COLDCARD, Keystone, and Ian Coleman fixed use every roll, so they",
+        "appear in each set at or above their minimum with a different seed.",
         "",
         "IN A SET, A PROTOCOL IS",
         "  ✓ accepted   a seed came out — press [r] to reveal it.",
@@ -277,7 +271,7 @@ fn group_rolls(session: &GroupSession, width: usize) -> Lines {
         "compare the seeds that fall out of the very same entropy.",
         "",
         "CHECKPOINTS · a protocol joins a set once it uses exactly the tape",
-        "  STRICT · Exact · COLDCARD · Keystone",
+        "  STRICT · Exact · COLDCARD · Keystone · Ian Coleman fixed",
     ]);
     let bar_width = width.saturating_sub(2);
     push_owned(
@@ -294,6 +288,10 @@ fn group_rolls(session: &GroupSession, width: usize) -> Lines {
             "  {}",
             progress(state.recorded, state.full_target, bar_width)
         ),
+    );
+    push(
+        &mut output,
+        "  OTHER · bitcoinlib at 99 · packed methods depend on the faces",
     );
     push(&mut output, "");
     push(
@@ -423,6 +421,10 @@ fn protocol_label(protocol: ConversionProtocol) -> &'static str {
         ConversionProtocol::ColdcardV1 => "COLDCARD",
         ConversionProtocol::KeystoneLegacyV1 => "Keystone legacy",
         ConversionProtocol::WordExactV1 => "Word-by-word Exact",
+        ConversionProtocol::BitcoinLibBase6V1 => "bitcoinlib base-6",
+        ConversionProtocol::BlueWalletBitPackV1 => "BlueWallet bit packing",
+        ConversionProtocol::IanColemanDiceV1 => "Ian Coleman fixed",
+        ConversionProtocol::IanColemanRawV1 => "Ian Coleman raw",
         _ => protocol.id(),
     }
 }
