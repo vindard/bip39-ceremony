@@ -1,5 +1,7 @@
 .direnv/
 /target/
+__pycache__/
+*.pyc
 
 # Nix build output symlink
 /result
