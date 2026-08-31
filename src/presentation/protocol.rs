@@ -10,6 +10,7 @@ pub fn protocol_explanation(protocol: ConversionProtocol, target: EntropyTarget)
     let specification = protocol.specification(target);
     match protocol {
         ConversionProtocol::ExactV1 => exact_explanation(specification, target),
+        ConversionProtocol::BlueWalletBitPackV1 => bitpack_explanation(specification, target),
         ConversionProtocol::BitcoinLibBase6V1 => {
             bitcoinlib_base6_explanation(specification, target)
         }
@@ -173,7 +174,8 @@ pub fn protocol_menu_explanation(choice: ProtocolMenuChoice, target: EntropyTarg
         | ProtocolMenuChoice::Coldcard
         | ProtocolMenuChoice::WordExact
         | ProtocolMenuChoice::Exact
-        | ProtocolMenuChoice::BitcoinLibBase6 => unreachable!(),
+        | ProtocolMenuChoice::BitcoinLibBase6
+        | ProtocolMenuChoice::BlueWalletBitPack => unreachable!(),
     };
 
     Document::new(
@@ -225,6 +227,32 @@ fn bitcoinlib_base6_explanation(
             B::Heading("WHY THIS IS A HAZARD".to_owned()),
             B::Paragraph(format!("{rolls} rolls is exactly what a hashed construction asks for. A tape recorded for COLDCARD and a tape recorded for this reading are indistinguishable, and the two produce mnemonics with no words in common.")),
             B::Paragraph(format!("Protocol {} is pinned to one source reading. Do not assume another unhashed base-6 tool agrees with it.", specification.id())),
+        ],
+    )
+}
+
+fn bitpack_explanation(specification: ProtocolSpecification, target: EntropyTarget) -> Document {
+    let bits = target.entropy_bits();
+    let shortest = specification.minimum_observations();
+    Document::new(
+        "BLUEWALLET BIT PACKING".to_owned(),
+        vec![
+            B::Heading("BLUEWALLET BIT PACKING · NO HASH".to_owned()),
+            B::Heading("PURPOSE".to_owned()),
+            B::Paragraph("Reproduce an implementation that turns each face straight into bits and uses the packed bits as BIP-39 entropy. Nothing is hashed, so every entropy bit traces to one specific roll.".to_owned()),
+            B::Heading("1 · EACH FACE CONTRIBUTES BITS".to_owned()),
+            B::Paragraph("Six is not a power of two, so a fixed width per face would be biased. Four faces carry two bits and two faces carry one, which keeps every emitted bit unbiased under fair dice.".to_owned()),
+            B::Verbatim("1 → 00    4 → 11\n2 → 01    5 → 0\n3 → 10    6 → 1".to_owned()),
+            B::Paragraph("That averages (4×2 + 2×1) / 6 ≈ 1.67 bits per roll rather than log2(6) ≈ 2.58. The dice are unbiased; the encoding simply wastes some of what they produce.".to_owned()),
+            B::Heading("2 · PACK UNTIL THE WIDTH IS FULL".to_owned()),
+            B::Paragraph(format!("Append each face's bits most-significant first until {bits} bits are held. Those bits are the entropy; BIP-39 then calculates the checksum as usual.")),
+            B::Heading("3 · THE TAPE LENGTH IS NOT FIXED".to_owned()),
+            B::Paragraph(format!("How many rolls that takes depends on which faces came up. All two-bit faces finish in {shortest}; all one-bit faces take {bits}, and a mixed tape lands in between.")),
+            B::Verbatim(format!("faces 1-4 only:  {shortest} rolls\nfaces 5-6 only:  {bits} rolls\ntypical mixed:   about {} rolls", bits * 3 / 5)),
+            B::Paragraph("The roll that would overshoot keeps only its leading bits, and any roll after the width is reached contributes nothing at all. Record the tape that filled the width and no more.".to_owned()),
+            B::Heading("SCOPE OF COMPATIBILITY".to_owned()),
+            B::Paragraph(format!("Protocol {} is pinned to one source reading. Other tools that pack dice bits assign the faces differently, or rewrite face 6 to 0 first, and none of them agree with each other on the same tape.", specification.id())),
+            B::Paragraph("The source implementation fills any shortfall from the phone's own random number generator. A tape that stops short of the width is therefore not reproducible here, and this protocol requires the full width rather than inventing the remainder.".to_owned()),
         ],
     )
 }
@@ -414,6 +442,32 @@ mod tests {
         );
         assert!(coins.contains("exactly 128 physical flips"));
         assert!(coins.contains("ASCII bytes with SHA-256"));
+    }
+
+    #[test]
+    fn bitpack_document_fixes_the_face_table_and_variable_tape_length() {
+        let text = format!(
+            "{:?}",
+            protocol_explanation(
+                ConversionProtocol::BlueWalletBitPackV1,
+                EntropyTarget::Words12,
+            )
+            .blocks()
+        );
+        for expected in [
+            "NO HASH",
+            "1 → 00",
+            "5 → 0",
+            "6 → 1",
+            "1.67 bits per roll",
+            "faces 1-4 only:  64 rolls",
+            "faces 5-6 only:  128 rolls",
+            "keeps only its leading bits",
+            "bluewallet-bitpack-v1",
+            "random number generator",
+        ] {
+            assert!(text.contains(expected), "missing {expected}");
+        }
     }
 
     #[test]

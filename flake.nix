@@ -45,6 +45,15 @@
       url = "github:RooSoft/bitcoinlib/a998a61caad66d074772ec4a10ba5268aa65ca40";
       flake = false;
     };
+    bluewallet = {
+      url = "github:BlueWallet/BlueWallet/8.0.1";
+      flake = false;
+    };
+    bluewallet-bignumber = {
+      # Matches BlueWallet's package.json dependency.
+      url = "github:MikeMcl/bignumber.js/v9.3.1";
+      flake = false;
+    };
     jade-libwally = {
       # Matches Jade's components/libwally-core/upstream gitlink.
       url = "github:ElementsProject/libwally-core/43b97bed2e5b6347a909bfd1113242528826a8a2";
@@ -57,7 +66,7 @@
     };
   };
 
-  outputs = { self, nixpkgs, coldcard, seedsigner, embit, iancoleman, krux, bitbox02, bitbox-bip39, keystone-legacy, jade, jade-libwally, jade-secp256k1, bitcoinlib, ... }:
+  outputs = { self, nixpkgs, coldcard, seedsigner, embit, iancoleman, krux, bitbox02, bitbox-bip39, keystone-legacy, jade, jade-libwally, jade-secp256k1, bitcoinlib, bluewallet, bluewallet-bignumber, ... }:
     let
       systems = [
         "aarch64-darwin"
@@ -187,6 +196,15 @@
                 $(pkg-config --cflags --libs wallycore) -lsecp256k1 \
                 -o $out/bin/jade-final-word-adapter
             '';
+          bluewalletAdapter = pkgs.runCommand "bluewallet-entropy-adapter"
+            { nativeBuildInputs = [ pkgs.python3Minimal pkgs.esbuild ]; }
+            ''
+              mkdir -p $out
+              python ${./tests/references/bluewallet/extract.py} \
+                --source ${bluewallet} \
+                --output adapter.ts
+              esbuild --format=cjs --platform=node adapter.ts --outfile=$out/adapter.js
+            '';
           pythonCheck = name: path: extraInputs: extraPythonPath: command:
             pkgs.runCommand name
               { nativeBuildInputs = [ pkgs.python3Minimal ] ++ extraInputs; }
@@ -251,6 +269,15 @@
             [ pkgs.beam_minimal.packages.erlang.elixir ]
             ""
             "--elixir ${pkgs.beam_minimal.packages.erlang.elixir}/bin/elixir --adapter ${./tests/references/bitcoinlib/adapter.exs} --source ${bitcoinlib}";
+          referenceBlueWallet = pythonCheck
+            "reference-bluewallet-bitpack"
+            ./tests/references/bluewallet/check.py
+            [ pkgs.nodejs ]
+            ""
+            ("--node ${pkgs.nodejs}/bin/node"
+              + " --runner ${./tests/references/bluewallet/runner.js}"
+              + " --adapter ${bluewalletAdapter}/adapter.js"
+              + " --bignumber ${bluewallet-bignumber}/bignumber.js");
           referenceImplementationChecks = {
             reference-coldcard = referenceColdcard;
             reference-seedsigner = referenceSeedSigner;
@@ -260,6 +287,7 @@
             reference-jade-checksum = referenceJade;
             reference-iancoleman-bip39 = referenceIanBip39;
             reference-bitcoinlib-base6 = referenceBitcoinLib;
+            reference-bluewallet-bitpack = referenceBlueWallet;
           };
           referenceChecks = referenceImplementationChecks // {
             reference-harness = referenceHarness;

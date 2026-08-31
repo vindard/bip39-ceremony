@@ -54,6 +54,17 @@ current pinned executable boundaries are:
   the two things this project adds: accepted entropy is that integer in
   big-endian bytes, and a value whose minimal encoding is not exactly the target
   width is rejected rather than padded or truncated.
+- **BlueWallet 8.0.1**
+  ([source](https://github.com/BlueWallet/BlueWallet/tree/8.0.1)):
+  executes the exact extracted `getEntropy`, `eReducer`, `convertToBuffer` and
+  their helpers from `screen/wallets/ProvideEntropy.tsx`, against BlueWallet's
+  pinned `bignumber.js`
+  ([source](https://github.com/MikeMcl/bignumber.js/tree/v9.3.1)). The file
+  imports React Native, so the pure bindings are lifted out byte-for-byte and
+  esbuild erases the annotations. The check compares packed bit count, how many
+  rolls contributed, and the entropy. BlueWallet fills a shortfall from the
+  phone's RNG, which is not reproducible, so the check asserts core declines a
+  tape that misses the width rather than inventing the remainder.
 - **Ian Coleman BIP-39 tool**
   ([source](https://github.com/iancoleman/bip39/tree/de71c22328b24e0848bbe1bd12ac8974ca83b5b8)):
   executes its entropy-to-English-mnemonic encoder using independently fixed
@@ -73,8 +84,9 @@ Checks are independently addressable:
 - `reference-jade-checksum`
 - `reference-iancoleman-bip39`
 - `reference-bitcoinlib-base6`
+- `reference-bluewallet-bitpack`
 
-`reference-implementations` composes the eight upstream comparisons; the harness
+`reference-implementations` composes the nine upstream comparisons; the harness
 remains an independently targeted infrastructure check. Profiles without an
 executable upstream artifact are not included as reference validations.
 

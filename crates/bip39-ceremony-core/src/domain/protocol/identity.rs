@@ -13,6 +13,7 @@ pub enum ConversionProtocol {
     CoinFourD6DirectV1,
     SeedSignerCoinsV1,
     BitcoinLibBase6V1,
+    BlueWalletBitPackV1,
 }
 
 impl ConversionProtocol {
@@ -29,6 +30,7 @@ impl ConversionProtocol {
             Self::CoinFourD6DirectV1 => "coin-four-d6-direct-v1",
             Self::SeedSignerCoinsV1 => "seedsigner-coins-v1",
             Self::BitcoinLibBase6V1 => "bitcoinlib-base6-v1",
+            Self::BlueWalletBitPackV1 => "bluewallet-bitpack-v1",
         }
     }
 
@@ -46,6 +48,8 @@ impl ConversionProtocol {
             (Self::KruxD20V1, EntropyTarget::Words12) => 30,
             (Self::KruxD20V1, EntropyTarget::Words24) | (Self::CoinFourD6DirectV1, _) => 60,
             (Self::SeedSignerCoinsV1, target) => target.entropy_bits(),
+            // Every face carrying two bits is the shortest possible tape.
+            (Self::BlueWalletBitPackV1, target) => target.entropy_bits() / 2,
             (_, target) => target.strict_roll_count(),
         }
     }
@@ -101,6 +105,12 @@ mod tests {
                 "bitcoinlib-base6-v1",
                 50,
                 99,
+            ),
+            (
+                ConversionProtocol::BlueWalletBitPackV1,
+                "bluewallet-bitpack-v1",
+                64,
+                128,
             ),
         ];
 

@@ -55,10 +55,11 @@ pub enum ProtocolMenuChoice {
     CoinFourD6Direct,
     SeedSignerCoins,
     BitcoinLibBase6,
+    BlueWalletBitPack,
 }
 
 impl ProtocolMenuChoice {
-    pub const ALL: [Self; 10] = [
+    pub const ALL: [Self; 11] = [
         Self::Coldcard,
         Self::WordExact,
         Self::Exact,
@@ -69,6 +70,7 @@ impl ProtocolMenuChoice {
         Self::CoinFourD6Direct,
         Self::SeedSignerCoins,
         Self::BitcoinLibBase6,
+        Self::BlueWalletBitPack,
     ];
 
     #[must_use]
@@ -88,6 +90,7 @@ impl ProtocolMenuChoice {
             }
             Self::SeedSignerCoins => Some(ConversionProtocol::SeedSignerCoinsV1),
             Self::BitcoinLibBase6 => Some(ConversionProtocol::BitcoinLibBase6V1),
+            Self::BlueWalletBitPack => Some(ConversionProtocol::BlueWalletBitPackV1),
             Self::KeystoneLegacyDice | Self::CoinFourD6Direct => None,
         }
     }
@@ -105,6 +108,7 @@ impl ProtocolMenuChoice {
             Self::CoinFourD6Direct => "Coin + four-D6 direct words",
             Self::SeedSignerCoins => "SeedSigner coin flips",
             Self::BitcoinLibBase6 => "bitcoinlib base-6 (no hash)",
+            Self::BlueWalletBitPack => "BlueWallet bit packing",
         }
     }
 }
@@ -152,6 +156,10 @@ pub fn capture_protocol_context(protocol: ConversionProtocol) -> ChoiceContent {
             "bitcoinlib base-6 (no hash)",
             "base-6 integer used directly · no hash · rejected off target width",
         ),
+        ConversionProtocol::BlueWalletBitPackV1 => (
+            "BlueWallet bit packing",
+            "faces 1-4 give two bits, 5-6 give one · no hash · tape length varies",
+        ),
     };
     ChoiceContent::new(name.to_owned(), detail.to_owned())
 }
@@ -195,6 +203,9 @@ pub fn protocol_choices(target: EntropyTarget) -> Vec<ChoiceContent> {
                         ProtocolMenuChoice::BitcoinLibBase6 => {
                             "Hashed roll counts, unhashed reading · often rejects"
                         }
+                        ProtocolMenuChoice::BlueWalletBitPack => {
+                            "Unbiased packing, no hash · roll count varies"
+                        }
                     };
                     let roll_requirement = if protocol == ConversionProtocol::SeedSignerCoinsV1 {
                         format!("exactly {} flips", specification.minimum_observations())
@@ -212,6 +223,12 @@ pub fn protocol_choices(target: EntropyTarget) -> Vec<ChoiceContent> {
                         format!(
                             "min {} outcomes + rejected D6 retries",
                             specification.minimum_observations()
+                        )
+                    } else if protocol == ConversionProtocol::BlueWalletBitPackV1 {
+                        format!(
+                            "{}+ rolls until {} bits are packed",
+                            specification.minimum_observations(),
+                            target.entropy_bits()
                         )
                     } else if protocol == ConversionProtocol::ExactV1
                         || protocol == ConversionProtocol::BitcoinLibBase6V1

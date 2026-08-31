@@ -215,7 +215,9 @@
         "keystone-legacy": "keystone-legacy",
         "krux": "krux",
         "nixpkgs": "nixpkgs",
-        "seedsigner": "seedsigner"
+        "seedsigner": "seedsigner",
+        "bluewallet": "bluewallet",
+        "bluewallet-bignumber": "bluewallet-bignumber"
       }
     },
     "seedsigner": {
@@ -231,6 +233,40 @@
       "original": {
         "owner": "SeedSigner",
         "repo": "seedsigner",
+        "type": "github"
+      }
+    },
+    "bluewallet": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1784545754,
+        "narHash": "sha256-nJhucfE7a4cbhNHVdcIX9eqKvlD9B1E/s7slO0tI7F8=",
+        "owner": "BlueWallet",
+        "repo": "BlueWallet",
+        "rev": "0a53056a636370073a58d6cdd6de5c0728e5926a",
+        "type": "github"
+      },
+      "original": {
+        "owner": "BlueWallet",
+        "ref": "8.0.1",
+        "repo": "BlueWallet",
+        "type": "github"
+      }
+    },
+    "bluewallet-bignumber": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1752251555,
+        "narHash": "sha256-ft+mWU4+S+ywpeqU32MepEYQyvMs0CVkR5RWJFmZmQE=",
+        "owner": "MikeMcl",
+        "repo": "bignumber.js",
+        "rev": "a7bc1f175c1e40db1abe8cebd52b60fc5381f487",
+        "type": "github"
+      },
+      "original": {
+        "owner": "MikeMcl",
+        "ref": "v9.3.1",
+        "repo": "bignumber.js",
         "type": "github"
       }
     }

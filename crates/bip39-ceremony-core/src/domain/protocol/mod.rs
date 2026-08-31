@@ -1,6 +1,7 @@
 mod base6;
 mod bitbox;
 mod bitcoinlib_base6;
+mod bluewallet_bitpack;
 mod canonical;
 mod capture;
 mod coin_four_d6;
@@ -18,6 +19,7 @@ pub use bitbox::{
     BitBoxObservationKind, BitBoxProgress, BitBoxStage, bitbox_progress,
     bitbox_required_observations, bitbox_tail_bits, bitbox_word_index,
 };
+pub use bluewallet_bitpack::{BitPackProgress, bitpack_progress, face_bits};
 pub use canonical::CanonicalInput;
 pub use capture::{CaptureAssessment, CaptureProgress};
 pub use coin_four_d6::{
@@ -41,6 +43,7 @@ pub use word_exact::{
 
 pub(crate) use bitbox::bitbox_entropy;
 pub(crate) use bitcoinlib_base6::{Base6Outcome, bitcoinlib_base6_entropy};
+pub(crate) use bluewallet_bitpack::{bluewallet_bitpack_entropy, packed_bits};
 pub(crate) use coin_four_d6::coin_four_d6_entropy;
 pub(crate) use coldcard::{
     ascii_rolls as coldcard_ascii_rolls, distribution_is_rejected as coldcard_distribution_rejected,

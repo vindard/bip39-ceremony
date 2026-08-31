@@ -14,9 +14,9 @@ use crate::domain::{
     jade::JadeCapture,
     protocol::{
         Base6Outcome, CanonicalInput, ConversionProtocol, ExactOutcome, ProtocolError,
-        bitbox_entropy, bitcoinlib_base6_entropy, coin_four_d6_entropy, coldcard_ascii_rolls,
-        coldcard_distribution_rejected, exact_entropy, jade_entropy, keystone_legacy_ascii_rolls,
-        krux_d20_ascii_rolls, word_exact_entropy,
+        bitbox_entropy, bitcoinlib_base6_entropy, bluewallet_bitpack_entropy, coin_four_d6_entropy,
+        coldcard_ascii_rolls, coldcard_distribution_rejected, exact_entropy, jade_entropy,
+        keystone_legacy_ascii_rolls, krux_d20_ascii_rolls, word_exact_entropy,
     },
 };
 
@@ -259,6 +259,9 @@ pub fn calculate(
                 Base6Outcome::Rejected => return Ok(CalculationOutcome::Base6WidthRejected),
             }
         }
+        (ConversionProtocol::BlueWalletBitPackV1, Capture::Dice(rolls)) => {
+            bluewallet_bitpack_entropy(target, rolls)?
+        }
         (ConversionProtocol::WordExactV1, Capture::Dice(rolls)) => {
             word_exact_entropy(target, rolls)?
         }
@@ -275,6 +278,15 @@ pub fn calculate(
         }
     };
 
+    accepted_calculation(protocol, target, capture, entropy)
+}
+
+fn accepted_calculation(
+    protocol: ConversionProtocol,
+    target: EntropyTarget,
+    capture: Capture<'_>,
+    entropy: Entropy,
+) -> Result<CalculationOutcome, CalculationError> {
     let mnemonic = encode_english(&entropy)?;
     let evidence = evidence(protocol, target, capture, &entropy);
     Ok(CalculationOutcome::Accepted(Calculation {
@@ -363,7 +375,7 @@ fn evidence(
     entropy: &Entropy,
 ) -> CalculationEvidence {
     let canonical_input = match capture {
-        Capture::Dice(rolls) => CanonicalInput::from_dice(protocol, rolls),
+        Capture::Dice(rolls) => CanonicalInput::from_dice(protocol, target, rolls),
         Capture::Jade(capture) => CanonicalInput::from_jade(capture),
         Capture::BitBox(capture) => CanonicalInput::from_bitbox(capture),
         Capture::CoinFourD6(capture) => CanonicalInput::from_coin_four_d6(capture),
