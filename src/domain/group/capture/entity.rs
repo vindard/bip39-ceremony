@@ -2,7 +2,8 @@
 //! classifies how a protocol consumes it.
 
 use bip39_ceremony_core::{
-    CalculationError, CalculationOutcome, CandidateStatus, Capture, calculate, trace_word_exact,
+    CalculationError, CalculationOutcome, CandidateStatus, Capture, calculate,
+    iancoleman_raw_progress, trace_word_exact,
 };
 
 use crate::domain::{
@@ -93,6 +94,9 @@ impl GroupCapture {
         if protocol == ConversionProtocol::WordExactV1 {
             return self.word_exact_status();
         }
+        if protocol == ConversionProtocol::IanColemanRawV1 {
+            return self.iancoleman_raw_status();
+        }
         match calculate(self.target, protocol, Capture::Dice(&self.tape)) {
             Ok(CalculationOutcome::Accepted(c)) => GroupStatus::Accepted(c),
             Ok(CalculationOutcome::ExactRejected | CalculationOutcome::Base6WidthRejected) => {
@@ -124,6 +128,35 @@ impl GroupCapture {
                 used: 0,
                 provided: self.tape.len(),
             },
+        }
+    }
+
+    fn iancoleman_raw_status(&self) -> GroupStatus {
+        let progress = iancoleman_raw_progress(self.target, &self.tape);
+        match progress.bits().cmp(&progress.required_bits()) {
+            core::cmp::Ordering::Less => GroupStatus::Incomplete {
+                have: progress.bits(),
+                need: progress.required_bits(),
+            },
+            core::cmp::Ordering::Greater => GroupStatus::InvalidSurplus {
+                used: progress.required_bits(),
+                provided: progress.bits(),
+            },
+            core::cmp::Ordering::Equal => {
+                match calculate(
+                    self.target,
+                    ConversionProtocol::IanColemanRawV1,
+                    Capture::Dice(&self.tape),
+                ) {
+                    Ok(CalculationOutcome::Accepted(calculation)) => {
+                        GroupStatus::Accepted(calculation)
+                    }
+                    _ => GroupStatus::InvalidSurplus {
+                        used: progress.required_bits(),
+                        provided: progress.bits(),
+                    },
+                }
+            }
         }
     }
 
@@ -172,7 +205,7 @@ impl GroupCapture {
 mod tests {
     use super::*;
     use ConversionProtocol::{
-        BlueWalletBitPackV1, ColdcardV1, ExactV1, KeystoneLegacyV1, WordExactV1,
+        BlueWalletBitPackV1, ColdcardV1, ExactV1, IanColemanRawV1, KeystoneLegacyV1, WordExactV1,
     };
 
     /// A capture whose first roll is face 1 (keeps Exact in range) then cycles,
@@ -181,6 +214,14 @@ mod tests {
         let mut capture = GroupCapture::new(target);
         for i in 0..n {
             let face = u8::try_from((i % 6) + 1).expect("1..=6 fits u8");
+            capture.push(DieFace::new(face).expect("valid face"));
+        }
+        capture
+    }
+
+    fn uniform(target: EntropyTarget, face: u8, n: usize) -> GroupCapture {
+        let mut capture = GroupCapture::new(target);
+        for _ in 0..n {
             capture.push(DieFace::new(face).expect("valid face"));
         }
         capture
@@ -247,6 +288,18 @@ mod tests {
         assert!(matches!(
             fair(EntropyTarget::Words12, 63).status_under(BlueWalletBitPackV1),
             GroupStatus::Incomplete { .. }
+        ));
+    }
+
+    #[test]
+    fn iancoleman_raw_belongs_only_without_a_discarded_prefix() {
+        let exact = uniform(EntropyTarget::Words12, 1, 64);
+        assert!(exact.status_under(IanColemanRawV1).calculation().is_some());
+
+        let shifted = uniform(EntropyTarget::Words12, 1, 65);
+        assert!(matches!(
+            shifted.status_under(IanColemanRawV1),
+            GroupStatus::InvalidSurplus { .. }
         ));
     }
 

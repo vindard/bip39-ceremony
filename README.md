@@ -192,31 +192,34 @@ them, with none rejected. Because the protocols complete at different lengths,
 results group into **entropy sets at roll-count checkpoints** — the current tape
 length plus each length where a fixed-count protocol completes (`100` for the
 strict protocols, `140` for `Word-by-word Exact` at 24 words, and `99` for the
-unhashed base-6 reading), plus wherever `BlueWallet bit packing` fills the
-entropy width on *this* tape. That checkpoint depends on the faces rolled rather
-than only the target. A fair 166-roll tape **gives five sets** — `166`, `153`,
-`140`, `100`, and `99`:
+unhashed base-6 reading), plus wherever `BlueWallet bit packing` or `Ian Coleman
+raw` first reaches the entropy width on *this* tape. Those checkpoints depend on
+the faces rolled rather than only the target. A fair 166-roll tape **gives five
+sets** — `166`, `153`, `140`, `100`, and `99`:
 
 | Set | Protocols that use exactly those rolls |
 | --- | --- |
-| **166** | `COLDCARD`, `Keystone` |
-| **153** | `BlueWallet bit packing`, `COLDCARD`, `Keystone` |
-| **140** | `Word-by-word Exact`, `COLDCARD`, `Keystone` |
-| **100** | `Exact`, `COLDCARD`, `Keystone` |
+| **166** | `COLDCARD`, `Keystone`, `Ian Coleman fixed` |
+| **153** | `BlueWallet bit packing`, `COLDCARD`, `Keystone`, `Ian Coleman fixed`, `Ian Coleman raw` |
+| **140** | `Word-by-word Exact`, `COLDCARD`, `Keystone`, `Ian Coleman fixed` |
+| **100** | `Exact`, `COLDCARD`, `Keystone`, `Ian Coleman fixed` |
 | **99** | `bitcoinlib base-6`, `COLDCARD`, `Keystone` |
 
 The `99` set is the one worth staring at: `COLDCARD` and `bitcoinlib base-6` both
 complete on the same 99 rolls and produce mnemonics with no words in common. The
 roll count that signals a hashed construction does not identify one.
 
-`BlueWallet bit packing` is the one checkpoint that moves: an all-`1`–`4` tape
-fills 128 bits in 64 rolls where an all-`5`/`6` tape needs 128, so the same tape
-length can put it in a different set.
+The two packed checkpoints move with the faces. BlueWallet assigns two bits to
+faces `1`–`4`; Ian Coleman raw assigns them to `1`–`3` and `6`, then keeps
+trailing whole 32-bit groups. Its standalone profile can remain valid across
+additional rolls, but group compare includes it only at the exact packed width:
+once a leading bit is discarded, the set can no longer claim every roll
+contributed. BlueWallet likewise appears only where it fills the width.
 
-The open-ended protocols (`COLDCARD`, `Keystone`) hash every roll, so they appear
-in every set at or above their minimum — with a *different* seed each time, since
-roll count is part of their entropy. A protocol never appears against a length it
-doesn't cleanly consume: `Exact` shows up only at `100`, `Word-by-word Exact`
+The hash-all-rolls protocols (`COLDCARD`, `Keystone`, `Ian Coleman fixed`) appear
+in every set at or above their minimum — with a *different* seed each time,
+since roll count is part of their entropy. A protocol never appears against a
+length it doesn't cleanly consume: `Exact` shows up only at `100`, `Word-by-word Exact`
 only at `140`. Accepted seeds reveal with `r`; a content **rejection** (`Exact`
 out-of-range, `COLDCARD` >30% one face, or a rejected `Word-by-word Exact`
 candidate) can't be fixed by rolling more, so the remedy is `n`, a fresh set —

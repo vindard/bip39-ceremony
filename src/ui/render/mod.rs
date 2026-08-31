@@ -2147,14 +2147,14 @@ mod tests {
 
         assert!(exact.contains("◆ GROUP COMPARE  ›  PROTOCOL DETAILS"));
         assert!(exact.contains("┏━ GROUP COMPARE · DETAILS · FOCUS"));
-        assert!(exact.contains("PROTOCOL DETAILS · 1 OF 6"));
+        assert!(exact.contains("PROTOCOL DETAILS · 1 OF 8"));
         assert!(exact.contains("▶ Exact"));
         assert!(exact.contains("[←/→] protocol"));
 
         // Stepping right renders the next protocol's document (COLDCARD).
         app.update(Key::Right);
         let coldcard = render(&app, 80, 44);
-        assert!(coldcard.contains("PROTOCOL DETAILS · 2 OF 6"));
+        assert!(coldcard.contains("PROTOCOL DETAILS · 2 OF 8"));
         assert!(coldcard.contains("▶ COLDCARD"));
         assert!(coldcard.contains("COLDCARD HASH"));
     }

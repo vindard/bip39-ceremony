@@ -24,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   construction — so it is included in group compare, where the same 99 rolls
   now show COLDCARD and this reading producing mnemonics with no words in
   common.
-- Group compare covers six protocols and checkpoints at 99 rolls.
+- Group compare covers eight protocols and checkpoints at 99 rolls.
 - `bluewallet-bitpack-v1`: a compatibility profile for implementations that pack
   dice faces straight into entropy bits with no hash, pinned to BlueWallet
   8.0.1. Faces `1`-`4` carry two bits and `5`/`6` carry one, so the tape length
@@ -43,6 +43,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tape and the first rolls can fall out of the seed entirely.
 - `reference-iancoleman-dice` executes the tool's own `setMnemonicFromEntropy`
   for both branches and compares with the core driver.
+- Both Ian Coleman dice profiles are included in group compare. The fixed-length
+  hash appears at every set above its target minimum; raw mode appears at its
+  face-dependent exact-width checkpoint. Later raw tapes are omitted because
+  dropping a leading remainder would violate the rule that every set roll
+  contributes.
 
 ### Changed
 
