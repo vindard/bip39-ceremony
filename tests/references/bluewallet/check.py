@@ -79,13 +79,15 @@ def main() -> None:
             # Upstream would top the shortfall up from the phone's RNG, or
             # silently ignore the surplus. Neither is reproducible, so core
             # declines rather than inventing the remainder.
-            reason = "short of the width" if bits < limit else "past the width"
+            short = bits < limit
+            reason = "short of the width" if short else "past the width"
+            expected = len(rolls) + 1 if short else consumed
             require_status(
                 f"{label} declined, {reason}",
                 outcome,
                 Status.INVALID,
                 "observation-count",
-                (str(consumed), str(len(rolls))),
+                (str(expected), str(len(rolls))),
             )
 
     print("validated BlueWallet bit packing and tape length against core")
