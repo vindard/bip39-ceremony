@@ -1,6 +1,69 @@
 use termion::event::Key;
+
 pub(super) const SAFETY_ITEM_COUNT: usize = SafetyAttestation::ALL.len();
 const ALL_SAFETY_CHECKS: u16 = (1 << SAFETY_ITEM_COUNT) - 1;
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(super) enum WorkspacePane {
+    Stages,
+    #[default]
+    Task,
+    Preview,
+}
+
+impl WorkspacePane {
+    const fn next(self) -> Self {
+        match self {
+            Self::Stages => Self::Task,
+            Self::Task => Self::Preview,
+            Self::Preview => Self::Stages,
+        }
+    }
+
+    const fn previous(self) -> Self {
+        match self {
+            Self::Stages => Self::Preview,
+            Self::Task => Self::Stages,
+            Self::Preview => Self::Task,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+struct WorkspaceState {
+    focused: WorkspacePane,
+    zoomed: bool,
+}
+
+impl WorkspaceState {
+    const fn focused(self) -> WorkspacePane {
+        self.focused
+    }
+
+    const fn zoomed(self) -> bool {
+        self.zoomed
+    }
+
+    fn focus(&mut self, pane: WorkspacePane) {
+        self.focused = pane;
+    }
+
+    fn focus_next(&mut self) {
+        self.focused = self.focused.next();
+    }
+
+    fn focus_previous(&mut self) {
+        self.focused = self.focused.previous();
+    }
+
+    fn toggle_zoom(&mut self) {
+        self.zoomed = !self.zoomed;
+    }
+
+    fn reset_zoom(&mut self) {
+        self.zoomed = false;
+    }
+}
 
 use crate::{
     application::{
@@ -103,6 +166,7 @@ struct VisibleState {
     group_captures: usize,
     group_roll_progress: Option<RollProgress>,
     group_view: GroupView,
+    workspace: WorkspaceState,
 }
 
 pub struct App {
@@ -122,6 +186,7 @@ pub struct App {
     safety_checks: u16,
     group: Option<GroupSession>,
     group_view: GroupView,
+    workspace: WorkspaceState,
     scroll_limit: usize,
 }
 
@@ -145,6 +210,7 @@ impl App {
             safety_checks: 0,
             group: None,
             group_view: GroupView::default(),
+            workspace: WorkspaceState::default(),
             scroll_limit: usize::MAX,
         }
     }
@@ -174,6 +240,7 @@ impl VisibleState {
             group_captures: app.group.as_ref().map_or(0, GroupSession::set_count),
             group_roll_progress: app.group.as_ref().map(GroupSession::roll_progress),
             group_view: app.group_view,
+            workspace: app.workspace,
         }
     }
 }
@@ -232,6 +299,22 @@ impl App {
     #[must_use]
     pub const fn inspector(&self) -> Option<Inspector> {
         self.inspector
+    }
+
+    pub(super) const fn focused_pane(&self) -> WorkspacePane {
+        self.workspace.focused()
+    }
+
+    pub(super) const fn workspace_zoomed(&self) -> bool {
+        self.workspace.zoomed()
+    }
+
+    pub(super) fn focus_workspace_pane(&mut self, pane: WorkspacePane) -> bool {
+        if self.workspace.focused() == pane {
+            return false;
+        }
+        self.workspace.focus(pane);
+        true
     }
 
     #[must_use]
@@ -359,8 +442,17 @@ impl App {
         if self.mnemonic_hidden {
             return self.update_hidden_mnemonic(key);
         }
-        if self.inspector.is_some() {
-            self.update_inspector(key);
+        if self.inspector.is_some()
+            && self.ceremony().state().phase() == Phase::EnterRolls
+            && capture_key_is_global(key)
+        {
+            self.enter_roll(key);
+            return true;
+        }
+        if self.update_workspace(key) {
+            return true;
+        }
+        if self.update_focused_inspector(key) {
             return true;
         }
         if self.group.is_some() {
@@ -378,11 +470,42 @@ impl App {
             self.open_inspector(InspectorView::Derivation);
             return true;
         }
+        if self.workspace.focused() == WorkspacePane::Stages {
+            return true;
+        }
         if self.update_scroll(key) {
             return true;
         }
 
         self.update_phase(key);
+        true
+    }
+
+    fn update_focused_inspector(&mut self, key: Key) -> bool {
+        if self.inspector.is_none() {
+            return false;
+        }
+        if key == Key::Esc {
+            self.inspector = None;
+            self.workspace.focus(WorkspacePane::Task);
+            return true;
+        }
+        if self.workspace.focused() != WorkspacePane::Preview {
+            return false;
+        }
+        self.update_inspector(key);
+        true
+    }
+
+    fn update_workspace(&mut self, key: Key) -> bool {
+        match key {
+            Key::Char('\t' | ']') => self.workspace.focus_next(),
+            Key::BackTab | Key::Char('[') => self.workspace.focus_previous(),
+            Key::Char('p' | 'P') => self.workspace.focus(WorkspacePane::Preview),
+            Key::Char('z') => self.workspace.toggle_zoom(),
+            Key::Esc if self.workspace.zoomed() => self.workspace.reset_zoom(),
+            _ => return false,
+        }
         true
     }
 
@@ -468,6 +591,8 @@ impl App {
         };
         self.group = Some(GroupSession::new(target));
         self.group_view = GroupView::default();
+        self.workspace.focus(WorkspacePane::Task);
+        self.workspace.reset_zoom();
         self.roll_scroll = 0;
     }
 
@@ -772,9 +897,43 @@ impl App {
             self.quit_pending = true;
             return true;
         }
+        if self.update_group_capture(key) || self.update_group_preview(key) {
+            return true;
+        }
+        if matches!(key, Key::Char('?')) {
+            self.group_view.help = true;
+            self.workspace.focus(WorkspacePane::Preview);
+            return true;
+        }
+        if matches!(key, Key::Char('e')) {
+            self.group_view.details = Some(0);
+            self.workspace.focus(WorkspacePane::Preview);
+            self.roll_scroll = 0;
+            return true;
+        }
+        match self.group_view.screen {
+            GroupScreen::Rolls => self.group_enter_roll(key),
+            GroupScreen::Results => self.group_review(key),
+        }
+        true
+    }
+
+    fn update_group_capture(&mut self, key: Key) -> bool {
+        if self.group_view.screen != GroupScreen::Rolls || !group_capture_key_is_global(key) {
+            return false;
+        }
+        self.group_enter_roll(key);
+        true
+    }
+
+    fn update_group_preview(&mut self, key: Key) -> bool {
+        if self.workspace.focused() != WorkspacePane::Preview {
+            return false;
+        }
         if self.group_view.help {
             if matches!(key, Key::Char('?') | Key::Esc) {
                 self.group_view.help = false;
+                self.workspace.focus(WorkspacePane::Task);
             }
             return true;
         }
@@ -786,20 +945,7 @@ impl App {
             self.group_browse_derivation(key);
             return true;
         }
-        if matches!(key, Key::Char('?')) {
-            self.group_view.help = true;
-            return true;
-        }
-        if matches!(key, Key::Char('e')) {
-            self.group_view.details = Some(0);
-            self.roll_scroll = 0;
-            return true;
-        }
-        match self.group_view.screen {
-            GroupScreen::Rolls => self.group_enter_roll(key),
-            GroupScreen::Results => self.group_review(key),
-        }
-        true
+        false
     }
 
     /// Keys while a protocol-details overlay is open: cycle protocols, scroll,
@@ -809,6 +955,7 @@ impl App {
         match key {
             Key::Char('e') | Key::Esc => {
                 self.group_view.details = None;
+                self.workspace.focus(WorkspacePane::Task);
                 self.roll_scroll = 0;
             }
             Key::Left => {
@@ -838,6 +985,7 @@ impl App {
         match key {
             Key::Char('d') | Key::Esc => {
                 self.group_view.derivation = None;
+                self.workspace.focus(WorkspacePane::Task);
                 self.roll_scroll = 0;
             }
             Key::Left => {
@@ -887,6 +1035,9 @@ impl App {
                 self.group_view.revealed = false;
                 self.group_view.screen = GroupScreen::Results;
                 self.group_view.viewing = self.group_current_index();
+                self.group_view.help = false;
+                self.group_view.details = None;
+                self.workspace.focus(WorkspacePane::Task);
                 self.roll_scroll = 0;
             }
             Key::Up => self.roll_scroll = self.roll_scroll.saturating_sub(1),
@@ -930,6 +1081,7 @@ impl App {
             Key::Char('d') => {
                 if self.group_accepted_count() > 0 {
                     self.group_view.derivation = Some(0);
+                    self.workspace.focus(WorkspacePane::Preview);
                     self.roll_scroll = 0;
                 } else {
                     self.message =
@@ -1055,7 +1207,10 @@ impl App {
                     self.inspector = None;
                     self.quit_pending = true;
                 }
-                Key::Esc | Key::Char('e' | '\t') => self.inspector = None,
+                Key::Esc | Key::Char('e') => {
+                    self.inspector = None;
+                    self.workspace.focus(WorkspacePane::Task);
+                }
                 Key::Up => inspector.scroll = inspector.scroll.saturating_sub(1),
                 Key::Down => {
                     inspector.scroll = inspector.scroll.saturating_add(1).min(self.scroll_limit);
@@ -1088,7 +1243,10 @@ impl App {
             Key::Char('t') if inspector.view == InspectorView::PhysicalEntropy => {
                 self.inspector = None;
             }
-            Key::Esc | Key::Char('\t') => self.inspector = None,
+            Key::Esc => {
+                self.inspector = None;
+                self.workspace.focus(WorkspacePane::Task);
+            }
             Key::Up => inspector.scroll = inspector.scroll.saturating_sub(1),
             Key::Down => {
                 inspector.scroll = inspector.scroll.saturating_add(1).min(self.scroll_limit);
@@ -1114,6 +1272,7 @@ impl App {
 
     fn open_inspector(&mut self, view: InspectorView) {
         self.inspector = Some(Inspector { view, scroll: 0 });
+        self.workspace.focus(WorkspacePane::Preview);
     }
 
     fn update_quit_confirmation(&mut self, key: Key) -> bool {
@@ -1135,6 +1294,20 @@ impl App {
             self.message = Some(error.to_string());
         }
     }
+}
+
+const fn group_capture_key_is_global(key: Key) -> bool {
+    matches!(
+        key,
+        Key::Char('1'..='6' | '\n') | Key::Backspace | Key::Delete
+    )
+}
+
+const fn capture_key_is_global(key: Key) -> bool {
+    matches!(
+        key,
+        Key::Char('0'..='9' | 'A'..='K' | '\n') | Key::Backspace | Key::Delete
+    )
 }
 
 fn choice_direction(key: Key) -> Option<isize> {
@@ -1561,11 +1734,29 @@ mod tests {
             Some(InspectorView::ProtocolExplanation)
         );
         assert_eq!(app.ceremony().events().len(), events);
-        assert_eq!(app.update(Key::Right), UpdateOutcome::Unchanged);
-        assert_eq!(app.update(Key::Down), UpdateOutcome::Changed);
-        assert_eq!(app.inspector().map(|inspector| inspector.scroll), Some(1));
         assert_eq!(app.update(Key::Char('\t')), UpdateOutcome::Changed);
+        assert!(app.inspector().is_some());
+        assert_eq!(app.focused_pane(), WorkspacePane::Stages);
+        assert_eq!(app.update(Key::Esc), UpdateOutcome::Changed);
         assert!(app.inspector().is_none());
+    }
+
+    #[test]
+    fn preview_scroll_is_preserved_while_other_panes_have_focus() {
+        let mut app = App::default();
+        app.update(Key::Char('\n'));
+        app.update(Key::Char('e'));
+        app.update(Key::Down);
+        assert_eq!(app.inspector().map(|value| value.scroll), Some(1));
+
+        app.update(Key::Char('\t'));
+        assert_eq!(app.update(Key::Down), UpdateOutcome::Unchanged);
+        assert_eq!(app.inspector().map(|value| value.scroll), Some(1));
+
+        app.update(Key::Char('\t'));
+        app.update(Key::Down);
+        assert_eq!(app.protocol_cursor(), 1);
+        assert_eq!(app.inspector().map(|value| value.scroll), Some(1));
     }
 
     #[test]
@@ -1611,7 +1802,7 @@ mod tests {
     }
 
     #[test]
-    fn roll_capture_protocol_explanation_preserves_live_state() {
+    fn roll_capture_keys_remain_live_while_preview_is_open() {
         let mut app = App::default();
         configure(&mut app, ConversionProtocol::ExactV1);
         app.update(Key::Char('4'));
@@ -1624,10 +1815,14 @@ mod tests {
         );
         assert_eq!(app.ceremony().events().len(), events);
 
+        app.update(Key::Char('5'));
+        assert!(app.inspector().is_some());
+        assert_eq!(app.ceremony().events().len(), events + 1);
+        assert_eq!(app.ceremony().state().rolls().len(), 2);
+
         app.update(Key::Esc);
         assert!(app.inspector().is_none());
         assert_eq!(app.ceremony().state().phase(), Phase::EnterRolls);
-        assert_eq!(app.ceremony().state().rolls().len(), 1);
     }
 
     #[test]
@@ -1938,24 +2133,23 @@ mod tests {
     }
 
     #[test]
-    fn group_help_toggles_without_disturbing_the_tape() {
+    fn group_capture_keys_remain_live_while_help_is_open() {
         let mut app = group_app();
         group_push_fair(&mut app, 12);
 
         app.update(Key::Char('?'));
         assert!(app.group_help());
-        // Rolls are ignored while help is open, and the tape is preserved.
         app.update(Key::Char('1'));
-        assert_eq!(app.group().unwrap().roll_progress().recorded, 12);
+        assert_eq!(app.group().unwrap().roll_progress().recorded, 13);
 
         app.update(Key::Esc);
         assert!(!app.group_help());
         app.update(Key::Char('1'));
-        assert_eq!(app.group().unwrap().roll_progress().recorded, 13);
+        assert_eq!(app.group().unwrap().roll_progress().recorded, 14);
     }
 
     #[test]
-    fn group_details_cycles_the_protocols_and_preserves_the_tape() {
+    fn group_details_cycle_while_capture_keys_remain_live() {
         let mut app = group_app();
         group_push_fair(&mut app, 8);
 
@@ -1971,16 +2165,15 @@ mod tests {
         app.update(Key::Left);
         assert_eq!(app.group_details(), Some(count - 1));
 
-        // Digits are inert while details are open; the tape is untouched.
         app.update(Key::Char('1'));
-        assert_eq!(app.group().unwrap().roll_progress().recorded, 8);
+        assert_eq!(app.group().unwrap().roll_progress().recorded, 9);
 
         // Esc closes back to the collect screen and rolling resumes.
         app.update(Key::Esc);
         assert_eq!(app.group_details(), None);
         assert_eq!(app.group_screen(), GroupScreen::Rolls);
         app.update(Key::Char('1'));
-        assert_eq!(app.group().unwrap().roll_progress().recorded, 9);
+        assert_eq!(app.group().unwrap().roll_progress().recorded, 10);
     }
 
     #[test]

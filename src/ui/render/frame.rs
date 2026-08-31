@@ -4,6 +4,27 @@ use crate::domain::ceremony::Phase;
 
 use super::{App, Lines, clip, push_output};
 
+pub(super) fn render_card_lines(
+    title: &str,
+    body: &Lines,
+    rows: usize,
+    requested_scroll: usize,
+    focused: bool,
+    width: usize,
+) -> Lines {
+    let mut output = Zeroizing::new(String::new());
+    render_card(
+        &mut output,
+        title,
+        body,
+        rows,
+        requested_scroll,
+        focused,
+        width,
+    );
+    Lines::new(output.lines().map(str::to_owned).collect())
+}
+
 pub(super) fn render_card(
     output: &mut String,
     title: &str,
@@ -149,6 +170,7 @@ fn box_top(width: usize, title: &str, frame: CardFrame) -> String {
         CardFrame::Normal => ('┌', '─', '┐'),
         CardFrame::Focused => ('┏', '━', '┓'),
     };
+    let title = clip(title, width.saturating_sub(5));
     let prefix = format!("{left}{horizontal} {title} ");
     let fill = width.saturating_sub(prefix.chars().count() + 1);
     format!("{prefix}{}{right}", horizontal.to_string().repeat(fill))
@@ -221,7 +243,7 @@ fn stage_path(active: usize, labels: &[&str; 5], separator: &str) -> String {
         .join(separator)
 }
 
-const fn active_stage(phase: Phase) -> usize {
+pub(super) const fn active_stage(phase: Phase) -> usize {
     match phase {
         Phase::ChooseTarget | Phase::ChooseProtocol => 0,
         Phase::Safety => 1,

@@ -17,6 +17,38 @@ use super::{
     push, push_wrapped,
 };
 
+pub(super) fn render_preview(app: &App, width: usize) -> Lines {
+    if app.inspector().is_some() {
+        return render_inspector(app, width);
+    }
+
+    let state = app.ceremony().state();
+    if state.phase() == Phase::Revealed {
+        return lines(&[
+            "PREVIEW CONCEALED",
+            "",
+            "Recovery words remain in the Task pane.",
+            "Press d to deliberately open the secret derivation.",
+        ]);
+    }
+    if state.phase() == Phase::ChooseProtocol {
+        let target = state.target().unwrap_or(EntropyTarget::Words12);
+        let choice = app.selected_protocol_choice();
+        return choice.implemented_protocol(target).map_or_else(
+            || render_document(&protocol_menu_explanation(choice, target), width),
+            |protocol| render_protocol_explanation(protocol, target, width),
+        );
+    }
+    if let Some((protocol, target)) = state.protocol().zip(state.target()) {
+        return render_protocol_explanation(protocol, target, width);
+    }
+
+    let mut output = Lines::new(Vec::new());
+    let guidance = render_document(&phase_guidance(state.phase()), width);
+    output.extend(guidance.iter().cloned());
+    output
+}
+
 pub(super) fn render_inspector(app: &App, width: usize) -> Lines {
     match app.inspector().map(|inspector| inspector.view) {
         Some(InspectorView::Derivation) => {

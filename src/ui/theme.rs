@@ -61,15 +61,8 @@ impl Theme {
                 write_mnemonic_line(output, line, palette)?;
             } else if in_secret_card && line.starts_with('║') {
                 write_secret_card_line(output, line, palette)?;
-            } else if line.contains("● REVEALED") {
-                write_revealed_stage(output, line, palette)?;
-            } else if line.contains('▶') {
-                write_selected_line(output, line, palette)?;
-            } else if line.starts_with(['│', '┃']) {
-                write_card_line(output, line, role, palette)?;
-            } else {
-                let style = classify(line, role, palette);
-                write_styled_line(output, line, style, palette.accent)?;
+            } else if !write_composed_card_line(output, line, role, palette)? {
+                write_regular_line(output, line, role, palette)?;
             }
             write!(output, "\x1b[0m")?;
             if line.starts_with('╚') {
@@ -234,6 +227,90 @@ fn is_heading(line: &str) -> bool {
     has_letter
 }
 
+fn write_regular_line(
+    output: &mut impl Write,
+    line: &str,
+    role: LineContext,
+    palette: Palette,
+) -> io::Result<()> {
+    if line.contains("● REVEALED") {
+        write_revealed_stage(output, line, palette)
+    } else if line.contains('▶') {
+        write_selected_line(output, line, palette)
+    } else if line.starts_with(['│', '┃']) {
+        write_card_line(output, line, role, palette)
+    } else {
+        write_styled_line(output, line, classify(line, role, palette), palette.accent)
+    }
+}
+
+fn write_composed_card_line(
+    output: &mut impl Write,
+    line: &str,
+    role: LineContext,
+    palette: Palette,
+) -> io::Result<bool> {
+    let Some(ranges) = composed_card_ranges(line) else {
+        return Ok(false);
+    };
+    let mut end = 0;
+    for range in ranges {
+        write!(output, "\x1b[0m{}", &line[end..range.start])?;
+        let card = &line[range.clone()];
+        if card.contains('▶') {
+            write_selected_line(output, card, palette)?;
+        } else if card.starts_with(['│', '┃']) {
+            write_card_line(output, card, role, palette)?;
+        } else {
+            write_styled_line(output, card, classify(card, role, palette), palette.accent)?;
+        }
+        end = range.end;
+    }
+    write!(output, "\x1b[0m{}", &line[end..])?;
+    Ok(true)
+}
+
+fn composed_card_ranges(line: &str) -> Option<Vec<std::ops::Range<usize>>> {
+    let mut ranges = Vec::new();
+    let mut start = 0;
+    loop {
+        let opening = line[start..].chars().next()?;
+        let closing = match opening {
+            '┌' => &['┐'][..],
+            '┏' => &['┓'][..],
+            '└' => &['┘'][..],
+            '┗' => &['┛'][..],
+            '│' | '┃' => &['│', '┃', '█', '░'][..],
+            _ => return None,
+        };
+        let offset = opening.len_utf8();
+        let (relative_end, character) =
+            line[start + offset..]
+                .char_indices()
+                .find(|(index, character)| {
+                    if !closing.contains(character) {
+                        return false;
+                    }
+                    let end = start + offset + index + character.len_utf8();
+                    let remainder = &line[end..];
+                    remainder.is_empty()
+                        || remainder.starts_with(" ┌")
+                        || remainder.starts_with(" ┏")
+                        || remainder.starts_with(" └")
+                        || remainder.starts_with(" ┗")
+                        || remainder.starts_with(" │")
+                        || remainder.starts_with(" ┃")
+                })?;
+        let end = start + offset + relative_end + character.len_utf8();
+        ranges.push(start..end);
+        if end == line.len() {
+            break;
+        }
+        start = end + 1;
+    }
+    (ranges.len() > 1).then_some(ranges)
+}
+
 fn write_revealed_stage(output: &mut impl Write, line: &str, palette: Palette) -> io::Result<()> {
     let Some(active) = line.find("● REVEALED") else {
         return write!(output, "{line}");
@@ -324,7 +401,7 @@ fn write_card_line(
         return write!(output, "{line}");
     };
     let focused = left_border == '┃';
-    write_card_border(output, left_border, focused, palette)?;
+    write_card_border(output, focused, palette)?;
     write!(output, "{left_border}\x1b[0m")?;
     if !write_roll_ledger_line(output, inner, palette)? {
         write_styled_line(
@@ -334,7 +411,7 @@ fn write_card_line(
             palette.accent,
         )?;
     }
-    write_card_border(output, right_border, focused, palette)?;
+    write_card_border(output, focused, palette)?;
     write!(output, "{right_border}")
 }
 
@@ -408,13 +485,13 @@ fn write_selected_line(output: &mut impl Write, line: &str, palette: Palette) ->
         return write!(output, "\x1b[1;38;5;16;48;5;{}m{line}", palette.accent);
     };
     let focused = left_border == '┃';
-    write_card_border(output, left_border, focused, palette)?;
+    write_card_border(output, focused, palette)?;
     write!(
         output,
         "{left_border} \x1b[1;38;5;16;48;5;{}m{selected}\x1b[0m",
         palette.accent
     )?;
-    write_card_border(output, right_border, focused, palette)?;
+    write_card_border(output, focused, palette)?;
     write!(output, " {right_border}")
 }
 
@@ -432,13 +509,8 @@ fn split_card_row(line: &str) -> Option<(&str, char, char)> {
     ))
 }
 
-fn write_card_border(
-    output: &mut impl Write,
-    border: char,
-    focused: bool,
-    palette: Palette,
-) -> io::Result<()> {
-    let color = if focused || border == '█' {
+fn write_card_border(output: &mut impl Write, focused: bool, palette: Palette) -> io::Result<()> {
+    let color = if focused {
         palette.accent
     } else {
         palette.muted
@@ -561,7 +633,7 @@ mod tests {
     }
 
     #[test]
-    fn card_borders_do_not_inherit_row_content_styles() {
+    fn card_borders_use_one_color_per_focus_state() {
         let mut output = Vec::new();
         Theme::Ember
             .write(
@@ -571,9 +643,10 @@ mod tests {
             .unwrap();
         let rendered = String::from_utf8(output).unwrap();
         assert!(rendered.matches("22;38;5;245m│").count() >= 3);
-        assert!(rendered.contains("22;38;5;214m█"));
+        assert!(rendered.contains("22;38;5;245m█"));
         assert!(!rendered.contains("38;5;220m│"));
         assert!(!rendered.contains("38;5;214m│"));
+        assert!(!rendered.contains("38;5;214m█"));
 
         let mut focused = Vec::new();
         Theme::Ember
@@ -586,6 +659,23 @@ mod tests {
         assert!(focused.matches("1;38;5;214m┃").count() >= 3);
         assert!(focused.contains("1;38;5;214m┗"));
         assert!(!focused.contains("38;5;245m┃"));
+    }
+
+    #[test]
+    fn composed_cards_keep_independent_borders_and_selection() {
+        let mut output = Vec::new();
+        Theme::Ember
+            .write(
+                &mut output,
+                "BIP-39 CEREMONY\n┌─ STAGES ─┐ ┏━ TASK · FOCUS ━┓ ┌─ PREVIEW ─┐\n│ Stage │ ┃ ▶ selected ┃ │ Preview █\n└──────────┘ ┗━━━━━━━━━━━━━━━━━━┛ └─────────────┘",
+            )
+            .unwrap();
+        let rendered = String::from_utf8(output).unwrap();
+        assert_eq!(rendered.matches("48;5;214").count(), 1);
+        assert!(rendered.contains("22;38;5;245m┌"));
+        assert!(rendered.contains("1;38;5;214m┏"));
+        assert!(rendered.contains("22;38;5;245m█"));
+        assert!(rendered.contains("1;38;5;214m┃"));
     }
 
     #[test]

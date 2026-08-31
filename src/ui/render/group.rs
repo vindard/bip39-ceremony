@@ -1,11 +1,3 @@
-//! Group-compare rendering: the roll-collection and results screens for the
-//! "one entropy set, many wallets" flow. Reads the report from the
-//! [`GroupSession`] application service and the view state (screen, reveal,
-//! help) from the app. Collection shows the live capture cursor and the
-//! checkpoint progress bars; results lay out one section per entropy set, each
-//! listing the protocols that complete at that roll count with accepted seeds
-//! behind a reveal gate.
-
 use zeroize::Zeroizing;
 
 use crate::application::GroupSession;
@@ -17,54 +9,23 @@ use crate::ui::app::GroupScreen;
 use super::inspection::render_derivation_projection;
 use super::protocol::render_protocol_explanation;
 use super::rolls::progress;
-use super::{
-    App, Lines, clip, lines, push, push_output, push_owned, push_wrapped, render_card, title_line,
-};
-
-pub(super) fn compose_group_workspace(
-    app: &App,
-    session: &GroupSession,
-    width: usize,
-    height: usize,
-) -> Zeroizing<String> {
-    let mut output = Zeroizing::new(String::with_capacity(
-        width.saturating_mul(height).saturating_add(height),
-    ));
-    let separator = "─".repeat(width);
-    let corner = if app.group_derivation().is_some() {
-        "● SECRET EXPOSED"
-    } else if app.group_help() || app.group_details().is_some() {
-        "○ NO SECRET YET"
-    } else {
-        status_corner(app, session)
-    };
-    push_output(&mut output, &clip(&title_line(width, corner), width));
-    push_output(&mut output, &separator);
-    push_output(&mut output, &clip(&stage_line(app), width));
-    push_output(&mut output, "");
-
-    let notice_lines = usize::from(app.message().is_some());
-    let rows = height.saturating_sub(8 + notice_lines);
-    let body = group_body(app, session, width.saturating_sub(4));
-    render_card(
-        &mut output,
-        card_title(app),
-        &body,
-        rows,
-        app.roll_scroll(),
-        true,
-        width,
-    );
-
-    if let Some(message) = app.message() {
-        push_output(&mut output, &format!("! {message}"));
-    }
-    push_output(&mut output, &separator);
-    push_output(&mut output, &clip(&footer(app), width));
-    output
-}
+use super::{App, Lines, lines, push, push_owned, push_wrapped};
 
 pub(super) fn group_body(app: &App, session: &GroupSession, width: usize) -> Lines {
+    if app.focused_pane() == crate::ui::app::WorkspacePane::Preview {
+        return group_preview_body(app, session, width);
+    }
+    group_task_body(app, session, width)
+}
+
+pub(super) fn group_task_body(app: &App, session: &GroupSession, width: usize) -> Lines {
+    match app.group_screen() {
+        GroupScreen::Rolls => group_rolls(session, width),
+        GroupScreen::Results => group_results(app, session, width),
+    }
+}
+
+pub(super) fn group_preview_body(app: &App, session: &GroupSession, width: usize) -> Lines {
     if let Some(index) = app.group_derivation() {
         return group_derivation_body(session, app.group_viewing(), index, width);
     }
@@ -74,10 +35,35 @@ pub(super) fn group_body(app: &App, session: &GroupSession, width: usize) -> Lin
     if app.group_help() {
         return group_help_body();
     }
-    match app.group_screen() {
-        GroupScreen::Rolls => group_rolls(session, width),
-        GroupScreen::Results => group_results(app, session, width),
+
+    let report = session.comparison_at(app.group_viewing());
+    let mut output = lines(&["ENTROPY SET EXPLORER", ""]);
+    if report.sets().is_empty() {
+        push(&mut output, "○ No completed checkpoints yet");
     }
+    for (index, set) in report.sets().iter().enumerate() {
+        let accepted = set
+            .protocols
+            .iter()
+            .filter(|(_, status)| status.calculation().is_some())
+            .count();
+        let rejected = set
+            .protocols
+            .iter()
+            .filter(|(_, status)| status.is_rejected())
+            .count();
+        let marker = if index == 0 { '▶' } else { '○' };
+        push(
+            &mut output,
+            &format!("{marker} {} rolls · {accepted} accepted", set.rolls),
+        );
+        if rejected > 0 {
+            push(&mut output, &format!("  {rejected} rejected"));
+        }
+    }
+    push(&mut output, "");
+    push(&mut output, "[e] inspect protocols · [?] explain sets");
+    output
 }
 
 /// The derivation overlay: the same numbered BIP-39 stages a single-protocol
@@ -176,7 +162,7 @@ fn group_help_body() -> Lines {
     ])
 }
 
-fn status_corner(app: &App, session: &GroupSession) -> &'static str {
+pub(super) fn status_corner(app: &App, session: &GroupSession) -> &'static str {
     match app.group_screen() {
         GroupScreen::Rolls => {
             if session.roll_progress().recorded == 0 {
@@ -195,7 +181,7 @@ fn status_corner(app: &App, session: &GroupSession) -> &'static str {
     }
 }
 
-fn stage_line(app: &App) -> String {
+pub(super) fn stage_line(app: &App) -> String {
     let screen = if app.group_derivation().is_some() {
         "DERIVATION"
     } else if app.group_details().is_some() {
@@ -211,7 +197,7 @@ fn stage_line(app: &App) -> String {
     format!("◆ GROUP COMPARE  ›  {screen}")
 }
 
-const fn card_title(app: &App) -> &'static str {
+pub(super) const fn card_title(app: &App) -> &'static str {
     if app.group_derivation().is_some() {
         return "GROUP COMPARE · DERIVATION · ALL VALUES SECRET · FOCUS";
     }
@@ -227,7 +213,7 @@ const fn card_title(app: &App) -> &'static str {
     }
 }
 
-fn footer(app: &App) -> String {
+pub(super) fn footer(app: &App) -> String {
     if app.group_derivation().is_some() {
         return "[←/→] seed  [↑/↓] scroll  [d/Esc] back  [q] cancel".to_owned();
     }
