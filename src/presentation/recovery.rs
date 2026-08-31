@@ -72,28 +72,54 @@ pub fn attempt_rejection(protocol: ConversionProtocol, required_rolls: usize) ->
             "COLDCARD ATTEMPT REJECTED",
             "Some face occurred more than 30% of the time, so Coldcard's enforced workflow rejects the sequence.",
         ),
+        ConversionProtocol::BitcoinLibBase6V1 => (
+            "BASE-6 READING REJECTED",
+            "The base-6 reading of these rolls does not encode to exactly the target entropy width, and this reading pads nothing.",
+        ),
         _ => (
             "EXACT ATTEMPT REJECTED",
             "Expected protocol outcome preserving a uniform conversion.",
         ),
     };
-    Document::new(
-        title.to_owned(),
-        vec![
-            B::Heading(format!("× {title} · NO ENTROPY RESULT")),
-            B::Paragraph(format!("✓ {reason}")),
-            B::Paragraph(format!(
-                "× No part is reusable; re-roll all {required_rolls} physical results."
-            )),
+    let mut blocks = vec![
+        B::Heading(format!("× {title} · NO ENTROPY RESULT")),
+        B::Paragraph(format!("✓ {reason}")),
+    ];
+    blocks.extend(remedy(protocol, required_rolls));
+    blocks.push(B::Paragraph(
+        "Audit events are retained with rejected faces concealed and still secret.".to_owned(),
+    ));
+    Document::new(title.to_owned(), blocks)
+}
+
+/// What to do next. The rejecting protocols do not agree on this: a rejection
+/// sampler is asking for a fresh draw, whereas the unhashed base-6 reading is
+/// reporting that the tape cannot have produced a usable seed at all — and an
+/// operator reproducing an existing seed must not answer that by re-rolling.
+fn remedy(protocol: ConversionProtocol, required_rolls: usize) -> Vec<B> {
+    if protocol == ConversionProtocol::BitcoinLibBase6V1 {
+        return vec![
             B::Paragraph(
-                "! Do not change one face or keep a favorable part of the sequence.".to_owned(),
-            ),
-            B::Paragraph(
-                "Audit events are retained with rejected faces concealed and still secret."
+                "× The source library does not reject here. It reads the short or over-wide value anyway and emits a word list that fails BIP-39 validation, so no wallet accepts it."
                     .to_owned(),
             ),
-        ],
-    )
+            B::Paragraph(
+                "! Reproducing a seed? These rolls cannot have produced a usable one under this reading. Re-check the transcription and which method was actually used. Re-rolling destroys the tape you are trying to reproduce."
+                    .to_owned(),
+            ),
+            B::Paragraph(format!(
+                "! Generating instead? Re-roll all {required_rolls} physical results. Keeping a favourable part and re-rolling the rest searches for an accepted value and biases it."
+            )),
+        ];
+    }
+    vec![
+        B::Paragraph(format!(
+            "× No part is reusable; re-roll all {required_rolls} physical results."
+        )),
+        B::Paragraph(
+            "! Do not change one face or keep a favorable part of the sequence.".to_owned(),
+        ),
+    ]
 }
 
 #[must_use]
@@ -154,5 +180,37 @@ mod tests {
         assert!(text.contains("24-WORD BIP-39"));
         assert!(text.contains("word-exact-v1"));
         assert!(text.contains("no hidden randomness"));
+    }
+
+    /// A rejection sampler is asking for a fresh draw, so "re-roll" is the
+    /// whole remedy.
+    #[test]
+    fn a_sampling_rejection_asks_for_a_fresh_draw() {
+        let text = format!(
+            "{:?}",
+            attempt_rejection(ConversionProtocol::ExactV1, 50).blocks()
+        );
+        assert!(text.contains("No part is reusable; re-roll all 50"));
+        assert!(text.contains("keep a favorable part"));
+    }
+
+    /// The unhashed base-6 reading is reporting that the tape cannot have made
+    /// a usable seed. Telling someone mid-reproduction to re-roll would destroy
+    /// the tape they are trying to reproduce, so that advice is conditional.
+    #[test]
+    fn a_width_rejection_does_not_tell_a_reproduction_to_re_roll() {
+        let text = format!(
+            "{:?}",
+            attempt_rejection(ConversionProtocol::BitcoinLibBase6V1, 50).blocks()
+        );
+        assert!(text.contains("does not reject here"));
+        assert!(text.contains("fails BIP-39 validation"));
+        assert!(text.contains("Reproducing a seed?"));
+        assert!(text.contains("Re-rolling destroys the tape"));
+        assert!(text.contains("Generating instead? Re-roll all 50"));
+        assert!(
+            !text.contains("No part is reusable"),
+            "the unconditional re-roll instruction must not appear"
+        );
     }
 }

@@ -427,7 +427,11 @@ impl Ceremony {
         if state.phase() != Phase::ReadyToGenerate
             || !matches!(
                 state.protocol(),
-                Some(ConversionProtocol::ExactV1 | ConversionProtocol::ColdcardV1)
+                Some(
+                    ConversionProtocol::ExactV1
+                        | ConversionProtocol::ColdcardV1
+                        | ConversionProtocol::BitcoinLibBase6V1
+                )
             )
         {
             return Err(CeremonyError::WrongPhase);
@@ -1043,6 +1047,21 @@ mod tests {
         assert_eq!(state.phase(), Phase::EnterRolls);
         assert!(state.rolls().is_empty());
         assert!(ceremony.events().len() > 50);
+    }
+
+    /// A width-rejected base-6 reading must reach the rejection phase. Without
+    /// this the ceremony strands in `ReadyToGenerate` with no way forward.
+    #[test]
+    fn base6_width_rejection_reaches_the_rejection_phase() {
+        let mut ceremony = configured(ConversionProtocol::BitcoinLibBase6V1);
+        add_rolls(&mut ceremony, 50);
+        ceremony.handle(Command::ConfirmRolls).unwrap();
+        ceremony.record_attempt_rejected().unwrap();
+        assert_eq!(ceremony.state().phase(), Phase::AttemptRejected);
+
+        ceremony.handle(Command::RestartAttempt).unwrap();
+        assert_eq!(ceremony.state().phase(), Phase::EnterRolls);
+        assert!(ceremony.state().rolls().is_empty());
     }
 
     #[test]

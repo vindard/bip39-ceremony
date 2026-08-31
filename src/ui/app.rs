@@ -1174,6 +1174,7 @@ mod tests {
             ConversionProtocol::KruxD20V1 => 6,
             ConversionProtocol::CoinFourD6DirectV1 => 7,
             ConversionProtocol::SeedSignerCoinsV1 => 8,
+            ConversionProtocol::BitcoinLibBase6V1 => 9,
             ConversionProtocol::KeystoneLegacyV1 => unreachable!(),
         };
         for _ in 0..steps {

@@ -12,6 +12,7 @@ pub enum ConversionProtocol {
     KruxD20V1,
     CoinFourD6DirectV1,
     SeedSignerCoinsV1,
+    BitcoinLibBase6V1,
 }
 
 impl ConversionProtocol {
@@ -27,6 +28,7 @@ impl ConversionProtocol {
             Self::KruxD20V1 => "krux-d20-v1",
             Self::CoinFourD6DirectV1 => "coin-four-d6-direct-v1",
             Self::SeedSignerCoinsV1 => "seedsigner-coins-v1",
+            Self::BitcoinLibBase6V1 => "bitcoinlib-base6-v1",
         }
     }
 
@@ -36,7 +38,7 @@ impl ConversionProtocol {
             (Self::WordExactV1, EntropyTarget::Words12)
             | (Self::JadeDirectV1, EntropyTarget::Words24) => 70,
             (Self::WordExactV1, EntropyTarget::Words24) => 140,
-            (Self::ColdcardV1, EntropyTarget::Words24) => 99,
+            (Self::ColdcardV1 | Self::BitcoinLibBase6V1, EntropyTarget::Words24) => 99,
             (Self::KeystoneLegacyV1, EntropyTarget::Words24) => 50,
             (Self::JadeDirectV1, EntropyTarget::Words12) => 35,
             (Self::BitBox02DirectV1, EntropyTarget::Words12) => 73,
@@ -93,6 +95,12 @@ mod tests {
                 "seedsigner-coins-v1",
                 128,
                 256,
+            ),
+            (
+                ConversionProtocol::BitcoinLibBase6V1,
+                "bitcoinlib-base6-v1",
+                50,
+                99,
             ),
         ];
 

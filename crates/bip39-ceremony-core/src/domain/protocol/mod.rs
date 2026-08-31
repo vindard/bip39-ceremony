@@ -1,4 +1,6 @@
+mod base6;
 mod bitbox;
+mod bitcoinlib_base6;
 mod canonical;
 mod capture;
 mod coin_four_d6;
@@ -38,6 +40,7 @@ pub use word_exact::{
 };
 
 pub(crate) use bitbox::bitbox_entropy;
+pub(crate) use bitcoinlib_base6::{Base6Outcome, bitcoinlib_base6_entropy};
 pub(crate) use coin_four_d6::coin_four_d6_entropy;
 pub(crate) use coldcard::{
     ascii_rolls as coldcard_ascii_rolls, distribution_is_rejected as coldcard_distribution_rejected,

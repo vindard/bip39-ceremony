@@ -16,6 +16,15 @@ pub fn readiness_document(readiness: CaptureReadiness) -> Document {
             )),
             B::Paragraph("! Whole-sequence conversion may accept or reject.".to_owned()),
         ],
+        ReadinessKind::BitcoinLibBase6 => vec![
+            B::Paragraph(format!(
+                "✓ SOURCE REQUIRED COUNT · {} recorded",
+                readiness.recorded()
+            )),
+            B::Paragraph(
+                "! The base-6 reading is used unhashed and may miss the target width.".to_owned(),
+            ),
+        ],
         ReadinessKind::WordExact => vec![
             B::Paragraph("✓ ALL ENTROPY POSITIONS + FINAL TAIL ACCEPTED".to_owned()),
             B::Paragraph("○ BIP-39 checksum will be calculated, not rolled.".to_owned()),

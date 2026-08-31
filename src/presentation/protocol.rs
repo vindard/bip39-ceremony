@@ -10,6 +10,9 @@ pub fn protocol_explanation(protocol: ConversionProtocol, target: EntropyTarget)
     let specification = protocol.specification(target);
     match protocol {
         ConversionProtocol::ExactV1 => exact_explanation(specification, target),
+        ConversionProtocol::BitcoinLibBase6V1 => {
+            bitcoinlib_base6_explanation(specification, target)
+        }
         ConversionProtocol::WordExactV1 => {
             let RejectionPolicy::Localized {
                 word_candidate_rolls,
@@ -169,7 +172,8 @@ pub fn protocol_menu_explanation(choice: ProtocolMenuChoice, target: EntropyTarg
         | ProtocolMenuChoice::SeedSignerCoins
         | ProtocolMenuChoice::Coldcard
         | ProtocolMenuChoice::WordExact
-        | ProtocolMenuChoice::Exact => unreachable!(),
+        | ProtocolMenuChoice::Exact
+        | ProtocolMenuChoice::BitcoinLibBase6 => unreachable!(),
     };
 
     Document::new(
@@ -186,6 +190,41 @@ pub fn protocol_menu_explanation(choice: ProtocolMenuChoice, target: EntropyTarg
             B::Heading("IMPLEMENTATION BOUNDARY".to_owned()),
             B::Paragraph(boundary.to_owned()),
             B::Paragraph("This catalog entry cannot be selected for a ceremony and produces no entropy or mnemonic.".to_owned()),
+        ],
+    )
+}
+
+fn bitcoinlib_base6_explanation(
+    specification: ProtocolSpecification,
+    target: EntropyTarget,
+) -> Document {
+    let rolls = specification.minimum_observations();
+    let bytes = target.entropy_bytes();
+    Document::new(
+        "BITCOINLIB BASE-6".to_owned(),
+        vec![
+            B::Heading("BITCOINLIB BASE-6 · NO HASH".to_owned()),
+            B::Heading("PURPOSE".to_owned()),
+            B::Paragraph("Reproduce an implementation that reads the roll tape as one base-6 number and uses that number directly as BIP-39 entropy. Select it only to reproduce a mnemonic that was originally made this way.".to_owned()),
+            B::Heading("1 · READ THE TAPE AS ONE NUMBER".to_owned()),
+            B::Paragraph("Each face contributes face minus one, first roll most significant. This is the same reading Exact performs before its rejection step.".to_owned()),
+            B::Verbatim("rolls:   1 2 3 4 5 6\ndigits:  0 1 2 3 4 5\nvalue = 0×6⁵ + 1×6⁴ + 2×6³ + 3×6² + 4×6 + 5".to_owned()),
+            B::Heading("2 · USE THE NUMBER AS ENTROPY".to_owned()),
+            B::Paragraph("There is no SHA-256 anywhere and no rejection sampling. The number's big-endian bytes are the entropy, so the mapping from rolls to entropy is not uniform.".to_owned()),
+            B::Heading("3 · THE WIDTH MUST LAND EXACTLY".to_owned()),
+            B::Paragraph(format!("A {target_bits}-bit input needs a number whose minimal big-endian encoding is exactly {bytes} bytes. {rolls} rolls do not guarantee that.", target_bits = target.entropy_bits())),
+            B::Verbatim(match target {
+                EntropyTarget::Words12 => "6⁵⁰ ≈ 2¹²⁹·²  →  a 50-roll value can exceed 128 bits\nvalue ≥ 2¹²⁸        → too wide, rejected\nvalue < 2¹²⁰        → too narrow, rejected".to_owned(),
+                EntropyTarget::Words24 => "6⁹⁹ ≈ 2²⁵⁵·⁹  →  a 99-roll value never reaches 256 bits\nvalue < 2²⁴⁸        → too narrow, rejected".to_owned(),
+            }),
+            B::Paragraph("A value off that width is refused here rather than padded or truncated, because padding and truncation are choices the source implementation does not document.".to_owned()),
+            B::Paragraph(match target {
+                EntropyTarget::Words12 => "Most 50-roll tapes are rejected: only values in [2¹²⁰, 2¹²⁸) land on width, roughly two attempts in five.".to_owned(),
+                EntropyTarget::Words24 => "Nearly every 99-roll tape lands on width; only a value below 2²⁴⁸ is rejected.".to_owned(),
+            }),
+            B::Heading("WHY THIS IS A HAZARD".to_owned()),
+            B::Paragraph(format!("{rolls} rolls is exactly what a hashed construction asks for. A tape recorded for COLDCARD and a tape recorded for this reading are indistinguishable, and the two produce mnemonics with no words in common.")),
+            B::Paragraph(format!("Protocol {} is pinned to one source reading. Do not assume another unhashed base-6 tool agrees with it.", specification.id())),
         ],
     )
 }
@@ -375,6 +414,40 @@ mod tests {
         );
         assert!(coins.contains("exactly 128 physical flips"));
         assert!(coins.contains("ASCII bytes with SHA-256"));
+    }
+
+    #[test]
+    fn bitcoinlib_base6_document_states_the_width_rule_and_the_hazard() {
+        let twelve = format!(
+            "{:?}",
+            protocol_explanation(
+                ConversionProtocol::BitcoinLibBase6V1,
+                EntropyTarget::Words12
+            )
+            .blocks()
+        );
+        for expected in [
+            "NO HASH",
+            "There is no SHA-256 anywhere",
+            "too wide, rejected",
+            "too narrow, rejected",
+            "no words in common",
+            "bitcoinlib-base6-v1",
+        ] {
+            assert!(twelve.contains(expected), "missing {expected}");
+        }
+
+        let twenty_four = format!(
+            "{:?}",
+            protocol_explanation(
+                ConversionProtocol::BitcoinLibBase6V1,
+                EntropyTarget::Words24
+            )
+            .blocks()
+        );
+        // 99 rolls can never overshoot 256 bits, so only the narrow rule applies.
+        assert!(twenty_four.contains("never reaches 256 bits"));
+        assert!(!twenty_four.contains("too wide, rejected"));
     }
 
     #[test]

@@ -126,7 +126,8 @@ impl CeremonySession {
                 Ok(SessionGeneration::Generated)
             }
             CalculationOutcome::ExactRejected
-            | CalculationOutcome::ColdcardDistributionRejected => {
+            | CalculationOutcome::ColdcardDistributionRejected
+            | CalculationOutcome::Base6WidthRejected => {
                 self.ceremony.record_attempt_rejected()?;
                 Ok(SessionGeneration::AttemptRejected)
             }
@@ -223,6 +224,45 @@ mod tests {
         assert_eq!(
             session.ceremony().state().phase(),
             crate::domain::ceremony::Phase::Result
+        );
+    }
+
+    /// The whole rejection path through the session, not just the domain guard:
+    /// a width-rejected base-6 reading must land in `AttemptRejected` rather than
+    /// stranding the ceremony in `ReadyToGenerate`.
+    #[test]
+    fn base6_width_rejection_requires_a_fresh_attempt() {
+        let mut session = CeremonySession::new(Box::new(Hash));
+        session
+            .execute(Command::SelectTarget(EntropyTarget::Words12))
+            .unwrap();
+        session
+            .execute(Command::SelectProtocol(
+                ConversionProtocol::BitcoinLibBase6V1,
+            ))
+            .unwrap();
+        session.execute(Command::AcknowledgeSafety).unwrap();
+        // All ones reads as zero, which has no 16-byte encoding.
+        for _ in 0..50 {
+            session
+                .execute(Command::RecordRoll(DieFace::new(1).unwrap()))
+                .unwrap();
+        }
+
+        assert_eq!(
+            session.confirm_rolls_and_generate().unwrap(),
+            SessionGeneration::AttemptRejected
+        );
+        assert!(session.generation().is_none());
+        assert_eq!(
+            session.ceremony().state().phase(),
+            crate::domain::ceremony::Phase::AttemptRejected
+        );
+
+        session.execute(Command::RestartAttempt).unwrap();
+        assert_eq!(
+            session.ceremony().state().phase(),
+            crate::domain::ceremony::Phase::EnterRolls
         );
     }
 

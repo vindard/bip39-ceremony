@@ -46,6 +46,14 @@ current pinned executable boundaries are:
   ([source](https://github.com/BlockstreamResearch/secp256k1-zkp/tree/6152622613fdf1c5af6f31f74c427c4e9ee120ce))
   revisions. It exhaustively validates checksum candidates and final-word
   ordering, not the external D16/D8 table.
+- **RooSoft/bitcoinlib**
+  ([source](https://github.com/RooSoft/bitcoinlib/tree/a998a61caad66d074772ec4a10ba5268aa65ca40)):
+  executes `BitcoinLib.Key.HD.Entropy.from_dice_rolls/1` under Elixir. That
+  module depends on nothing outside the standard library, so the adapter loads
+  it alone. Upstream returns an integer and stops there, so the check asserts
+  the two things this project adds: accepted entropy is that integer in
+  big-endian bytes, and a value whose minimal encoding is not exactly the target
+  width is rejected rather than padded or truncated.
 - **Ian Coleman BIP-39 tool**
   ([source](https://github.com/iancoleman/bip39/tree/de71c22328b24e0848bbe1bd12ac8974ca83b5b8)):
   executes its entropy-to-English-mnemonic encoder using independently fixed
@@ -64,8 +72,9 @@ Checks are independently addressable:
 - `reference-keystone-legacy`
 - `reference-jade-checksum`
 - `reference-iancoleman-bip39`
+- `reference-bitcoinlib-base6`
 
-`reference-implementations` composes the seven upstream comparisons; the harness
+`reference-implementations` composes the eight upstream comparisons; the harness
 remains an independently targeted infrastructure check. Profiles without an
 executable upstream artifact are not included as reference validations.
 

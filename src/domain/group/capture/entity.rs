@@ -95,7 +95,9 @@ impl GroupCapture {
         }
         match calculate(self.target, protocol, Capture::Dice(&self.tape)) {
             Ok(CalculationOutcome::Accepted(c)) => GroupStatus::Accepted(c),
-            Ok(CalculationOutcome::ExactRejected) => GroupStatus::InvalidOutOfRange,
+            Ok(CalculationOutcome::ExactRejected | CalculationOutcome::Base6WidthRejected) => {
+                GroupStatus::InvalidOutOfRange
+            }
             Ok(CalculationOutcome::ColdcardDistributionRejected) => {
                 GroupStatus::InvalidDistribution
             }

@@ -41,6 +41,7 @@ pub enum Compatibility {
     Krux,
     CoinFourD6Table,
     SeedSigner,
+    BitcoinLibBase6,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -152,6 +153,12 @@ impl ConversionProtocol {
                 CanonicalInputKind::AsciiCoinFlips,
                 RejectionPolicy::None,
                 Compatibility::SeedSigner,
+                false,
+            ),
+            Self::BitcoinLibBase6V1 => (
+                CanonicalInputKind::Base6Integer,
+                RejectionPolicy::WholeSequence,
+                Compatibility::BitcoinLibBase6,
                 false,
             ),
         };
@@ -269,6 +276,27 @@ mod tests {
         );
         assert_eq!(specification.compatibility(), Compatibility::SeedSigner);
         assert!(!specification.accepts_optional_rolls());
+    }
+
+    #[test]
+    fn bitcoinlib_base6_specification_shares_exact_input_but_not_its_counts() {
+        let specification =
+            ConversionProtocol::BitcoinLibBase6V1.specification(EntropyTarget::Words24);
+        assert_eq!(specification.minimum_observations(), 99);
+        assert!(!specification.accepts_optional_rolls());
+        assert_eq!(specification.rejection(), RejectionPolicy::WholeSequence);
+        assert_eq!(
+            specification.compatibility(),
+            Compatibility::BitcoinLibBase6
+        );
+        // Same canonical reading as Exact, different roll count and rejection
+        // reason, so the two disagree on the same tape.
+        let exact = ConversionProtocol::ExactV1.specification(EntropyTarget::Words24);
+        assert_eq!(specification.canonical_input(), exact.canonical_input());
+        assert_ne!(
+            specification.minimum_observations(),
+            exact.minimum_observations()
+        );
     }
 
     #[test]
