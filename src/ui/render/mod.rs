@@ -5,8 +5,8 @@ mod protocol;
 mod reveal;
 mod rolls;
 
-use frame::{render_card, stage_line, title_line};
-use inspection::render_inspector;
+use frame::{render_card_lines, stage_line, title_line};
+use inspection::render_preview;
 use protocol::render_document;
 use reveal::{compose_reveal_workspace, render_mnemonic};
 use rolls::render_roll_entry;
@@ -22,36 +22,67 @@ use crate::domain::{
 use crate::{
     application::SafetyAttestation,
     presentation::{
-        ChoiceContent, ProtocolMenuChoice, attempt_rejection, concealed_generation,
-        finish_confirmation, protocol_choices, safety_content, target_choices,
+        ChoiceContent, attempt_rejection, concealed_generation, finish_confirmation,
+        protocol_choices, safety_content, target_choices,
     },
 };
 
-use super::app::{App, InspectorView, SAFETY_ITEM_COUNT};
+use super::app::{App, InspectorView, SAFETY_ITEM_COUNT, WorkspacePane};
 
-pub(super) const MIN_WIDTH: u16 = 52;
-pub(super) const MIN_HEIGHT: u16 = 40;
-const MAX_CONTENT_WIDTH: usize = 88;
+pub(super) const MIN_WIDTH: u16 = 44;
+pub(super) const MIN_HEIGHT: u16 = 22;
+const REVEAL_MIN_WIDTH: u16 = 52;
+const REVEAL_MIN_HEIGHT: u16 = 40;
+const MAX_CONTENT_WIDTH: usize = 140;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum WorkspaceLayout {
+    Compact,
+    Standard,
+    Wide,
+}
+
+impl WorkspaceLayout {
+    const fn for_width(width: usize) -> Self {
+        if width >= 120 {
+            Self::Wide
+        } else if width >= 110 {
+            Self::Standard
+        } else {
+            Self::Compact
+        }
+    }
+}
+
+pub(super) fn minimum_size(app: &App) -> (u16, u16) {
+    let ceremony_secret = app.ceremony().state().phase() == Phase::Revealed
+        && app.inspector().is_none()
+        && !app.mnemonic_hidden()
+        && app.mnemonic_verification().is_none()
+        && !app.quit_pending();
+    let group_secret = app.group_derivation().is_some() || app.group_revealed();
+    if ceremony_secret || group_secret {
+        (REVEAL_MIN_WIDTH, REVEAL_MIN_HEIGHT)
+    } else {
+        (MIN_WIDTH, MIN_HEIGHT)
+    }
+}
 
 pub(super) type Lines = Zeroizing<Vec<String>>;
 
 #[must_use]
 pub fn render(app: &App, width: u16, height: u16) -> Zeroizing<String> {
-    if width < MIN_WIDTH || height < MIN_HEIGHT {
+    let (minimum_width, minimum_height) = minimum_size(app);
+    if width < minimum_width || height < minimum_height {
         return Zeroizing::new(format!(
             "bip39-ceremony\n\nTerminal too small ({width}×{height}).\n\
-             Resize to at least {MIN_WIDTH}×{MIN_HEIGHT}.\n\n\
+             Resize to at least {minimum_width}×{minimum_height}.\n\n\
              Secret values remain hidden."
         ));
     }
 
     let width = usize::from(width).min(MAX_CONTENT_WIDTH);
     let height = usize::from(height);
-    if !app.quit_pending()
-        && let Some(session) = app.group()
-    {
-        return group::compose_group_workspace(app, session, width, height);
-    }
     if app.inspector().is_none() && app.ceremony().state().phase() == Phase::Revealed {
         compose_reveal_workspace(app, width, height)
     } else {
@@ -59,63 +90,79 @@ pub fn render(app: &App, width: u16, height: u16) -> Zeroizing<String> {
     }
 }
 
+pub(super) fn workspace_pane_at(
+    app: &App,
+    width: u16,
+    height: u16,
+    column: u16,
+    row: u16,
+) -> Option<WorkspacePane> {
+    let (minimum_width, minimum_height) = minimum_size(app);
+    if width < minimum_width
+        || height < minimum_height
+        || column == 0
+        || row == 0
+        || row > height.saturating_sub(2)
+    {
+        return None;
+    }
+    let width = usize::from(width).min(MAX_CONTENT_WIDTH);
+    let column = usize::from(column);
+    let layout = WorkspaceLayout::for_width(width);
+    if app.workspace_zoomed() {
+        return (row >= 3).then_some(app.focused_pane());
+    }
+    if layout == WorkspaceLayout::Compact {
+        return (row >= 5).then_some(app.focused_pane());
+    }
+    if layout == WorkspaceLayout::Standard {
+        if row < 5 {
+            return None;
+        }
+        let columns = standard_column_widths(width);
+        return if column <= columns[0] {
+            Some(WorkspacePane::Task)
+        } else if column > columns[0] + 1 && column <= width {
+            Some(WorkspacePane::Preview)
+        } else {
+            None
+        };
+    }
+    if row < 3 {
+        return None;
+    }
+    let columns = workspace_column_widths(width);
+    if column <= columns[0] {
+        Some(WorkspacePane::Stages)
+    } else if column > columns[0] + 1 && column <= columns[0] + 1 + columns[1] {
+        Some(WorkspacePane::Task)
+    } else if column > columns[0] + columns[1] + 2 && column <= width {
+        Some(WorkspacePane::Preview)
+    } else {
+        None
+    }
+}
+
 pub(super) fn scroll_limit(app: &App, width: u16, height: u16) -> usize {
-    if width < MIN_WIDTH || height < MIN_HEIGHT {
+    let (minimum_width, minimum_height) = minimum_size(app);
+    if width < minimum_width || height < minimum_height {
         return 0;
     }
     let width = usize::from(width).min(MAX_CONTENT_WIDTH);
     let height = usize::from(height);
-    let notice_lines = usize::from(app.message().is_some());
-    let rows = height.saturating_sub(8 + notice_lines);
+    let rows = workspace_body_rows(app, height, WorkspaceLayout::for_width(width));
+    let body_width = focused_body_width(app, width).saturating_sub(4);
 
     if let Some(session) = app.group() {
-        let body = group::group_body(app, session, width.saturating_sub(4));
+        let body = group::group_body(app, session, body_width);
         return body.len().saturating_sub(rows.saturating_sub(1));
     }
-    if app.inspector().is_some() {
-        let body = render_inspector(app, width.saturating_sub(4));
-        let rows = if protocol_detail_open(app) {
-            let context = protocol_detail_context(app, width.saturating_sub(4));
-            split_protocol_detail_rows(
-                context.len(),
-                height.saturating_sub(10 + notice_lines),
-                protocol_detail_minimum_rows(app),
-            )
-            .1
-        } else {
-            rows
-        };
-        return body.len().saturating_sub(rows.saturating_sub(1));
-    }
-    if app.ceremony().state().phase() == Phase::EnterRolls {
-        let protocol = app.ceremony().state().protocol();
-        let word_exact_assignments =
-            protocol == Some(ConversionProtocol::WordExactV1) && !app.word_exact_raw_ledger();
-        if word_exact_assignments
-            || matches!(
-                protocol,
-                Some(
-                    ConversionProtocol::JadeDirectV1
-                        | ConversionProtocol::BitBox02DirectV1
-                        | ConversionProtocol::KruxD20V1
-                        | ConversionProtocol::CoinFourD6DirectV1
-                )
-            )
-        {
-            let body = render_live(app, width.saturating_sub(4));
-            return body.len().saturating_sub(rows.saturating_sub(1));
-        }
-        if !app.rolls_hidden() {
-            return app
-                .ceremony()
-                .state()
-                .rolls()
-                .len()
-                .div_ceil(25)
-                .saturating_sub(4);
-        }
-    }
-    0
+    let body = match app.focused_pane() {
+        WorkspacePane::Stages => return 0,
+        WorkspacePane::Task => render_live(app, body_width),
+        WorkspacePane::Preview => render_preview(app, body_width),
+    };
+    body.len().saturating_sub(rows.saturating_sub(1))
 }
 
 fn compose_workspace(app: &App, width: usize, height: usize) -> Zeroizing<String> {
@@ -123,134 +170,300 @@ fn compose_workspace(app: &App, width: usize, height: usize) -> Zeroizing<String
         width.saturating_mul(height).saturating_add(height),
     ));
     let separator = "─".repeat(width);
+    let layout = WorkspaceLayout::for_width(width);
     push_output(
         &mut output,
         &clip(&title_line(width, workspace_status(app)), width),
     );
     push_output(&mut output, &separator);
-    push_output(&mut output, &clip(&stage_line(app, width), width));
-    push_output(&mut output, "");
 
-    let notice_lines = usize::from(app.message().is_some());
-    if protocol_detail_open(app) && !app.quit_pending() {
-        let context = protocol_detail_context(app, width.saturating_sub(4));
-        let detail = render_inspector(app, width.saturating_sub(4));
-        let available = height.saturating_sub(10 + notice_lines);
-        let (context_rows, detail_rows) =
-            split_protocol_detail_rows(context.len(), available, protocol_detail_minimum_rows(app));
-        let (context_title, context_scroll) = if app.ceremony().state().phase() == Phase::EnterRolls
-        {
-            ("ROLL CAPTURE", app.roll_scroll())
+    if layout != WorkspaceLayout::Wide && !app.workspace_zoomed() {
+        let stages = if app.group().is_some() {
+            group::stage_line(app)
         } else {
-            ("PROTOCOL SELECTION", 0)
+            stage_line(app, width)
         };
-        render_card(
-            &mut output,
-            context_title,
-            &context,
-            context_rows,
-            context_scroll,
-            false,
-            width,
-        );
-        render_card(
-            &mut output,
-            workspace_card_title(app),
-            &detail,
-            detail_rows,
-            app.inspector().map_or(0, |inspector| inspector.scroll),
-            true,
-            width,
-        );
+        push_output(&mut output, &clip(&stages, width));
+        push_output(&mut output, &clip("Tab pane · p preview · z zoom", width));
+    }
+
+    let rows = workspace_body_rows(app, height, layout);
+    if app.workspace_zoomed()
+        || layout == WorkspaceLayout::Compact
+        || (layout == WorkspaceLayout::Standard && app.focused_pane() == WorkspacePane::Stages)
+    {
+        let pane = render_workspace_pane(app, app.focused_pane(), width, rows);
+        for line in pane.iter() {
+            push_output(&mut output, line);
+        }
+    } else if layout == WorkspaceLayout::Standard {
+        let widths = standard_column_widths(width);
+        let panes = [
+            render_workspace_pane(app, WorkspacePane::Task, widths[0], rows),
+            render_workspace_pane(app, WorkspacePane::Preview, widths[1], rows),
+        ];
+        push_two_columns(&mut output, &panes);
     } else {
-        let rows = height.saturating_sub(8 + notice_lines);
-        let body = if app.quit_pending() {
-            render_quit(app.ceremony().state().phase(), width.saturating_sub(4))
-        } else if app.inspector().is_some() {
-            render_inspector(app, width.saturating_sub(4))
-        } else {
-            render_live(app, width.saturating_sub(4))
-        };
-        let scroll = app
-            .inspector()
-            .map_or(app.roll_scroll(), |inspector| inspector.scroll);
-        render_card(
-            &mut output,
-            workspace_card_title(app),
-            &body,
-            rows,
-            scroll,
-            true,
-            width,
-        );
+        let widths = workspace_column_widths(width);
+        let panes = [
+            render_workspace_pane(app, WorkspacePane::Stages, widths[0], rows),
+            render_workspace_pane(app, WorkspacePane::Task, widths[1], rows),
+            render_workspace_pane(app, WorkspacePane::Preview, widths[2], rows),
+        ];
+        push_columns(&mut output, &panes);
     }
 
     if let Some(message) = app.message() {
-        push_output(&mut output, &format!("! {message}"));
+        push_output(&mut output, &clip(&format!("! {message}"), width));
     }
     push_output(&mut output, &separator);
-    push_output(&mut output, &clip(&footer_line(app), width));
+    push_output(&mut output, &clip(&workspace_footer(app, width), width));
     output
 }
 
-fn protocol_detail_open(app: &App) -> bool {
-    app.inspector()
-        .is_some_and(|inspector| inspector.view == InspectorView::ProtocolExplanation)
+fn render_workspace_pane(app: &App, pane: WorkspacePane, width: usize, rows: usize) -> Lines {
+    let body_width = width.saturating_sub(4);
+    let (title, body, scroll) = if let Some(session) = app.group() {
+        match pane {
+            WorkspacePane::Stages => ("ENTROPY SETS", group_stage_lines(app, session), 0),
+            WorkspacePane::Task => (
+                group::card_title(app),
+                group::group_task_body(app, session, body_width),
+                app.roll_scroll(),
+            ),
+            WorkspacePane::Preview => (
+                group_preview_title(app),
+                group::group_preview_body(app, session, body_width),
+                app.roll_scroll(),
+            ),
+        }
+    } else {
+        match pane {
+            WorkspacePane::Stages => ("STAGES", stage_lines(app), 0),
+            WorkspacePane::Task => {
+                let body = if app.quit_pending() {
+                    render_quit(app.ceremony().state().phase(), body_width)
+                } else {
+                    render_live(app, body_width)
+                };
+                (task_title(app), body, app.roll_scroll())
+            }
+            WorkspacePane::Preview => {
+                let body = if app.quit_pending() {
+                    lines(&["Preview suspended while secure exit is open."])
+                } else {
+                    render_preview(app, body_width)
+                };
+                let scroll = app
+                    .inspector()
+                    .map_or(app.roll_scroll(), |value| value.scroll);
+                (preview_title(app), body, scroll)
+            }
+        }
+    };
+    render_card_lines(
+        title,
+        &body,
+        rows,
+        scroll,
+        app.focused_pane() == pane,
+        width,
+    )
 }
 
-fn protocol_detail_context(app: &App, width: usize) -> Lines {
-    if app.ceremony().state().phase() == Phase::EnterRolls {
-        render_roll_entry(app, width)
-    } else {
-        render_protocol_step(app)
+fn push_two_columns(output: &mut String, panes: &[Lines; 2]) {
+    for (task, preview) in panes[0].iter().zip(panes[1].iter()) {
+        let line = Zeroizing::new(format!("{task} {preview}"));
+        push_output(output, &line);
     }
 }
 
-fn protocol_detail_minimum_rows(app: &App) -> usize {
-    if app.ceremony().state().phase() == Phase::EnterRolls {
-        10
-    } else {
-        8
+fn push_columns(output: &mut String, panes: &[Lines; 3]) {
+    for ((stages, task), preview) in panes[0].iter().zip(panes[1].iter()).zip(panes[2].iter()) {
+        let line = Zeroizing::new(format!("{stages} {task} {preview}"));
+        push_output(output, &line);
     }
 }
 
-fn split_protocol_detail_rows(
-    context_len: usize,
-    available: usize,
-    minimum_detail_rows: usize,
-) -> (usize, usize) {
-    let context = context_len.min(available.saturating_sub(minimum_detail_rows));
-    (context, available.saturating_sub(context))
+fn standard_column_widths(width: usize) -> [usize; 2] {
+    let available = width.saturating_sub(1);
+    let task = available.saturating_mul(58) / 100;
+    [task, available.saturating_sub(task)]
+}
+
+fn workspace_column_widths(width: usize) -> [usize; 3] {
+    let stages = 18;
+    let remaining = width.saturating_sub(stages + 2);
+    let task = remaining.saturating_mul(56) / 100;
+    [stages, task, remaining.saturating_sub(task)]
+}
+
+fn focused_body_width(app: &App, width: usize) -> usize {
+    let layout = WorkspaceLayout::for_width(width);
+    if app.workspace_zoomed() || layout == WorkspaceLayout::Compact {
+        return width;
+    }
+    if layout == WorkspaceLayout::Standard {
+        let columns = standard_column_widths(width);
+        return match app.focused_pane() {
+            WorkspacePane::Stages => width,
+            WorkspacePane::Task => columns[0],
+            WorkspacePane::Preview => columns[1],
+        };
+    }
+    let columns = workspace_column_widths(width);
+    match app.focused_pane() {
+        WorkspacePane::Stages => columns[0],
+        WorkspacePane::Task => columns[1],
+        WorkspacePane::Preview => columns[2],
+    }
+}
+
+fn workspace_body_rows(app: &App, height: usize, layout: WorkspaceLayout) -> usize {
+    let notice = usize::from(app.message().is_some());
+    let compact_header =
+        usize::from(layout != WorkspaceLayout::Wide && !app.workspace_zoomed()) * 2;
+    height.saturating_sub(6 + notice + compact_header)
+}
+
+fn group_stage_lines(app: &App, session: &crate::application::GroupSession) -> Lines {
+    let progress = session.roll_progress();
+    let mut output = lines(&[
+        "◆ Group compare",
+        "",
+        &format!("{} captures", session.set_count()),
+        &format!("{} rolls current", progress.recorded),
+        "",
+    ]);
+    let marker = if app.group_screen() == super::app::GroupScreen::Rolls {
+        '●'
+    } else {
+        '✓'
+    };
+    push(&mut output, &format!("{marker} Collect"));
+    let marker = if app.group_screen() == super::app::GroupScreen::Results {
+        '●'
+    } else {
+        '○'
+    };
+    push(&mut output, &format!("{marker} Compare"));
+    output
+}
+
+fn stage_lines(app: &App) -> Lines {
+    let phase = app.ceremony().state().phase();
+    let active = frame::active_stage(phase);
+    let labels = ["Setup", "Safety", "Capture", "Generate", "Reveal"];
+    let mut output = Lines::new(Vec::with_capacity(labels.len() + 2));
+    for (index, label) in labels.iter().enumerate() {
+        let marker = match index.cmp(&active) {
+            std::cmp::Ordering::Less => '✓',
+            std::cmp::Ordering::Equal => '●',
+            std::cmp::Ordering::Greater => '○',
+        };
+        push(&mut output, &format!("{marker} {label}"));
+    }
+    push(&mut output, "");
+    push(&mut output, "Tab cycles panes");
+    output
+}
+
+fn group_preview_title(app: &App) -> &'static str {
+    if app.group_derivation().is_some() {
+        "DERIVATION · ALL VALUES SECRET · FOCUS"
+    } else if app.group_details().is_some() {
+        "GROUP COMPARE · DETAILS · FOCUS"
+    } else if app.group_help() {
+        "GROUP COMPARE · HELP · FOCUS"
+    } else {
+        "PREVIEW · ENTROPY SETS · FOCUS"
+    }
+}
+
+fn task_title(app: &App) -> &'static str {
+    if app.quit_pending() {
+        return "CONFIRM SECURE EXIT · FOCUS";
+    }
+    match app.ceremony().state().phase() {
+        Phase::Safety => "SAFETY PREFLIGHT · FOCUS",
+        Phase::EnterRolls => "ROLL CAPTURE · FOCUS",
+        Phase::Result => "MNEMONIC READY · FOCUS",
+        Phase::Revealed => "RECOVERY WORDS · FOCUS",
+        Phase::Cancelled => "CEREMONY CANCELLED",
+        Phase::ChooseTarget
+        | Phase::ChooseProtocol
+        | Phase::ReadyToGenerate
+        | Phase::AttemptRejected => "CEREMONY · FOCUS",
+    }
+}
+
+fn preview_title(app: &App) -> &'static str {
+    match app.inspector().map(|value| value.view) {
+        Some(InspectorView::Derivation) => "DERIVATION · ALL VALUES SECRET · FOCUS",
+        Some(InspectorView::ProtocolExplanation) => "PROTOCOL DETAILS · FOCUS",
+        Some(InspectorView::PhysicalEntropy) => "PHYSICAL ENTROPY · FOCUS",
+        Some(InspectorView::Help) => "HELP · FOCUS",
+        None => "PREVIEW · FOCUS",
+    }
+}
+
+fn workspace_footer(app: &App, width: usize) -> String {
+    if app.workspace_zoomed() {
+        return "[Esc] unzoom  [Tab] pane  [p] preview  [q] cancel".to_owned();
+    }
+    let contextual = if app.group().is_some() {
+        group::footer(app)
+    } else {
+        footer_line(app)
+    };
+    if width < 110 {
+        return contextual;
+    }
+    if width >= 120 {
+        return format!("{contextual}   [Tab] pane  [p] preview  [z] zoom");
+    }
+    if app.focused_pane() == WorkspacePane::Preview {
+        return "[↑/↓] scroll  [Tab] pane  [p] preview  [z] zoom  [Esc] close  [q] cancel"
+            .to_owned();
+    }
+    match app.ceremony().state().phase() {
+        Phase::ChooseTarget | Phase::ChooseProtocol => {
+            "[↑/↓] choose  [Enter] next  [Tab] pane  [p] preview  [q] cancel".to_owned()
+        }
+        Phase::Safety => {
+            "[↑/↓] move  [Space] check  [Enter] begin  [Tab] pane  [q] cancel".to_owned()
+        }
+        Phase::EnterRolls => {
+            "[keys] record  [⌫] undo  [Enter] generate  [Tab] pane  [p] preview".to_owned()
+        }
+        Phase::Result => "[r] reveal  [Tab] pane  [p] preview  [q] cancel".to_owned(),
+        Phase::Revealed => "[h] hide  [v] verify  [d] derive  [q] finish".to_owned(),
+        Phase::AttemptRejected => "[r/Enter] fresh attempt  [q] cancel".to_owned(),
+        Phase::ReadyToGenerate | Phase::Cancelled => "[q] exit".to_owned(),
+    }
 }
 
 fn workspace_status(app: &App) -> &'static str {
+    if let Some(session) = app.group() {
+        if app.group_derivation().is_some() {
+            return "● SECRET EXPOSED";
+        }
+        if app.group_help() || app.group_details().is_some() {
+            return "○ NO SECRET YET";
+        }
+        return group::status_corner(app, session);
+    }
     // The corner reflects only secret state the app actually controls, never
     // an environment claim (offline, airgap) it cannot verify. Operator-owned
     // guidance lives in the safety preflight.
     let state = app.ceremony().state();
     if state.phase() == Phase::EnterRolls && state.capture_count() > 0 {
-        // The ledger always shows at least the latest outcome during entry.
+        // Pane changes cannot retract a secret from terminal recording or prior frames.
         "● SECRET EXPOSED"
     } else if state.phase() == Phase::Result || state.capture_count() > 0 {
         "● SECRET CONCEALED"
     } else {
         "○ NO SECRET YET"
-    }
-}
-
-fn workspace_card_title(app: &App) -> &'static str {
-    if app.quit_pending() {
-        return "CONFIRM SECURE EXIT · FOCUS";
-    }
-    match app.inspector().map(|inspector| inspector.view) {
-        Some(InspectorView::Derivation) => "DERIVATION · ALL VALUES SECRET · FOCUS",
-        Some(InspectorView::ProtocolExplanation) => "PROTOCOL DETAILS · FOCUS",
-        Some(InspectorView::PhysicalEntropy) => "PHYSICAL ENTROPY · FOCUS",
-        Some(InspectorView::Help) => "HELP · FOCUS",
-        None if app.ceremony().state().phase() == Phase::Safety => "SAFETY PREFLIGHT · FOCUS",
-        None if app.ceremony().state().phase() == Phase::EnterRolls => "ROLL CAPTURE · FOCUS",
-        None if app.ceremony().state().phase() == Phase::Result => "MNEMONIC READY · FOCUS",
-        None => "CEREMONY · FOCUS",
     }
 }
 
@@ -312,52 +525,18 @@ fn render_protocol_step(app: &App) -> Lines {
         .state()
         .target()
         .unwrap_or(EntropyTarget::Words12);
-    let mut output = if protocol_detail_open(app) {
-        compact_protocol_choices(app.protocol_cursor(), target)
-    } else {
-        content_choices(
-            "Choose conversion protocol",
-            "Available choices generate BIP-39; target-limited rows explain their scope.",
-            1,
-            app.protocol_cursor(),
-            &protocol_choices(target),
-        )
-    };
-    if !protocol_detail_open(app) {
-        push(&mut output, "");
-    }
+    let mut output = content_choices(
+        "Choose conversion protocol",
+        "Available choices generate BIP-39; target-limited rows explain their scope.",
+        1,
+        app.protocol_cursor(),
+        &protocol_choices(target),
+    );
+    push(&mut output, "");
     push(
         &mut output,
-        if protocol_detail_open(app) {
-            "Details open below · [e/Esc/Tab] close"
-        } else {
-            "[e] Explain selected protocol · [g] Group compare"
-        },
+        "[e] Explain selected protocol · [g] Group compare",
     );
-    output
-}
-
-fn compact_protocol_choices(selected: usize, target: EntropyTarget) -> Lines {
-    let mut output = lines(&[
-        "SETUP · STEP 2 OF 2 · Protocol",
-        "Choose conversion protocol",
-    ]);
-    for (index, choice) in ProtocolMenuChoice::ALL.into_iter().enumerate() {
-        let marker = if index == selected { '▶' } else { '○' };
-        let status = if choice.implemented_protocol(target).is_some() {
-            ""
-        } else {
-            match choice {
-                ProtocolMenuChoice::KeystoneLegacyDice => " · UNSUPPORTED FOR 12 WORDS",
-                ProtocolMenuChoice::CoinFourD6Direct => " · UNSUPPORTED FOR 24 WORDS",
-                _ => unreachable!("all other menu choices support both targets"),
-            }
-        };
-        push(
-            &mut output,
-            &format!("  {marker} {}{status}", choice.name()),
-        );
-    }
     output
 }
 
@@ -551,10 +730,10 @@ fn inspector_footer(view: InspectorView, derivation_available: bool, phase: Phas
         "[q] cancel"
     };
     if view == InspectorView::Derivation {
-        return format!("[h] hide   {quit}   [↑/↓] scroll   [Tab/Esc] live");
+        return format!("[h] hide   {quit}   [↑/↓] scroll   [Esc] close   [Tab] pane");
     }
     if view == InspectorView::PhysicalEntropy {
-        return format!("{quit}  [↑/↓] scroll  [t/Esc/Tab] back");
+        return format!("{quit}  [↑/↓] scroll  [t/Esc] close  [Tab] pane");
     }
     if view == InspectorView::ProtocolExplanation {
         let destination = if phase == Phase::ChooseProtocol {
@@ -562,14 +741,14 @@ fn inspector_footer(view: InspectorView, derivation_available: bool, phase: Phas
         } else {
             "roll capture"
         };
-        return format!("{quit}  [↑/↓] scroll  [e/Esc/Tab] {destination}");
+        return format!("{quit}  [↑/↓] scroll  [e/Esc] {destination}  [Tab] pane");
     }
     let derivation = if derivation_available {
         "   [d] derivation"
     } else {
         ""
     };
-    format!("{quit}   [↑/↓] scroll{derivation}   [Tab/Esc] live")
+    format!("{quit}   [↑/↓] scroll{derivation}   [Esc] close   [Tab] pane")
 }
 
 fn roll_footer(app: &App) -> String {
@@ -903,6 +1082,67 @@ mod tests {
     }
 
     #[test]
+    fn wide_workspace_keeps_stage_task_and_preview_visible() {
+        let output = render(&App::default(), 120, 30);
+
+        assert!(output.contains("┌─ STAGES"));
+        assert!(output.contains("┏━ CEREMONY · FOCUS"));
+        assert!(output.contains("┌─ PREVIEW · FOCUS"));
+        assert!(output.contains("You are choosing the BIP-39 entropy"));
+        assert_eq!(output.lines().count(), 30);
+    }
+
+    #[test]
+    fn preview_focus_can_be_zoomed_without_changing_its_content() {
+        let mut app = App::default();
+        app.update(Key::Char('p'));
+        let focused = render(&app, 120, 30);
+        assert!(focused.contains("┏━ PREVIEW · FOCUS"));
+        assert!(focused.contains("┌─ CEREMONY · FOCUS"));
+
+        app.update(Key::Char('z'));
+        let zoomed = render(&app, 120, 30);
+        assert!(!zoomed.contains("┌─ STAGES"));
+        assert!(!zoomed.contains("CEREMONY · FOCUS"));
+        assert!(zoomed.contains("┏━ PREVIEW · FOCUS"));
+        assert!(zoomed.contains("You are choosing the BIP-39 entropy target"));
+        assert_eq!(zoomed.lines().count(), 30);
+    }
+
+    #[test]
+    fn mobile_workspace_keeps_the_task_and_pane_controls() {
+        let output = render(&App::default(), 44, 22);
+
+        assert!(!output.contains("Terminal too small"));
+        assert!(output.contains("Choose mnemonic length"));
+        assert!(output.contains("Tab pane · p preview · z zoom"));
+        assert_eq!(output.lines().count(), 22);
+    }
+
+    #[test]
+    fn pointer_coordinates_resolve_only_visible_workspace_panes() {
+        let app = App::default();
+        assert_eq!(
+            workspace_pane_at(&app, 120, 30, 5, 4),
+            Some(WorkspacePane::Stages)
+        );
+        assert_eq!(
+            workspace_pane_at(&app, 120, 30, 30, 4),
+            Some(WorkspacePane::Task)
+        );
+        assert_eq!(
+            workspace_pane_at(&app, 120, 30, 100, 4),
+            Some(WorkspacePane::Preview)
+        );
+        assert_eq!(workspace_pane_at(&app, 120, 30, 19, 4), None);
+        assert_eq!(workspace_pane_at(&app, 120, 30, 30, 1), None);
+        assert_eq!(
+            workspace_pane_at(&app, 44, 22, 20, 8),
+            Some(WorkspacePane::Task)
+        );
+    }
+
+    #[test]
     fn safety_preflight_formats_selection_and_progress() {
         let mut app = safety_app();
         let initial = render(&app, 52, 40);
@@ -1008,7 +1248,7 @@ mod tests {
 
         let first = render(&app, 52, 40);
         assert!(first.contains("PHYSICAL ENTROPY · FOCUS"));
-        assert!(first.contains("[t/Esc/Tab] back"));
+        assert!(first.contains("[t/Esc] close"));
         assert_eq!(first.lines().count(), 40);
         // Longer than the minimum terminal, so it must offer scrolling rather
         // than silently dropping the throwing figures.
@@ -1403,13 +1643,11 @@ mod tests {
         let output = render(&app, 52, 40);
 
         for expected in [
-            "PROTOCOL SELECTION",
-            "▶ COLDCARD",
-            "○ Word-by-word Exact",
-            "○ Exact",
+            "● SETUP",
+            "Tab pane · p preview · z zoom",
             "PROTOCOL DETAILS · FOCUS",
             "COLDCARD HASH · DEVICE COMPATIBILITY",
-            "[e/Esc/Tab] protocols",
+            "[e/Esc] protocols",
         ] {
             assert!(
                 output.contains(expected),
@@ -1422,13 +1660,13 @@ mod tests {
                 .lines()
                 .filter(|line| line.starts_with(['┌', '┏']))
                 .count(),
-            2
+            1
         );
         assert_eq!(output.lines().count(), 40);
     }
 
     #[test]
-    fn exact_explanation_uses_the_contextual_detail_card() {
+    fn exact_explanation_occupies_preview_at_compact_width() {
         let mut app = App::default();
         app.update(Key::Char('\n'));
         app.update(Key::Down);
@@ -1436,8 +1674,7 @@ mod tests {
         app.update(Key::Char('e'));
         let first = render(&app, 80, 40);
 
-        assert!(first.contains("┌─ PROTOCOL SELECTION"));
-        assert!(first.contains("▶ Exact"));
+        assert!(first.contains("Tab pane · p preview · z zoom"));
         assert!(first.contains("┏━ PROTOCOL DETAILS · FOCUS"));
         assert!(first.contains("SMALL EXAMPLE · TWO DICE TO EIGHT VALUES"));
         assert!(first.contains("(1, 1) → 0"));
@@ -1712,18 +1949,17 @@ mod tests {
         app.update(Key::Char('e'));
         let details = render(&app, 80, 40);
 
-        assert!(details.contains("┌─ ROLL CAPTURE"));
-        assert!(details.contains("LATEST RECORDED · #001"));
+        assert!(details.contains("Tab pane · p preview · z zoom"));
         assert!(details.contains("┏━ PROTOCOL DETAILS · FOCUS"));
         assert!(details.contains("SMALL EXAMPLE · TWO DICE TO EIGHT VALUES"));
-        assert!(details.contains("[e/Esc/Tab] roll capture"));
+        assert!(details.contains("[e/Esc] roll capture"));
         assert!(!details.contains("PROTOCOL SELECTION"));
         assert_eq!(
             details
                 .lines()
                 .filter(|line| line.starts_with(['┌', '┏']))
                 .count(),
-            2
+            1
         );
 
         app.update(Key::Esc);
@@ -2088,6 +2324,23 @@ mod tests {
     }
 
     #[test]
+    fn wide_group_workspace_keeps_collection_and_entropy_sets_visible() {
+        let mut app = App::default();
+        app.update(Key::Down);
+        app.update(Key::Char('\n'));
+        app.update(Key::Char('g'));
+        app.update(Key::Char('4'));
+        let output = render(&app, 120, 30);
+
+        assert!(output.contains("┌─ ENTROPY SETS"));
+        assert!(output.contains("┏━ GROUP COMPARE · COLLECT · FOCUS"));
+        assert!(output.contains("┌─ PREVIEW · ENTROPY SETS · FOCUS"));
+        assert!(output.contains("ENTROPY SET EXPLORER"));
+        assert!(output.contains("LATEST RECORDED · #001 · FACE 4"));
+        assert_eq!(output.lines().count(), 30);
+    }
+
+    #[test]
     fn group_results_conceal_seeds_until_reveal() {
         let mut app = group_results_app();
         let concealed = render(&app, 80, 40);
@@ -2118,6 +2371,23 @@ mod tests {
         let revealed = render(&app, 80, 40);
         assert!(!revealed.contains("[r] reveals the accepted seeds."));
         assert!(revealed.contains(&first_word));
+    }
+
+    #[test]
+    fn group_secrets_require_the_reveal_viewport() {
+        let mut app = group_results_app();
+        app.update(Key::Char('r'));
+        assert_eq!(minimum_size(&app), (52, 40));
+        let revealed = render(&app, 44, 22);
+        assert!(revealed.contains("Terminal too small"));
+        assert!(revealed.contains("Secret values remain hidden"));
+
+        app.update(Key::Char('r'));
+        app.update(Key::Char('d'));
+        assert_eq!(minimum_size(&app), (52, 40));
+        let derivation = render(&app, 44, 22);
+        assert!(derivation.contains("Terminal too small"));
+        assert!(!derivation.contains("CANONICAL INPUT"));
     }
 
     #[test]

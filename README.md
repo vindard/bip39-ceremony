@@ -83,6 +83,17 @@ step, with transcription and backup-verification guidance.</i></sub>
 </tr>
 </table>
 
+The responsive workspace keeps the active task, ceremony stages, and contextual
+preview spatially stable when the terminal is wide enough. Press `Tab` or `]` to
+move focus, `Shift-Tab` or `[` to move back, `p` to focus the preview, and `z` to
+zoom the focused pane. A mouse click can focus a visible pane; every action has a
+keyboard equivalent. Capture keys remain active while another pane is focused.
+
+At `120` columns the three panes remain visible, at `110–119` columns the stage
+rail becomes a compact path, and below that each pane becomes a full-width view.
+Setup and capture support `44×22`; an exposed recovery phrase still requires
+`52×40` so resize cannot partially draw secret words.
+
 ## 🎲 How you throw
 
 Every protocol here is deterministic, so all of the unpredictability has to come
