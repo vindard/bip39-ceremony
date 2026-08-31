@@ -56,10 +56,12 @@ pub enum ProtocolMenuChoice {
     SeedSignerCoins,
     BitcoinLibBase6,
     BlueWalletBitPack,
+    IanColemanDice,
+    IanColemanRaw,
 }
 
 impl ProtocolMenuChoice {
-    pub const ALL: [Self; 11] = [
+    pub const ALL: [Self; 13] = [
         Self::Coldcard,
         Self::WordExact,
         Self::Exact,
@@ -71,6 +73,8 @@ impl ProtocolMenuChoice {
         Self::SeedSignerCoins,
         Self::BitcoinLibBase6,
         Self::BlueWalletBitPack,
+        Self::IanColemanDice,
+        Self::IanColemanRaw,
     ];
 
     #[must_use]
@@ -91,6 +95,8 @@ impl ProtocolMenuChoice {
             Self::SeedSignerCoins => Some(ConversionProtocol::SeedSignerCoinsV1),
             Self::BitcoinLibBase6 => Some(ConversionProtocol::BitcoinLibBase6V1),
             Self::BlueWalletBitPack => Some(ConversionProtocol::BlueWalletBitPackV1),
+            Self::IanColemanDice => Some(ConversionProtocol::IanColemanDiceV1),
+            Self::IanColemanRaw => Some(ConversionProtocol::IanColemanRawV1),
             Self::KeystoneLegacyDice | Self::CoinFourD6Direct => None,
         }
     }
@@ -109,6 +115,8 @@ impl ProtocolMenuChoice {
             Self::SeedSignerCoins => "SeedSigner coin flips",
             Self::BitcoinLibBase6 => "bitcoinlib base-6 (no hash)",
             Self::BlueWalletBitPack => "BlueWallet bit packing",
+            Self::IanColemanDice => "iancoleman dice (fixed length)",
+            Self::IanColemanRaw => "iancoleman dice (raw)",
         }
     }
 }
@@ -160,8 +168,46 @@ pub fn capture_protocol_context(protocol: ConversionProtocol) -> ChoiceContent {
             "BlueWallet bit packing",
             "faces 1-4 give two bits, 5-6 give one · no hash · tape length varies",
         ),
+        ConversionProtocol::IanColemanDiceV1 => (
+            "iancoleman dice (fixed length)",
+            "map face 6 to ASCII 0 → SHA-256 → target-width BIP-39 entropy",
+        ),
+        ConversionProtocol::IanColemanRawV1 => (
+            "iancoleman dice (raw)",
+            "base-6 packed bits · no hash · trailing whole 32-bit groups kept",
+        ),
     };
     ChoiceContent::new(name.to_owned(), detail.to_owned())
+}
+
+fn roll_requirement(protocol: ConversionProtocol, target: EntropyTarget) -> String {
+    let minimum = protocol.minimum_observations(target);
+    match protocol {
+        ConversionProtocol::SeedSignerCoinsV1 => format!("exactly {minimum} flips"),
+        ConversionProtocol::JadeDirectV1 => format!("exactly {minimum} mixed-die rolls"),
+        ConversionProtocol::CoinFourD6DirectV1 => {
+            format!("min {minimum} outcomes + rejected five-outcome retries")
+        }
+        ConversionProtocol::BitBox02DirectV1 => {
+            format!("min {minimum} outcomes + rejected D6 retries")
+        }
+        ConversionProtocol::BlueWalletBitPackV1 => {
+            format!(
+                "{minimum}+ rolls until {} bits are packed",
+                target.entropy_bits()
+            )
+        }
+        ConversionProtocol::IanColemanRawV1 => {
+            format!(
+                "{minimum}+ rolls until {} bits are kept",
+                target.entropy_bits()
+            )
+        }
+        ConversionProtocol::ExactV1 | ConversionProtocol::BitcoinLibBase6V1 => {
+            format!("exactly {minimum} rolls")
+        }
+        _ => format!("min {minimum} rolls"),
+    }
 }
 
 #[must_use]
@@ -171,7 +217,6 @@ pub fn protocol_choices(target: EntropyTarget) -> Vec<ChoiceContent> {
         .map(|choice| {
             let detail = match choice.implemented_protocol(target) {
                 Some(protocol) => {
-                    let specification = protocol.specification(target);
                     let summary = match choice {
                         ProtocolMenuChoice::Coldcard => {
                             "Best compatibility · externally reproducible SHA-256"
@@ -206,37 +251,14 @@ pub fn protocol_choices(target: EntropyTarget) -> Vec<ChoiceContent> {
                         ProtocolMenuChoice::BlueWalletBitPack => {
                             "Unbiased packing, no hash · roll count varies"
                         }
+                        ProtocolMenuChoice::IanColemanDice => {
+                            "Web tool, word count chosen · same mapping as Keystone"
+                        }
+                        ProtocolMenuChoice::IanColemanRaw => {
+                            "Web tool default · word count follows the tape"
+                        }
                     };
-                    let roll_requirement = if protocol == ConversionProtocol::SeedSignerCoinsV1 {
-                        format!("exactly {} flips", specification.minimum_observations())
-                    } else if protocol == ConversionProtocol::JadeDirectV1 {
-                        format!(
-                            "exactly {} mixed-die rolls",
-                            specification.minimum_observations()
-                        )
-                    } else if protocol == ConversionProtocol::CoinFourD6DirectV1 {
-                        format!(
-                            "min {} outcomes + rejected five-outcome retries",
-                            specification.minimum_observations()
-                        )
-                    } else if protocol == ConversionProtocol::BitBox02DirectV1 {
-                        format!(
-                            "min {} outcomes + rejected D6 retries",
-                            specification.minimum_observations()
-                        )
-                    } else if protocol == ConversionProtocol::BlueWalletBitPackV1 {
-                        format!(
-                            "{}+ rolls until {} bits are packed",
-                            specification.minimum_observations(),
-                            target.entropy_bits()
-                        )
-                    } else if protocol == ConversionProtocol::ExactV1
-                        || protocol == ConversionProtocol::BitcoinLibBase6V1
-                    {
-                        format!("exactly {} rolls", specification.minimum_observations())
-                    } else {
-                        format!("min {} rolls", specification.minimum_observations())
-                    };
+                    let roll_requirement = roll_requirement(protocol, target);
                     format!("{summary} · {roll_requirement}")
                 }
                 None => match choice {

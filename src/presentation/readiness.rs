@@ -16,16 +16,11 @@ pub fn readiness_document(readiness: CaptureReadiness) -> Document {
             )),
             B::Paragraph("! Whole-sequence conversion may accept or reject.".to_owned()),
         ],
-        ReadinessKind::BitcoinLibBase6 => vec![
-            B::Paragraph(format!(
-                "✓ SOURCE REQUIRED COUNT · {} recorded",
-                readiness.recorded()
-            )),
-            B::Paragraph(
-                "! The base-6 reading is used unhashed and may miss the target width.".to_owned(),
-            ),
-        ],
+        ReadinessKind::BitcoinLibBase6 => bitcoinlib_readiness(readiness.recorded()),
         ReadinessKind::BlueWalletBitPack => bluewallet_readiness(readiness.recorded()),
+        ReadinessKind::IanColemanDice | ReadinessKind::IanColemanRaw => {
+            return Document::new("CAPTURE READY".to_owned(), iancoleman_blocks(readiness));
+        }
         ReadinessKind::WordExact => vec![
             B::Paragraph("✓ ALL ENTROPY POSITIONS + FINAL TAIL ACCEPTED".to_owned()),
             B::Paragraph("○ BIP-39 checksum will be calculated, not rolled.".to_owned()),
@@ -109,6 +104,15 @@ pub fn readiness_document(readiness: CaptureReadiness) -> Document {
     Document::new("CAPTURE READY".to_owned(), blocks)
 }
 
+fn bitcoinlib_readiness(recorded: usize) -> Vec<B> {
+    vec![
+        B::Paragraph(format!("✓ SOURCE REQUIRED COUNT · {recorded} recorded")),
+        B::Paragraph(
+            "! The base-6 reading is used unhashed and may miss the target width.".to_owned(),
+        ),
+    ]
+}
+
 fn bluewallet_readiness(recorded: usize) -> Vec<B> {
     vec![
         B::Paragraph(format!("✓ ENTROPY WIDTH PACKED · {recorded} rolls used")),
@@ -126,5 +130,30 @@ fn coin_four_d6_readiness(recorded: usize) -> Vec<B> {
         B::Paragraph(
             "○ The final candidate supplies seven entropy bits; checksum is calculated.".to_owned(),
         ),
+    ]
+}
+
+fn iancoleman_blocks(readiness: CaptureReadiness) -> Vec<B> {
+    if readiness.kind() == ReadinessKind::IanColemanRaw {
+        return vec![
+            B::Paragraph(format!(
+                "✓ WHOLE GROUPS REDUCE TO THE TARGET · {} recorded",
+                readiness.recorded()
+            )),
+            B::Paragraph(
+                "✓ The leading remainder is discarded; the last rolls decide the seed.".to_owned(),
+            ),
+            B::Paragraph(
+                "! One more whole 32-bit group would be a longer phrase upstream.".to_owned(),
+            ),
+        ];
+    }
+    vec![
+        B::Paragraph(format!(
+            "✓ TARGET-FILLING COUNT MET · {} recorded",
+            readiness.recorded()
+        )),
+        B::Paragraph("✓ Face 6 maps to ASCII 0 before SHA-256.".to_owned()),
+        B::Paragraph("The web tool itself enforces no minimum.".to_owned()),
     ]
 }

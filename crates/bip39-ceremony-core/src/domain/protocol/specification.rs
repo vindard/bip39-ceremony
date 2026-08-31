@@ -13,6 +13,7 @@ pub enum CanonicalInputKind {
     AsciiHyphenatedD20,
     AsciiCoinFlips,
     PackedFaceBits,
+    PackedBase6Bits,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -44,6 +45,7 @@ pub enum Compatibility {
     SeedSigner,
     BitcoinLibBase6,
     BlueWallet,
+    IanColeman,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -168,6 +170,18 @@ impl ConversionProtocol {
                 RejectionPolicy::None,
                 Compatibility::BlueWallet,
                 false,
+            ),
+            Self::IanColemanDiceV1 => (
+                CanonicalInputKind::AsciiFacesWithSixAsZero,
+                RejectionPolicy::None,
+                Compatibility::IanColeman,
+                true,
+            ),
+            Self::IanColemanRawV1 => (
+                CanonicalInputKind::PackedBase6Bits,
+                RejectionPolicy::None,
+                Compatibility::IanColeman,
+                true,
             ),
         };
         ProtocolSpecification {

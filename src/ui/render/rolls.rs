@@ -366,6 +366,13 @@ pub(super) fn roll_count_status(count: usize, assessment: Option<CaptureAssessme
             progress.bits(),
             progress.required_bits()
         ),
+        CaptureProgress::IanColemanRaw(progress) => format!(
+            "{} recorded · {} bits packed · {}/{} kept",
+            progress.recorded(),
+            progress.bits(),
+            progress.usable_bits(),
+            progress.required_bits()
+        ),
         CaptureProgress::CoinFourD6(progress) => format!(
             "{} recorded · {}/12 accepted · {} rejected candidates",
             progress.recorded(),

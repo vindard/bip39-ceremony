@@ -166,6 +166,8 @@ tag. See [**Verifying releases**](docs/verifying-releases.md).
 | **SeedSigner coin flips** | 12 · 24 | Coin | Exactly 128 or 256 physical flips serialized as ASCII `0`/`1`, hashed with SHA-256, then truncated for 12 words when needed. |
 | **bitcoinlib base-6 (no hash)** | 12 · 24 | D6 | Reads exactly 50 or 99 rolls as one base-6 integer and uses it directly as entropy — no SHA-256 and no rejection sampling — matching [RooSoft/bitcoinlib][bitcoinlib-base6]. Not uniform. A reading whose minimal big-endian encoding is not exactly 16 or 32 bytes is rejected rather than padded or truncated; roughly three in five 50-roll tapes reject. |
 | **BlueWallet bit packing** | 12 · 24 | D6 | Packs faces straight into entropy bits with no hash, matching [BlueWallet][bluewallet-bitpack]: faces `1`–`4` give two bits (`00`–`11`), faces `5`/`6` give one (`0`/`1`), ≈1.67 bits per roll. The tape length varies with the faces rolled — 64–128 rolls for 12 words — and the roll that overshoots keeps only its leading bits. Requires the full width; BlueWallet fills a shortfall from the phone's RNG, which is not reproducible. |
+| **Ian Coleman dice (fixed length)** | 12 · 24 | D6 | Rewrites face `6` to `0`, hashes the ASCII digits, and takes the target-width digest prefix, matching the [web tool][iancoleman-dice] when a word count is selected. Requires at least 50 or 100 rolls here; upstream warns and continues on shorter tapes. |
+| **Ian Coleman dice (raw)** | 12 · 24 | D6 | Rewrites face `6` to `0`, packs variable-width base-6 bits without hashing, and keeps trailing whole 32-bit groups, matching the web tool's default raw mode. The target word count is valid only while the packed tape reduces to exactly 128 or 256 usable bits. |
 
 [jade-guide]: https://help.blockstream.com/blockstream-jade/add-more-security-functionality/create-a-recovery-phrase-using-dice
 [bitbox-guide]: https://blog.bitbox.swiss/en/roll-the-dice-generate-your-own-seed/
@@ -173,6 +175,7 @@ tag. See [**Verifying releases**](docs/verifying-releases.md).
 [coin-four-d6-table]: https://github.com/taelfrinn/Bip39-diceware/blob/5320c9978fe89b5e068f6c0cafe45effe900e74c/README.md
 [bitcoinlib-base6]: https://github.com/RooSoft/bitcoinlib/blob/a998a61caad66d074772ec4a10ba5268aa65ca40/lib/key/hd/entropy.ex#L41-L79
 [bluewallet-bitpack]: https://github.com/BlueWallet/BlueWallet/blob/8.0.1/screen/wallets/ProvideEntropy.tsx#L103-L125
+[iancoleman-dice]: https://github.com/iancoleman/bip39/blob/de71c22328b24e0848bbe1bd12ac8974ca83b5b8/src/js/index.js
 
 All selectable protocols produce ordinary BIP-39 output. The protocol matters
 only when reproducing a mnemonic from its original rolls.
@@ -232,23 +235,24 @@ tests verify the core crate's public boundary.
 
 ## 🔬 Reference validation
 
-![upstream oracles](https://img.shields.io/badge/upstream%20oracles-7%20pinned-2aa198)
+![upstream oracles](https://img.shields.io/badge/upstream%20oracles-10%20pinned-2aa198)
 
 Every wallet-compatible profile is cross-checked against the wallet's own
 **executable** code — not just its published example — pinned by revision and
-content hash in `flake.lock`:
+content hash in `flake.lock`.
 
-**COLDCARD · SeedSigner · Krux · BitBox02 · Keystone · Jade · Ian Coleman**
-
-| Upstream (pinned) | Executed and compared at | `just` check |
+| Upstream (pinned) | Executed and compared at | Nix check |
 | --- | --- | --- |
 | **COLDCARD firmware** | dice count, 30% distribution rejection, ASCII SHA-256, target truncation | `reference-coldcard` |
-| **SeedSigner** (+ `embit 0.8.0`) | `generate_mnemonic_from_coin_flips` coin-flip helper | `reference-seedsigner` |
-| **Krux v26.08.0** | `DiceEntropy.new_key`: minimum gate, decimal-hyphen serialization, SHA-256, truncation | `reference-krux` |
-| **BitBox02 firmware v9.26.4** | checksum-completion candidates + entropy-tail ordering | `reference-bitbox` |
-| **Keystone** (legacy Android) | 50/98/99-roll completion branches, face `6`→`0` mapping, SHA-256 | `reference-keystone` |
-| **Jade firmware 1.0.40** (+ pinned libwally) | `valid_final_words` checksum + final-word ordering | `reference-jade` |
-| **Ian Coleman BIP-39** | entropy → English encoder (shared BIP-39 boundary) | `reference-iancoleman` |
+| **SeedSigner** (+ `embit 0.8.0`) | coin-flip mnemonic helper | `reference-seedsigner` |
+| **Krux v26.08.0** | D20 minimum gate, serialization, SHA-256, truncation | `reference-krux` |
+| **BitBox02 firmware v9.26.4** | checksum candidates and entropy-tail ordering | `reference-bitbox-checksum` |
+| **Keystone legacy Android** | completion gates, face `6`→`0`, SHA-256 | `reference-keystone-legacy` |
+| **Jade firmware 1.0.40** | checksum and final-word ordering | `reference-jade-checksum` |
+| **Ian Coleman BIP-39** | entropy-to-English encoder | `reference-iancoleman-bip39` |
+| **RooSoft/bitcoinlib** | unhashed base-6 integer conversion | `reference-bitcoinlib-base6` |
+| **BlueWallet 8.0.1** | variable-width face-bit reducer | `reference-bluewallet-bitpack` |
+| **Ian Coleman dice paths** | fixed-length hash and default raw branches | `reference-iancoleman-dice` |
 
 Only executable upstream code counts as a reference. Project-owned protocols
 without an upstream oracle (Exact, Word-by-word Exact, and the static Coin +
@@ -261,9 +265,7 @@ vectors, and assertions, while a shared harness holds the core driver and its
 typed accepted/rejected/invalid/error wire protocol. Nix exposes each check
 independently and composes them in `reference-implementations`. Run the
 aggregate with `just reference-validation` (also part of the host-wide
-`just release-feasibility`), or a single comparison with `just reference-jade`
-and its `reference-coldcard`, `reference-seedsigner`, `reference-krux`,
-`reference-bitbox`, `reference-keystone`, `reference-iancoleman` siblings.
+`just release-feasibility`), or build an individual Nix check listed above.
 
 ## 🧰 Development environment
 

@@ -13,6 +13,8 @@ pub enum ReadinessKind {
     SeedSignerCoins,
     BitcoinLibBase6,
     BlueWalletBitPack,
+    IanColemanDice,
+    IanColemanRaw,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -46,6 +48,8 @@ impl CaptureReadiness {
             ConversionProtocol::SeedSignerCoinsV1 => ReadinessKind::SeedSignerCoins,
             ConversionProtocol::BitcoinLibBase6V1 => ReadinessKind::BitcoinLibBase6,
             ConversionProtocol::BlueWalletBitPackV1 => ReadinessKind::BlueWalletBitPack,
+            ConversionProtocol::IanColemanDiceV1 => ReadinessKind::IanColemanDice,
+            ConversionProtocol::IanColemanRawV1 => ReadinessKind::IanColemanRaw,
         };
         Some(Self {
             kind,
