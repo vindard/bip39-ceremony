@@ -171,7 +171,9 @@ impl GroupCapture {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ConversionProtocol::{ColdcardV1, ExactV1, KeystoneLegacyV1, WordExactV1};
+    use ConversionProtocol::{
+        BlueWalletBitPackV1, ColdcardV1, ExactV1, KeystoneLegacyV1, WordExactV1,
+    };
 
     /// A capture whose first roll is face 1 (keeps Exact in range) then cycles,
     /// so a completed protocol reads as Accepted rather than content-rejected.
@@ -236,6 +238,14 @@ mod tests {
         }
         assert!(matches!(
             fair(EntropyTarget::Words24, 60).status_under(ColdcardV1),
+            GroupStatus::Incomplete { .. }
+        ));
+    }
+
+    #[test]
+    fn short_bit_packing_capture_is_incomplete() {
+        assert!(matches!(
+            fair(EntropyTarget::Words12, 63).status_under(BlueWalletBitPackV1),
             GroupStatus::Incomplete { .. }
         ));
     }

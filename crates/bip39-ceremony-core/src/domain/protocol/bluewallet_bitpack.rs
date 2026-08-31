@@ -103,7 +103,13 @@ pub fn bluewallet_bitpack_entropy(
     rolls: &RollSequence,
 ) -> Result<Entropy, ProtocolError> {
     let progress = bitpack_progress(target, rolls);
-    if !progress.is_filled() || !progress.uses_every_roll() {
+    if !progress.is_filled() {
+        return Err(ProtocolError::WrongObservationCount {
+            expected: progress.recorded().saturating_add(1),
+            actual: progress.recorded(),
+        });
+    }
+    if !progress.uses_every_roll() {
         return Err(ProtocolError::WrongObservationCount {
             expected: progress.consumed(),
             actual: progress.recorded(),
@@ -246,7 +252,7 @@ mod tests {
         assert_eq!(
             bluewallet_bitpack_entropy(EntropyTarget::Words12, &repeated(1, 63)),
             Err(ProtocolError::WrongObservationCount {
-                expected: 63,
+                expected: 64,
                 actual: 63,
             })
         );
