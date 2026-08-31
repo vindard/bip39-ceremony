@@ -29,9 +29,9 @@ pub fn physical_entropy_guidance() -> Document {
             B::Heading("3 · WHAT TO ACTUALLY DO".to_owned()),
             B::Paragraph("Give every roll a thorough tumble. It is the one thing here that has been measured to matter.".to_owned()),
             B::Paragraph("A closed box does this well: put the dice in, shake it long enough that they bounce off the walls and off each other, then read them in a fixed order. Use a box with room to tumble. This is the part a hand throw has to get right and often does not.".to_owned()),
-            B::Heading("4 · MORE ROLLS DO NOT HELP".to_owned()),
-            B::Paragraph("The roll count is not a floor to exceed. It is the number that fills the seed: 99 fair rolls carry 255.9 of the 256 bits a 24-word seed can hold, and 50 carry 129.2 against the 128 that 12 words hold.".to_owned()),
-            B::Paragraph("Rolling past that adds nothing, because the entropy target is fixed. For protocols that hash every roll it also changes the result, so extra rolls make a different seed rather than a stronger one.".to_owned()),
+            B::Heading("4 · FOLLOW THE METHOD'S ROLL COUNT".to_owned()),
+            B::Paragraph("For a fair die, 99 rolls carry 255.9 of the 256 bits a 24-word seed can hold, and 50 carry 129.2 against the 128 that 12 words hold.".to_owned()),
+            B::Paragraph("A fixed-count or direct-packing method refuses or ignores surplus, so extra rolls add nothing. A method that hashes every roll can gain input entropy up to its output width, but each extra roll also makes a different seed. Use the count defined by the method so the result remains reproducible and compatible.".to_owned()),
             B::Heading("5 · WHAT THE GUARDS DO NOT CATCH".to_owned()),
             B::Paragraph("Some protocols reject a capture when one face appears too often. That check, and Shannon-entropy meters like it, look at which faces appeared. Neither looks at the order they appeared in.".to_owned()),
             B::Verbatim("1 2 3 4 5 6 1 2 3 4 5 6 1 2 3 4 5 6 …".to_owned()),
@@ -70,9 +70,10 @@ mod tests {
     }
 
     #[test]
-    fn guidance_states_that_extra_rolls_and_face_guards_prove_nothing() {
+    fn guidance_distinguishes_fixed_count_from_hashing_methods() {
         let text = text();
-        assert!(text.contains("Rolling past that adds nothing"));
+        assert!(text.contains("fixed-count or direct-packing method"));
+        assert!(text.contains("can gain input entropy up to its output width"));
         assert!(text.contains("129.2"));
         assert!(text.contains("Neither looks at the order"));
     }
