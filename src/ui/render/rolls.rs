@@ -40,20 +40,25 @@ pub(super) fn render_roll_entry(app: &App, width: usize) -> Lines {
         protocol.id()
     );
     let rule_line = format!("CONVERSION · {}", protocol_context.detail());
+    // A closed capture must not advertise a roll it will refuse to record.
+    let open = state
+        .capture_assessment()
+        .is_none_or(CaptureAssessment::can_record_more);
     let cursor = zeroize::Zeroizing::new(if coin_capture {
-        flip_capture_cursor(state.flips())
+        flip_capture_cursor(state.flips(), open)
     } else {
-        capture_cursor(state.rolls())
+        capture_cursor(state.rolls(), open)
     });
     let capture_heading = if coin_capture {
         "PHYSICAL COIN CAPTURE · FLIPS ARE SECRET"
     } else {
         "PHYSICAL D6 CAPTURE · ROLLS ARE SECRET"
     };
-    let capture_instruction = if coin_capture {
-        "Flip once, observe, then press: [0] tails  [1] heads"
-    } else {
-        "Roll once, observe, then press: [1] [2] [3] [4] [5] [6]"
+    let capture_instruction = match (open, coin_capture) {
+        (true, true) => "Flip once, observe, then press: [0] tails  [1] heads",
+        (true, false) => "Roll once, observe, then press: [1] [2] [3] [4] [5] [6]",
+        (false, true) => "This capture is closed; no further flip is recorded.",
+        (false, false) => "This capture is closed; no further roll is recorded.",
     };
     let mut output = lines(&[
         capture_heading,
@@ -235,14 +240,14 @@ fn fingerprint(digest_hex: &str) -> String {
     }
 }
 
-fn flip_capture_cursor(flips: &crate::domain::coin::FlipSequence) -> String {
-    let next = flips.len() + 1;
+fn flip_capture_cursor(flips: &crate::domain::coin::FlipSequence, open: bool) -> String {
+    let next = next_marker(flips.len(), open, "FLIP");
     flips.flips().last().map_or_else(
-        || format!("NEXT PHYSICAL FLIP · #{next:03}"),
+        || format!("NEXT PHYSICAL FLIP · #{:03}", flips.len() + 1),
         |flip| {
             let side = if flip.get() == 0 { "TAILS" } else { "HEADS" };
             format!(
-                "LATEST RECORDED · #{:03} · {side} {}  |  NEXT · #{next:03}",
+                "LATEST RECORDED · #{:03} · {side} {}{next}",
                 flips.len(),
                 flip.get()
             )
@@ -250,18 +255,28 @@ fn flip_capture_cursor(flips: &crate::domain::coin::FlipSequence) -> String {
     )
 }
 
-fn capture_cursor(rolls: &crate::domain::dice::RollSequence) -> String {
-    let next = rolls.len() + 1;
+fn capture_cursor(rolls: &crate::domain::dice::RollSequence, open: bool) -> String {
+    let next = next_marker(rolls.len(), open, "ROLL");
     rolls.faces().last().map_or_else(
-        || format!("NEXT PHYSICAL ROLL · #{next:03}"),
+        || format!("NEXT PHYSICAL ROLL · #{:03}", rolls.len() + 1),
         |face| {
             format!(
-                "LATEST RECORDED · #{:03} · FACE {}  |  NEXT · #{next:03}",
+                "LATEST RECORDED · #{:03} · FACE {}{next}",
                 rolls.len(),
                 face.get()
             )
         },
     )
+}
+
+/// The trailing cursor segment: the next position while the capture still
+/// accepts one, and an explicit close otherwise.
+fn next_marker(recorded: usize, open: bool, unit: &str) -> String {
+    if open {
+        format!("  |  NEXT · #{:03}", recorded + 1)
+    } else {
+        format!("  |  NO FURTHER {unit}")
+    }
 }
 
 pub(super) fn render_word_exact_roll_guidance(output: &mut Lines, progress: WordExactProgress) {

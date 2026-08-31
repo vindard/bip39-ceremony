@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Roll capture no longer advertises a next roll once the capture is closed. A
+  fixed-count protocol that had met its count still showed `NEXT · #051` and
+  "Roll once, observe, then press…", inviting an entry the ceremony would
+  refuse. Open-ended captures, which really do accept more, are unchanged.
+
 ## [0.2.0] - 2026-08-08
 
 Adds a group-compare mode for studying how the same entropy becomes different
