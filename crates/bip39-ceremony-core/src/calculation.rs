@@ -278,6 +278,15 @@ pub fn calculate(
         }
     };
 
+    accepted_calculation(protocol, target, capture, entropy)
+}
+
+fn accepted_calculation(
+    protocol: ConversionProtocol,
+    target: EntropyTarget,
+    capture: Capture<'_>,
+    entropy: Entropy,
+) -> Result<CalculationOutcome, CalculationError> {
     let mnemonic = encode_english(&entropy)?;
     let evidence = evidence(protocol, target, capture, &entropy);
     Ok(CalculationOutcome::Accepted(Calculation {
