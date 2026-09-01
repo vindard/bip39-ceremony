@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -12,6 +13,18 @@ from pathlib import Path
 
 SOURCE_ROOT = Path(__file__).resolve().parents[2]
 LINT = SOURCE_ROOT / "scripts" / "dependency-policy-lint.py"
+
+
+def isolated_git_env() -> dict[str, str]:
+    """Environment for fixture subprocesses, stripped of ambient GIT_* vars.
+
+    A git hook (e.g. this suite running under pre-commit) sets GIT_DIR,
+    GIT_WORK_TREE, and GIT_INDEX_FILE for its own repository. Those vars
+    override an explicit `git -C <path>`, so any inherited copy silently
+    redirects fixture git commands onto the caller's real repo/index
+    instead of the temp repo they were given.
+    """
+    return {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
 
 
 class DependencyPolicyLintTests(unittest.TestCase):
@@ -36,8 +49,9 @@ class DependencyPolicyLintTests(unittest.TestCase):
             SOURCE_ROOT / ".github" / "workflows",
             self.root / ".github" / "workflows",
         )
-        subprocess.run(["git", "init", "-q", str(self.root)], check=True)
-        subprocess.run(["git", "-C", str(self.root), "add", "."], check=True)
+        env = isolated_git_env()
+        subprocess.run(["git", "init", "-q", str(self.root)], check=True, env=env)
+        subprocess.run(["git", "-C", str(self.root), "add", "."], check=True, env=env)
         subprocess.run(
             [
                 "git",
@@ -54,9 +68,10 @@ class DependencyPolicyLintTests(unittest.TestCase):
                 "baseline",
             ],
             check=True,
+            env=env,
         )
         self.base = subprocess.check_output(
-            ["git", "-C", str(self.root), "rev-parse", "HEAD"], text=True
+            ["git", "-C", str(self.root), "rev-parse", "HEAD"], text=True, env=env
         ).strip()
 
     def tearDown(self) -> None:
@@ -71,6 +86,7 @@ class DependencyPolicyLintTests(unittest.TestCase):
             text=True,
             capture_output=True,
             check=False,
+            env=isolated_git_env(),
         )
 
     def replace(self, path: str, old: str, new: str) -> None:
@@ -87,6 +103,76 @@ class DependencyPolicyLintTests(unittest.TestCase):
     def test_repository_policy_passes(self) -> None:
         result = self.run_lint()
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_fixture_ignores_inherited_git_hook_environment(self) -> None:
+        # Reproduce a git hook's ambient GIT_DIR/GIT_WORK_TREE/GIT_INDEX_FILE
+        # pointing at an unrelated repo, and confirm the fixture still
+        # targets its own temp repo instead of mutating the decoy.
+        with tempfile.TemporaryDirectory() as decoy_name:
+            decoy_root = Path(decoy_name)
+            # This suite may itself be running inside the real pre-commit
+            # hook, so the *bootstrap* of the decoy must not inherit that
+            # hook's own GIT_DIR either, or it would recurse into the real
+            # repo before the scenario under test is even set up.
+            bootstrap_env = isolated_git_env()
+            subprocess.run(
+                ["git", "init", "-q", str(decoy_root)], check=True, env=bootstrap_env
+            )
+            subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(decoy_root),
+                    "-c",
+                    "user.name=Decoy",
+                    "-c",
+                    "user.email=decoy@example.invalid",
+                    "-c",
+                    "commit.gpgsign=false",
+                    "commit",
+                    "-q",
+                    "--allow-empty",
+                    "-m",
+                    "decoy baseline",
+                ],
+                check=True,
+                env=bootstrap_env,
+            )
+            decoy_head_before = subprocess.check_output(
+                ["git", "-C", str(decoy_root), "rev-parse", "HEAD"],
+                text=True,
+                env=bootstrap_env,
+            ).strip()
+            decoy_index = decoy_root / ".git" / "index"
+            decoy_index_before = decoy_index.read_bytes()
+
+            hook_env = dict(os.environ)
+            hook_env["GIT_DIR"] = str(decoy_root / ".git")
+            hook_env["GIT_WORK_TREE"] = str(decoy_root)
+            hook_env["GIT_INDEX_FILE"] = str(decoy_index)
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "unittest",
+                    "scripts.tests.test_dependency_policy_lint"
+                    ".DependencyPolicyLintTests.test_repository_policy_passes",
+                ],
+                cwd=str(SOURCE_ROOT),
+                env=hook_env,
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            decoy_head_after = subprocess.check_output(
+                ["git", "-C", str(decoy_root), "rev-parse", "HEAD"],
+                text=True,
+                env=bootstrap_env,
+            ).strip()
+            self.assertEqual(decoy_head_after, decoy_head_before)
+            self.assertEqual(decoy_index.read_bytes(), decoy_index_before)
 
     def test_non_exact_cargo_version_is_rejected(self) -> None:
         self.replace("Cargo.toml", 'version = "=0.14.0"', 'version = "^0.14.0"')
