@@ -276,10 +276,10 @@ name = "step-security/harden-runner"
 class = "ci"
 verification = "github-verified"
 repository = "step-security/harden-runner"
-revision = "b09bb98e06d4d774595224525879c09bc6e98c40"
-signature = "Pinned commit valid; v2.20.1 tag is lightweight"
+revision = "05e31511f85b41b11d1cf0ef85d0992719546e2c"
+signature = "Pinned commit valid; v2.21.0 tag is lightweight"
 signer = "GitHub web-flow GPG 968479A1AFF927E37D1A566BB5690EEEBB952194; authored by @varunsh-coder"
-history = "v2.20.1, v2.20.0, and v2.19.4 are lightweight tags on GitHub-valid commits authored by @varunsh-coder"
+history = "v2.21.0, v2.20.1, and v2.20.0 are lightweight tags on GitHub-valid commits authored by @varunsh-coder"
 reviewed = "2026-08-31"
 
 [[flake-input]]
