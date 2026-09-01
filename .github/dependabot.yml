@@ -1,10 +1,27 @@
 version: 2
 updates:
-  # Keep the CI action references current (and maintain commit-SHA pins if
-  # the workflows are migrated from tags to SHAs).
+  - package-ecosystem: cargo
+    directory: "/"
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 14
+      semver-major-days: 30
+      semver-minor-days: 14
+      semver-patch-days: 7
+    open-pull-requests-limit: 1
+    commit-message:
+      prefix: "deps"
+
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 14
+      semver-major-days: 30
+      semver-minor-days: 14
+      semver-patch-days: 7
+    open-pull-requests-limit: 1
     commit-message:
       prefix: "ci"

@@ -137,7 +137,9 @@ prefer a trusted offline computer and local terminal.
 
 ## 🚀 Quick start
 
-The repository pins Rust and audit tooling through Nix:
+The repository pins Rust and audit tooling through Nix. New dependencies and
+updates follow the [dependency policy](DEPENDENCIES.md), including immutable
+revisions and signer-history review:
 
 ```sh
 direnv allow       # automatic `nix develop`

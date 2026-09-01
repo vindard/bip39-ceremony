@@ -6,6 +6,14 @@
 
 Litmus test before adding anything to core: **"does this help someone validate the entropy→mnemonic math?"** If no, it belongs in the app layer (`src/`), which already consumes core's public API. Product, presentation, comparison, and policy features live in the app — even when they are pure and could compile inside core. Example: a multi-protocol comparison harness that replays one capture across several protocols is curation built on public core primitives, so it belongs in the app, not core.
 
+## Dependency policy
+
+Read `DEPENDENCIES.md` before adding or updating Rust crates, GitHub Actions,
+release tools, build inputs, or reference oracles. Keep
+`supply-chain/trust.toml` synchronized with every pinned version or revision and
+run `just dependency-policy-lint`. Automation may propose dependency changes but
+never approves or merges them.
+
 ## Guix validation
 
 Read `contrib/guix/README.md` before changing Guix packaging, dependencies, workspace layout, or release workflow.

@@ -5,7 +5,7 @@ default:
     @just --list
 
 # Run all checks required before a commit.
-check: fmt-check lint test package-lint privacy-lint architecture-lint guix-lock-lint guix-syntax-lint
+check: fmt-check lint test package-lint privacy-lint architecture-lint dependency-policy-test dependency-policy-lint guix-lock-lint guix-syntax-lint
 
 # Format Rust sources in place.
 fmt:
@@ -39,6 +39,14 @@ privacy-lint:
 # Enforce dependency direction at the presentation and terminal boundaries.
 architecture-lint:
     bash scripts/architecture-lint.sh
+
+# Exercise dependency-policy enforcement against unsafe mutations.
+dependency-policy-test:
+    python3 -m unittest discover -s scripts/tests -p 'test_*.py'
+
+# Enforce immutable dependencies and complete trust records.
+dependency-policy-lint:
+    python3 scripts/dependency-policy-lint.py
 
 # Verify Guix crate origins exactly mirror the Cargo lockfile.
 guix-lock-lint:

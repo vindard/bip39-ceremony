@@ -1,8 +1,8 @@
 # Core per-PR gate: the same checks enforced locally by `just check`,
 # run reproducibly through the pinned Nix devShell on both supported OSes.
 #
-# Actions are tag-pinned for the initial scaffold; the committed Dependabot
-# config keeps them current (and can migrate them to commit-SHA pins).
+# Actions are pinned to immutable commits; Dependabot only proposes revisions
+# after the repository's dependency cooldown.
 name: CI
 
 on:
@@ -32,6 +32,8 @@ jobs:
         with:
           egress-policy: audit
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
       - name: Install Nix
         uses: cachix/install-nix-action@08dcb3a5e62fa31e2da3d490afc4176ef55ecd72 # v30
         with:
@@ -49,4 +51,7 @@ jobs:
         run: nix develop --command just check
       - name: just check (macOS — Guix syntax lint is Linux-only)
         if: runner.os == 'macOS'
-        run: nix develop --command just fmt-check lint test package-lint privacy-lint architecture-lint guix-lock-lint
+        run: nix develop --command just fmt-check lint test package-lint privacy-lint architecture-lint dependency-policy-test dependency-policy-lint guix-lock-lint
+      - name: Dependency update isolation
+        if: github.event_name == 'pull_request'
+        run: nix develop --command python3 scripts/dependency-policy-lint.py --base-ref "${{ github.event.pull_request.base.sha }}"
