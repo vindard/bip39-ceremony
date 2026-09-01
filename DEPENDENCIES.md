@@ -126,8 +126,10 @@ Security urgency does not bypass signature, source identity, or boundary tests.
 
 Cargo updates are checked monthly and GitHub Actions weekly. Dependabot is
 limited to one open version-update PR per ecosystem so reviews remain isolated.
-Security updates are not delayed by Dependabot cooldowns. Cooling periods for
-manual updates are reviewer-enforced because the local lint deliberately performs
+Security updates are not delayed by Dependabot cooldowns. GitHub Actions use a
+14-day automation delay because that ecosystem does not support SemVer-specific
+cooldowns; reviewers enforce the 30-day major delay. Cooling periods for manual
+updates are also reviewer-enforced because the local lint deliberately performs
 no network-dependent release-date lookup.
 
 ## Required evidence
