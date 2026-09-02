@@ -22,9 +22,9 @@
 (define rust-bip39-2.2.2
   (locked-crate "bip39" "2.2.2"
                 "1g6ms446z6f4dza994667vj5irgmzih1x4k3jcijjwi2k0fd7nwh"))
-(define rust-bitcoin-hashes-0.14.0
-  (locked-crate "bitcoin_hashes" "0.14.0"
-                "05jdirz6p2q1fbg65c1xfhf8bsx7snpzm9i1g8a7w95h1lyw065v"))
+(define rust-bitcoin-hashes-0.14.101
+  (locked-crate "bitcoin_hashes" "0.14.101"
+                "18n4w9iq6y9gzdm74r93mcilyj7xijc81j03fkbig20cnjmwg95w"))
 (define rust-hex-conservative-0.2.2
   (locked-crate "hex-conservative" "0.2.2"
                 "17qba5mg59b15gld8jz7xywzi6vj8ycipr041k26fqk0mhc6v87x"))
@@ -80,7 +80,7 @@
  (inputs
   (list rust-arrayvec-0.7.8
         rust-bip39-2.2.2
-        rust-bitcoin-hashes-0.14.0
+        rust-bitcoin-hashes-0.14.101
         rust-hex-conservative-0.2.2
         rust-libc-0.2.189
         rust-numtoa-0.2.4
