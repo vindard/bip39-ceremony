@@ -175,7 +175,7 @@ class DependencyPolicyLintTests(unittest.TestCase):
             self.assertEqual(decoy_index.read_bytes(), decoy_index_before)
 
     def test_non_exact_cargo_version_is_rejected(self) -> None:
-        self.replace("Cargo.toml", 'version = "=0.14.0"', 'version = "^0.14.0"')
+        self.replace("Cargo.toml", 'version = "=0.14.101"', 'version = "^0.14.101"')
         self.assert_rejected("must use an exact external version")
 
     def test_enabled_default_features_are_rejected(self) -> None:
