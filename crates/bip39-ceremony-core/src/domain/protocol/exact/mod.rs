@@ -1,3 +1,3 @@
 mod conversion;
 
-pub use conversion::{ExactOutcome, exact_entropy};
+pub use conversion::{ExactEntropyOutcome, exact_entropy};

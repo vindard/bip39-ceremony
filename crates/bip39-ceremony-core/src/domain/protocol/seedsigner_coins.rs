@@ -1,10 +1,10 @@
 use crate::domain::{
     bip39::{Entropy, EntropyTarget},
     coin::FlipSequence,
-    protocol::{ConversionProtocol, ProtocolError, hash_entropy},
+    protocol::{ConversionProtocol, ProtocolError, sha256_prefix_entropy},
 };
 
-pub(crate) fn seedsigner_coin_entropy(
+pub(crate) fn seedsigner_coins_entropy(
     target: EntropyTarget,
     flips: &FlipSequence,
 ) -> Result<Entropy, ProtocolError> {
@@ -16,5 +16,5 @@ pub(crate) fn seedsigner_coin_entropy(
         });
     }
     let ascii = flips.ascii_bytes();
-    Ok(hash_entropy(target, &[ascii.as_slice()]))
+    Ok(sha256_prefix_entropy(target, &[ascii.as_slice()]))
 }

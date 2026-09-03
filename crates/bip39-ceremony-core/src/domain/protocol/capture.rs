@@ -87,7 +87,7 @@ impl CaptureAssessment {
     }
 }
 
-pub(crate) fn require_complete_capture(
+pub(crate) fn require_complete_dice_capture(
     protocol: ConversionProtocol,
     target: EntropyTarget,
     rolls: &RollSequence,

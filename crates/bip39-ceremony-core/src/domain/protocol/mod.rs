@@ -8,13 +8,13 @@ mod coin_four_d6;
 mod coldcard;
 mod error;
 mod exact;
-mod hash;
 mod iancoleman;
 mod identity;
 mod jade;
 mod keystone_legacy;
 mod krux_d20;
-mod seedsigner;
+mod seedsigner_coins;
+mod sha256;
 mod specification;
 mod word_exact;
 
@@ -46,18 +46,20 @@ pub use word_exact::{
 };
 
 pub(crate) use bitbox::bitbox_entropy;
-pub(crate) use bitcoinlib_base6::{Base6Outcome, bitcoinlib_base6_entropy};
+pub(crate) use bitcoinlib_base6::{BitcoinLibBase6EntropyOutcome, bitcoinlib_base6_entropy};
 pub(crate) use bluewallet_bitpack::{bluewallet_bitpack_entropy, packed_bits};
-pub(crate) use capture::require_complete_capture;
+pub(crate) use capture::require_complete_dice_capture;
 pub(crate) use coin_four_d6::coin_four_d6_entropy;
-pub(crate) use coldcard::{ColdcardOutcome, ascii_rolls as coldcard_ascii_rolls, coldcard_entropy};
-pub(crate) use exact::{ExactOutcome, exact_entropy};
-pub(crate) use hash::{hash_entropy, sha256};
+pub(crate) use coldcard::{
+    ColdcardEntropyOutcome, ascii_rolls as coldcard_ascii_rolls, coldcard_entropy,
+};
+pub(crate) use exact::{ExactEntropyOutcome, exact_entropy};
 pub(crate) use iancoleman::{iancoleman_dice_entropy, iancoleman_raw_bits, iancoleman_raw_entropy};
 pub(crate) use jade::jade_entropy;
 pub(crate) use keystone_legacy::{
     ascii_rolls as keystone_legacy_ascii_rolls, keystone_legacy_entropy,
 };
 pub(crate) use krux_d20::{ascii_rolls as krux_d20_ascii_rolls, krux_d20_entropy};
-pub(crate) use seedsigner::seedsigner_coin_entropy;
+pub(crate) use seedsigner_coins::seedsigner_coins_entropy;
+pub(crate) use sha256::{sha256_digest, sha256_prefix_entropy};
 pub(crate) use word_exact::{parse_word_exact, word_exact_entropy};

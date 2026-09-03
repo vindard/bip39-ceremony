@@ -4,8 +4,8 @@ use crate::domain::{
     bip39::{Entropy, EntropyTarget},
     dice::{DieFace, RollSequence},
     protocol::{
-        ConversionProtocol, ProtocolError, hash_entropy, keystone_legacy::ascii_rolls,
-        require_complete_capture,
+        ConversionProtocol, ProtocolError, keystone_legacy::ascii_rolls,
+        require_complete_dice_capture, sha256_prefix_entropy,
     },
 };
 
@@ -87,9 +87,9 @@ pub(crate) fn iancoleman_dice_entropy(
     target: EntropyTarget,
     rolls: &RollSequence,
 ) -> Result<Entropy, ProtocolError> {
-    require_complete_capture(ConversionProtocol::IanColemanDiceV1, target, rolls)?;
+    require_complete_dice_capture(ConversionProtocol::IanColemanDiceV1, target, rolls)?;
     let ascii = ascii_rolls(rolls);
-    Ok(hash_entropy(target, &[ascii.as_slice()]))
+    Ok(sha256_prefix_entropy(target, &[ascii.as_slice()]))
 }
 
 /// Converts an ordered D6 sequence the way iancoleman's raw mode does.

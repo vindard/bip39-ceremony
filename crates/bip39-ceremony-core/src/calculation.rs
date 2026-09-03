@@ -12,11 +12,12 @@ use crate::domain::{
     dice::RollSequence,
     jade::JadeCapture,
     protocol::{
-        Base6Outcome, CanonicalInput, ColdcardOutcome, ConversionProtocol, ExactOutcome,
-        ProtocolError, bitbox_entropy, bitcoinlib_base6_entropy, bluewallet_bitpack_entropy,
-        coin_four_d6_entropy, coldcard_entropy, exact_entropy, iancoleman_dice_entropy,
-        iancoleman_raw_entropy, jade_entropy, keystone_legacy_entropy, krux_d20_entropy,
-        seedsigner_coin_entropy, sha256, word_exact_entropy,
+        BitcoinLibBase6EntropyOutcome as BitcoinLibOutcome, CanonicalInput, ColdcardEntropyOutcome,
+        ConversionProtocol, ExactEntropyOutcome, ProtocolError, bitbox_entropy,
+        bitcoinlib_base6_entropy, bluewallet_bitpack_entropy, coin_four_d6_entropy,
+        coldcard_entropy, exact_entropy, iancoleman_dice_entropy, iancoleman_raw_entropy,
+        jade_entropy, keystone_legacy_entropy, krux_d20_entropy, seedsigner_coins_entropy,
+        sha256_digest, word_exact_entropy,
     },
 };
 
@@ -195,7 +196,7 @@ pub fn calculate(
             coin_four_d6_entropy(target, capture)?
         }
         (ConversionProtocol::SeedSignerCoinsV1, Capture::Coins(flips)) => {
-            seedsigner_coin_entropy(target, flips)?
+            seedsigner_coins_entropy(target, flips)?
         }
         (
             ConversionProtocol::JadeDirectV1,
@@ -249,14 +250,14 @@ pub fn calculate(
         }
         (ConversionProtocol::ExactV1, Capture::Dice(rolls)) => {
             match exact_entropy(target, rolls)? {
-                ExactOutcome::Accepted(entropy) => entropy,
-                ExactOutcome::Rejected => return Ok(CalculationOutcome::ExactRejected),
+                ExactEntropyOutcome::Accepted(entropy) => entropy,
+                ExactEntropyOutcome::Rejected => return Ok(CalculationOutcome::ExactRejected),
             }
         }
         (ConversionProtocol::BitcoinLibBase6V1, Capture::Dice(rolls)) => {
             match bitcoinlib_base6_entropy(target, rolls)? {
-                Base6Outcome::Accepted(entropy) => entropy,
-                Base6Outcome::Rejected => return Ok(CalculationOutcome::Base6WidthRejected),
+                BitcoinLibOutcome::Accepted(entropy) => entropy,
+                BitcoinLibOutcome::Rejected => return Ok(CalculationOutcome::Base6WidthRejected),
             }
         }
         (
@@ -272,8 +273,8 @@ pub fn calculate(
         }
         (ConversionProtocol::ColdcardV1, Capture::Dice(rolls)) => {
             match coldcard_entropy(target, rolls)? {
-                ColdcardOutcome::Accepted(entropy) => entropy,
-                ColdcardOutcome::DistributionRejected => {
+                ColdcardEntropyOutcome::Accepted(entropy) => entropy,
+                ColdcardEntropyOutcome::DistributionRejected => {
                     return Ok(CalculationOutcome::ColdcardDistributionRejected);
                 }
             }
@@ -283,7 +284,7 @@ pub fn calculate(
         }
     };
 
-    accepted_calculation(protocol, target, capture, entropy)
+    finish_calculation(protocol, target, capture, entropy)
 }
 
 fn packed_entropy(
@@ -298,14 +299,14 @@ fn packed_entropy(
     }
 }
 
-fn accepted_calculation(
+fn finish_calculation(
     protocol: ConversionProtocol,
     target: EntropyTarget,
     capture: Capture<'_>,
     entropy: Entropy,
 ) -> Result<CalculationOutcome, CalculationError> {
-    let mnemonic = encode_english(&entropy)?;
-    let evidence = evidence(protocol, target, capture, &entropy);
+    let mnemonic = encode_english_mnemonic(&entropy)?;
+    let evidence = build_evidence(protocol, target, capture, &entropy);
     Ok(CalculationOutcome::Accepted(Calculation {
         protocol,
         entropy,
@@ -314,14 +315,14 @@ fn accepted_calculation(
     }))
 }
 
-fn encode_english(entropy: &Entropy) -> Result<EnglishMnemonic, Bip39Error> {
+fn encode_english_mnemonic(entropy: &Entropy) -> Result<EnglishMnemonic, Bip39Error> {
     let mnemonic = Mnemonic::from_entropy_in(Language::English, entropy.bytes())
         .map_err(|_| Bip39Error::EncodingFailed)?;
     let words = mnemonic.words().map(str::to_owned).collect();
     EnglishMnemonic::from_verified_words(entropy.target(), words)
 }
 
-fn evidence(
+fn build_evidence(
     protocol: ConversionProtocol,
     target: EntropyTarget,
     capture: Capture<'_>,
@@ -335,7 +336,7 @@ fn evidence(
         Capture::D20(capture) => CanonicalInput::from_d20(capture),
         Capture::Coins(capture) => CanonicalInput::from_coins(capture),
     };
-    let mut digest = sha256(&[entropy.bytes()]);
+    let mut digest = sha256_digest(&[entropy.bytes()]);
     let checksum_length = target.entropy_bits() / 32;
     let checksum_bits = (0..checksum_length)
         .map(|offset| (digest[0] >> (7 - offset)) & 1)

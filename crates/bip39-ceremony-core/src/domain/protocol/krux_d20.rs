@@ -3,7 +3,7 @@ use zeroize::Zeroizing;
 use crate::domain::{
     bip39::{Entropy, EntropyTarget},
     d20::D20RollSequence,
-    protocol::{ConversionProtocol, ProtocolError, hash_entropy},
+    protocol::{ConversionProtocol, ProtocolError, sha256_prefix_entropy},
 };
 
 /// Krux canonical D20 input: unpadded decimal faces joined by ASCII hyphens.
@@ -34,7 +34,7 @@ pub(crate) fn krux_d20_entropy(
         });
     }
     let ascii = ascii_rolls(rolls);
-    Ok(hash_entropy(target, &[ascii.as_slice()]))
+    Ok(sha256_prefix_entropy(target, &[ascii.as_slice()]))
 }
 
 #[cfg(test)]
