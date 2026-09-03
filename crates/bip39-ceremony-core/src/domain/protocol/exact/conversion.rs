@@ -8,7 +8,7 @@ use crate::domain::{
 
 /// Result of exact uniform conversion, which can reject a complete attempt.
 #[derive(Debug, Eq, PartialEq)]
-pub enum ExactOutcome {
+pub enum ExactEntropyOutcome {
     Accepted(Entropy),
     Rejected,
 }
@@ -26,7 +26,7 @@ pub enum ExactOutcome {
 pub fn exact_entropy(
     target: EntropyTarget,
     rolls: &RollSequence,
-) -> Result<ExactOutcome, ProtocolError> {
+) -> Result<ExactEntropyOutcome, ProtocolError> {
     require_roll_count(target.strict_roll_count(), rolls.len())?;
 
     let mut value = Zeroizing::new(vec![0_u8; target.entropy_bytes() + 1]);
@@ -37,11 +37,11 @@ pub fn exact_entropy(
         EntropyTarget::Words24 => 5,
     };
     if value[0] >= accepted_quotients {
-        return Ok(ExactOutcome::Rejected);
+        return Ok(ExactEntropyOutcome::Rejected);
     }
 
     let entropy = Entropy::from_protocol_bytes(target, value[1..].to_vec());
-    Ok(ExactOutcome::Accepted(entropy))
+    Ok(ExactEntropyOutcome::Accepted(entropy))
 }
 
 fn require_roll_count(expected: usize, actual: usize) -> Result<(), ProtocolError> {
@@ -68,7 +68,7 @@ mod tests {
     #[test]
     fn exact_mode_preserves_leading_zero_digits() {
         let result = exact_entropy(EntropyTarget::Words12, &rolls(&"1".repeat(50))).unwrap();
-        let ExactOutcome::Accepted(entropy) = result else {
+        let ExactEntropyOutcome::Accepted(entropy) = result else {
             panic!("zero must be accepted");
         };
         assert_eq!(entropy.bytes(), [0; 16]);
@@ -81,11 +81,11 @@ mod tests {
 
         assert!(matches!(
             exact_entropy(EntropyTarget::Words12, &below),
-            Ok(ExactOutcome::Accepted(_))
+            Ok(ExactEntropyOutcome::Accepted(_))
         ));
         assert!(matches!(
             exact_entropy(EntropyTarget::Words12, &at),
-            Ok(ExactOutcome::Rejected)
+            Ok(ExactEntropyOutcome::Rejected)
         ));
     }
 
@@ -102,11 +102,11 @@ mod tests {
 
         assert!(matches!(
             exact_entropy(EntropyTarget::Words24, &below),
-            Ok(ExactOutcome::Accepted(_))
+            Ok(ExactEntropyOutcome::Accepted(_))
         ));
         assert!(matches!(
             exact_entropy(EntropyTarget::Words24, &at),
-            Ok(ExactOutcome::Rejected)
+            Ok(ExactEntropyOutcome::Rejected)
         ));
     }
 

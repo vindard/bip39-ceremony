@@ -8,9 +8,10 @@ use crate::domain::{
     jade::{JadeCapture, JadeObservation},
     protocol::{
         BitBoxProgress, BitBoxStage, BitPackProgress, CoinFourD6Progress, CoinFourD6Stage,
-        ConversionProtocol, IanColemanRawProgress, JadeDieKind, JadeProgress, WordExactParse,
-        WordExactProgress, bitbox_progress, bitpack_progress, coin_four_d6_progress,
-        iancoleman_raw_progress, jade_expected_die, jade_progress, parse_word_exact,
+        ConversionProtocol, IanColemanRawProgress, JadeDieKind, JadeProgress, ProtocolError,
+        WordExactParse, WordExactProgress, bitbox_progress, bitpack_progress,
+        coin_four_d6_progress, iancoleman_raw_progress, jade_expected_die, jade_progress,
+        parse_word_exact,
     },
 };
 
@@ -83,6 +84,21 @@ impl CaptureAssessment {
             | Self::Complete { progress, .. }
             | Self::Invalid(progress) => progress,
         }
+    }
+}
+
+pub(crate) fn require_complete_dice_capture(
+    protocol: ConversionProtocol,
+    target: EntropyTarget,
+    rolls: &RollSequence,
+) -> Result<(), ProtocolError> {
+    if protocol.assess_capture(target, rolls).is_complete() {
+        Ok(())
+    } else {
+        Err(ProtocolError::WrongObservationCount {
+            expected: protocol.minimum_observations(target),
+            actual: rolls.len(),
+        })
     }
 }
 

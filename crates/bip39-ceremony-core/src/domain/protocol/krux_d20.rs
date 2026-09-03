@@ -1,6 +1,10 @@
 use zeroize::Zeroizing;
 
-use crate::domain::d20::D20RollSequence;
+use crate::domain::{
+    bip39::{Entropy, EntropyTarget},
+    d20::D20RollSequence,
+    protocol::{ConversionProtocol, ProtocolError, sha256_prefix_entropy},
+};
 
 /// Krux canonical D20 input: unpadded decimal faces joined by ASCII hyphens.
 #[must_use]
@@ -16,6 +20,21 @@ pub(crate) fn ascii_rolls(rolls: &D20RollSequence) -> Zeroizing<Vec<u8>> {
         bytes.push(b'0' + face.get() % 10);
     }
     bytes
+}
+
+pub(crate) fn krux_d20_entropy(
+    target: EntropyTarget,
+    rolls: &D20RollSequence,
+) -> Result<Entropy, ProtocolError> {
+    let protocol = ConversionProtocol::KruxD20V1;
+    if !protocol.assess_d20_capture(target, rolls).is_complete() {
+        return Err(ProtocolError::WrongObservationCount {
+            expected: protocol.minimum_observations(target),
+            actual: rolls.len(),
+        });
+    }
+    let ascii = ascii_rolls(rolls);
+    Ok(sha256_prefix_entropy(target, &[ascii.as_slice()]))
 }
 
 #[cfg(test)]

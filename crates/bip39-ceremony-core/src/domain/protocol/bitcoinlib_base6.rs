@@ -8,7 +8,7 @@ use crate::domain::{
 
 /// Result of the unhashed base-6 reading, which can reject a complete attempt.
 #[derive(Debug, Eq, PartialEq)]
-pub enum Base6Outcome {
+pub enum BitcoinLibBase6EntropyOutcome {
     Accepted(Entropy),
     Rejected,
 }
@@ -29,7 +29,7 @@ pub enum Base6Outcome {
 pub fn bitcoinlib_base6_entropy(
     target: EntropyTarget,
     rolls: &RollSequence,
-) -> Result<Base6Outcome, ProtocolError> {
+) -> Result<BitcoinLibBase6EntropyOutcome, ProtocolError> {
     let expected = ConversionProtocol::BitcoinLibBase6V1.minimum_observations(target);
     if rolls.len() != expected {
         return Err(ProtocolError::WrongObservationCount {
@@ -43,13 +43,12 @@ pub fn bitcoinlib_base6_entropy(
     base6::accumulate(&mut value, rolls);
 
     if base6::significant_bytes(&value) != width {
-        return Ok(Base6Outcome::Rejected);
+        return Ok(BitcoinLibBase6EntropyOutcome::Rejected);
     }
 
-    Ok(Base6Outcome::Accepted(Entropy::from_protocol_bytes(
-        target,
-        value[1..].to_vec(),
-    )))
+    Ok(BitcoinLibBase6EntropyOutcome::Accepted(
+        Entropy::from_protocol_bytes(target, value[1..].to_vec()),
+    ))
 }
 
 #[cfg(test)]
@@ -76,7 +75,7 @@ mod tests {
     fn fifty_roll_source_vector_matches_the_published_integer() {
         let outcome = bitcoinlib_base6_entropy(EntropyTarget::Words12, &source_tape(50)).unwrap();
 
-        let Base6Outcome::Accepted(entropy) = outcome else {
+        let BitcoinLibBase6EntropyOutcome::Accepted(entropy) = outcome else {
             panic!("published vector is accepted");
         };
         assert_eq!(
@@ -93,7 +92,7 @@ mod tests {
     fn ninety_nine_roll_source_vector_matches_the_published_integer() {
         let outcome = bitcoinlib_base6_entropy(EntropyTarget::Words24, &source_tape(99)).unwrap();
 
-        let Base6Outcome::Accepted(entropy) = outcome else {
+        let BitcoinLibBase6EntropyOutcome::Accepted(entropy) = outcome else {
             panic!("published vector is accepted");
         };
         assert_eq!(
@@ -110,7 +109,7 @@ mod tests {
     fn all_ones_is_rejected_because_zero_has_no_target_width_encoding() {
         assert_eq!(
             bitcoinlib_base6_entropy(EntropyTarget::Words12, &rolls(&"1".repeat(50))),
-            Ok(Base6Outcome::Rejected)
+            Ok(BitcoinLibBase6EntropyOutcome::Rejected)
         );
     }
 
@@ -119,7 +118,7 @@ mod tests {
         // 6^50 exceeds 2^128, so the largest 50-roll reading does not fit.
         assert_eq!(
             bitcoinlib_base6_entropy(EntropyTarget::Words12, &rolls(&"6".repeat(50))),
-            Ok(Base6Outcome::Rejected)
+            Ok(BitcoinLibBase6EntropyOutcome::Rejected)
         );
     }
 
