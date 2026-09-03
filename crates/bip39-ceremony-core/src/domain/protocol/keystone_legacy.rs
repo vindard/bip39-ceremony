@@ -29,8 +29,12 @@ pub(crate) fn keystone_legacy_entropy(
         return Err(ProtocolError::UnsupportedTarget);
     }
     require_complete_dice_capture(protocol, target, rolls)?;
+    Ok(calculate_entropy(target, rolls))
+}
+
+fn calculate_entropy(target: EntropyTarget, rolls: &RollSequence) -> Entropy {
     let ascii = ascii_rolls(rolls);
-    Ok(sha256_prefix_entropy(target, &[ascii.as_slice()]))
+    sha256_prefix_entropy(target, &[ascii.as_slice()])
 }
 
 #[cfg(test)]

@@ -33,8 +33,12 @@ pub(crate) fn krux_d20_entropy(
             actual: rolls.len(),
         });
     }
+    Ok(calculate_entropy(target, rolls))
+}
+
+fn calculate_entropy(target: EntropyTarget, rolls: &D20RollSequence) -> Entropy {
     let ascii = ascii_rolls(rolls);
-    Ok(sha256_prefix_entropy(target, &[ascii.as_slice()]))
+    sha256_prefix_entropy(target, &[ascii.as_slice()])
 }
 
 #[cfg(test)]

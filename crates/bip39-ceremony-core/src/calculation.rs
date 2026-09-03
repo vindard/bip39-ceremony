@@ -1,10 +1,9 @@
 use core::fmt;
 
-use bip39::{Language, Mnemonic};
 use zeroize::Zeroize;
 
 use crate::domain::{
-    bip39::{Bip39Error, EnglishMnemonic, Entropy, EntropyTarget},
+    bip39::{Bip39Encoding, Bip39Error, EnglishMnemonic, Entropy, EntropyTarget},
     bitbox::BitBoxCapture,
     coin::FlipSequence,
     coin_four_d6::CoinFourD6Capture,
@@ -17,7 +16,7 @@ use crate::domain::{
         bitcoinlib_base6_entropy, bluewallet_bitpack_entropy, coin_four_d6_entropy,
         coldcard_entropy, exact_entropy, iancoleman_dice_entropy, iancoleman_raw_entropy,
         jade_entropy, keystone_legacy_entropy, krux_d20_entropy, seedsigner_coins_entropy,
-        sha256_digest, word_exact_entropy,
+        word_exact_entropy,
     },
 };
 
@@ -305,29 +304,8 @@ fn finish_calculation(
     capture: Capture<'_>,
     entropy: Entropy,
 ) -> Result<CalculationOutcome, CalculationError> {
-    let mnemonic = encode_english_mnemonic(&entropy)?;
-    let evidence = build_evidence(protocol, target, capture, &entropy);
-    Ok(CalculationOutcome::Accepted(Calculation {
-        protocol,
-        entropy,
-        mnemonic,
-        evidence,
-    }))
-}
-
-fn encode_english_mnemonic(entropy: &Entropy) -> Result<EnglishMnemonic, Bip39Error> {
-    let mnemonic = Mnemonic::from_entropy_in(Language::English, entropy.bytes())
-        .map_err(|_| Bip39Error::EncodingFailed)?;
-    let words = mnemonic.words().map(str::to_owned).collect();
-    EnglishMnemonic::from_verified_words(entropy.target(), words)
-}
-
-fn build_evidence(
-    protocol: ConversionProtocol,
-    target: EntropyTarget,
-    capture: Capture<'_>,
-    entropy: &Entropy,
-) -> CalculationEvidence {
+    let encoding = Bip39Encoding::from_entropy(&entropy)?;
+    let (mnemonic, checksum_bits, word_indices) = encoding.into_parts();
     let canonical_input = match capture {
         Capture::Dice(rolls) => CanonicalInput::from_dice(protocol, target, rolls),
         Capture::Jade(capture) => CanonicalInput::from_jade(capture),
@@ -336,49 +314,16 @@ fn build_evidence(
         Capture::D20(capture) => CanonicalInput::from_d20(capture),
         Capture::Coins(capture) => CanonicalInput::from_coins(capture),
     };
-    let mut digest = sha256_digest(&[entropy.bytes()]);
-    let checksum_length = target.entropy_bits() / 32;
-    let checksum_bits = (0..checksum_length)
-        .map(|offset| (digest[0] >> (7 - offset)) & 1)
-        .collect();
-    let word_indices = bip39_indices(entropy.bytes(), digest[0], checksum_length);
-    digest.zeroize();
-    CalculationEvidence {
-        canonical_input,
-        checksum_bits,
-        word_indices,
-    }
-}
-
-fn bip39_indices(entropy: &[u8], checksum: u8, checksum_length: usize) -> Vec<u16> {
-    let mut indices = Vec::with_capacity((entropy.len() * 8 + checksum_length) / 11);
-    let mut accumulator = 0_u16;
-    let mut bits = 0_u8;
-
-    for byte in entropy {
-        push_bits(*byte, 8, &mut accumulator, &mut bits, &mut indices);
-    }
-    push_bits(
-        checksum >> (8 - checksum_length),
-        u8::try_from(checksum_length).expect("BIP-39 checksum length fits u8"),
-        &mut accumulator,
-        &mut bits,
-        &mut indices,
-    );
-    assert_eq!(bits, 0, "BIP-39 groups end on a word boundary");
-    indices
-}
-
-fn push_bits(value: u8, count: u8, accumulator: &mut u16, bits: &mut u8, indices: &mut Vec<u16>) {
-    for shift in (0..count).rev() {
-        *accumulator = (*accumulator << 1) | u16::from((value >> shift) & 1);
-        *bits += 1;
-        if *bits == 11 {
-            indices.push(*accumulator);
-            *accumulator = 0;
-            *bits = 0;
-        }
-    }
+    Ok(CalculationOutcome::Accepted(Calculation {
+        protocol,
+        entropy,
+        mnemonic,
+        evidence: CalculationEvidence {
+            canonical_input,
+            checksum_bits,
+            word_indices,
+        },
+    }))
 }
 
 #[cfg(test)]

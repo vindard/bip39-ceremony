@@ -15,6 +15,10 @@ pub(crate) fn seedsigner_coins_entropy(
             actual: flips.len(),
         });
     }
+    Ok(calculate_entropy(target, flips))
+}
+
+fn calculate_entropy(target: EntropyTarget, flips: &FlipSequence) -> Entropy {
     let ascii = flips.ascii_bytes();
-    Ok(sha256_prefix_entropy(target, &[ascii.as_slice()]))
+    sha256_prefix_entropy(target, &[ascii.as_slice()])
 }

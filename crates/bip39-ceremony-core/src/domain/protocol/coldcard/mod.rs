@@ -23,9 +23,12 @@ pub(crate) fn coldcard_entropy(
     if distribution_is_rejected(rolls) {
         return Ok(ColdcardEntropyOutcome::DistributionRejected);
     }
-    let ascii = ascii_rolls(rolls);
-    Ok(ColdcardEntropyOutcome::Accepted(sha256_prefix_entropy(
-        target,
-        &[ascii.as_slice()],
+    Ok(ColdcardEntropyOutcome::Accepted(calculate_entropy(
+        target, rolls,
     )))
+}
+
+fn calculate_entropy(target: EntropyTarget, rolls: &RollSequence) -> Entropy {
+    let ascii = ascii_rolls(rolls);
+    sha256_prefix_entropy(target, &[ascii.as_slice()])
 }

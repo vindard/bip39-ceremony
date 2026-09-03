@@ -46,9 +46,13 @@ pub fn bitcoinlib_base6_entropy(
         return Ok(BitcoinLibBase6EntropyOutcome::Rejected);
     }
 
-    Ok(BitcoinLibBase6EntropyOutcome::Accepted(
-        Entropy::from_protocol_bytes(target, value[1..].to_vec()),
-    ))
+    Ok(BitcoinLibBase6EntropyOutcome::Accepted(calculate_entropy(
+        target, &value,
+    )))
+}
+
+fn calculate_entropy(target: EntropyTarget, value: &[u8]) -> Entropy {
+    Entropy::from_protocol_bytes(target, value[1..].to_vec())
 }
 
 #[cfg(test)]

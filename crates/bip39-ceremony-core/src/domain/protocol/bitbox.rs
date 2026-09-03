@@ -7,7 +7,7 @@ use crate::domain::{
     dice::DieFace,
 };
 
-use super::ProtocolError;
+use super::{ProtocolError, append_bits};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum BitBoxObservationKind {
@@ -128,14 +128,18 @@ pub fn bitbox_word_index(mut faces: [DieFace; 5], mut coin: CoinFlip) -> Option<
     let index = if faces.iter().any(|face| face.get() > 4) {
         None
     } else {
-        let base4 = faces
-            .iter()
-            .fold(0_u16, |value, face| value * 4 + u16::from(face.get() - 1));
-        Some(base4 * 2 + u16::from(1 - coin.get()))
+        Some(calculate_word_index(&faces, coin))
     };
     faces.zeroize();
     coin.zeroize();
     index
+}
+
+fn calculate_word_index(faces: &[DieFace], coin: CoinFlip) -> u16 {
+    let base4 = faces
+        .iter()
+        .fold(0_u16, |value, face| value * 4 + u16::from(face.get() - 1));
+    base4 * 2 + u16::from(1 - coin.get())
 }
 
 #[must_use]
@@ -201,7 +205,7 @@ fn parse_bitbox(target: EntropyTarget, capture: &BitBoxCapture) -> ParsedBitBox 
                 };
             }
             (BitBoxStage::EntropyTail { recorded, required }, BitBoxObservation::Coin(coin)) => {
-                tail = (tail << 1) | u16::from(1 - coin.get());
+                tail = append_entropy_tail(tail, *coin);
                 stage = if recorded + 1 == required {
                     BitBoxStage::Complete
                 } else {
@@ -233,6 +237,10 @@ fn parse_bitbox(target: EntropyTarget, capture: &BitBoxCapture) -> ParsedBitBox 
     }
 }
 
+fn append_entropy_tail(tail: u16, coin: CoinFlip) -> u16 {
+    (tail << 1) | u16::from(1 - coin.get())
+}
+
 pub(crate) fn bitbox_entropy(
     target: EntropyTarget,
     capture: &BitBoxCapture,
@@ -248,6 +256,10 @@ pub(crate) fn bitbox_entropy(
         });
     }
 
+    Ok(calculate_entropy(target, &parsed))
+}
+
+fn calculate_entropy(target: EntropyTarget, parsed: &ParsedBitBox) -> Entropy {
     let mut bytes = vec![0_u8; target.entropy_bytes()];
     let mut bit_offset = 0;
     for &index in &parsed.indices {
@@ -260,15 +272,7 @@ pub(crate) fn bitbox_entropy(
         bitbox_tail_bits(target),
     );
     assert_eq!(bit_offset, target.entropy_bits());
-    Ok(Entropy::from_protocol_bytes(target, bytes))
-}
-
-fn append_bits(bytes: &mut [u8], offset: &mut usize, value: u16, bits: usize) {
-    for shift in (0..bits).rev() {
-        let bit = (value >> shift).to_le_bytes()[0] & 1;
-        bytes[*offset / 8] |= bit << (7 - *offset % 8);
-        *offset += 1;
-    }
+    Entropy::from_protocol_bytes(target, bytes)
 }
 
 #[cfg(test)]

@@ -6,8 +6,9 @@ use crate::{
     application::{BuildCapabilities, DerivationProjection},
     domain::{bip39::EntropyTarget, ceremony::Phase},
     presentation::{
-        derivation_guidance, phase_guidance, physical_entropy_guidance, protocol_menu_explanation,
-        trust_boundary,
+        BIP39_CHECKSUM, BIP39_VERSION, BITCOIN_HASHES_CHECKSUM, BITCOIN_HASHES_VERSION,
+        SourceScope, derivation_guidance, phase_guidance, physical_entropy_guidance,
+        protocol_menu_explanation, protocol_source_files, trust_boundary,
     },
 };
 
@@ -72,6 +73,7 @@ pub(super) fn render_inspector(app: &App, width: usize) -> Lines {
                 lines(&["Protocol explanation unavailable."])
             }
         }
+        Some(InspectorView::ProtocolSource) => render_protocol_source(app, width),
         Some(InspectorView::PhysicalEntropy) => {
             render_document(&physical_entropy_guidance(), width)
         }
@@ -82,6 +84,102 @@ pub(super) fn render_inspector(app: &App, width: usize) -> Lines {
         }
         None => lines(&["Inspection unavailable."]),
     }
+}
+
+fn render_protocol_source(app: &App, width: usize) -> Lines {
+    let Some(protocol) = app.inspected_protocol() else {
+        return lines(&["Protocol source unavailable."]);
+    };
+    let files = protocol_source_files(protocol);
+    let selected = app
+        .inspector()
+        .map_or(0, |inspector| inspector.source_file)
+        .min(files.len().saturating_sub(1));
+    let file = files[selected];
+
+    let mut output = Lines::new(Vec::new());
+    push(&mut output, "◆ CALCULATION SOURCE");
+    push(&mut output, &format!("PROTOCOL · {}", protocol.id()));
+    push(
+        &mut output,
+        &format!(
+            "STAGE {} OF {} · {}",
+            selected + 1,
+            files.len(),
+            file.label()
+        ),
+    );
+    push_wrapped(&mut output, "  ", file.path(), width);
+    push(&mut output, "");
+    match file.scope() {
+        SourceScope::CompleteModule => {
+            push(
+                &mut output,
+                "Complete local module embedded verbatim; no source lines are omitted.",
+            );
+            if selected == 0 {
+                push_wrapped(
+                    &mut output,
+                    "External boundary · ",
+                    &format!("bip39 {BIP39_VERSION} · crates.io SHA-256 {BIP39_CHECKSUM}"),
+                    width,
+                );
+                push_wrapped(
+                    &mut output,
+                    "External SHA-256 · ",
+                    &format!(
+                        "bitcoin_hashes {BITCOIN_HASHES_VERSION} · crates.io SHA-256 {BITCOIN_HASHES_CHECKSUM}"
+                    ),
+                    width,
+                );
+                push(
+                    &mut output,
+                    "Mnemonic::from_entropy_in executes in bip39; its digest uses bitcoin_hashes.",
+                );
+                push(
+                    &mut output,
+                    "Exact dependency source is external to this view and identified above.",
+                );
+                push(
+                    &mut output,
+                    "Words, indices, and checksum come from one value; entropy is round-trip checked.",
+                );
+                push(
+                    &mut output,
+                    "This display does not prove binary provenance; verify the build separately.",
+                );
+            }
+        }
+        SourceScope::SelectedFunctions(functions) => {
+            push_wrapped(
+                &mut output,
+                "Selected functions · ",
+                &functions.join(" · "),
+                width,
+            );
+            push(
+                &mut output,
+                "These are selected accepted-value formulas, not the complete capture call path.",
+            );
+            push(
+                &mut output,
+                "Validation gates, rejection branches, tests, and unrelated code are omitted.",
+            );
+        }
+    }
+    push(
+        &mut output,
+        "Original line numbers are display-only. Long lines may be clipped.",
+    );
+    push(&mut output, "");
+    for (line_number, line) in file.lines() {
+        if line_number == 0 {
+            push(&mut output, "");
+        } else {
+            push(&mut output, &format!("{line_number:04} │ {line}"));
+        }
+    }
+    output
 }
 
 fn render_derivation(output: &mut Lines, app: &App, width: usize) {

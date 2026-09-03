@@ -7,7 +7,7 @@ use crate::domain::{
     dice::DieFace,
 };
 
-use super::ProtocolError;
+use super::{ProtocolError, append_bits};
 
 pub const REQUIRED_CANDIDATES: usize = 12;
 pub const OBSERVATIONS_PER_CANDIDATE: usize = 5;
@@ -92,19 +92,25 @@ impl Drop for ParsedCapture {
 /// indices 0..1295; tails occupies 1296..2047 and rejects later tuples.
 #[must_use]
 pub fn coin_four_d6_word_index(mut coin: CoinFlip, mut faces: [DieFace; 4]) -> Option<u16> {
-    let rank = faces
-        .iter()
-        .fold(0_u16, |value, face| value * 6 + u16::from(face.get() - 1));
-    let index = if coin.get() == 1 {
-        Some(rank)
-    } else if rank < 752 {
-        Some(1_296 + rank)
+    let rank = calculate_rank(&faces);
+    let index = if coin.get() == 1 || rank < 752 {
+        Some(calculate_word_index(coin, rank))
     } else {
         None
     };
     coin.zeroize();
     faces.zeroize();
     index
+}
+
+fn calculate_rank(faces: &[DieFace]) -> u16 {
+    faces
+        .iter()
+        .fold(0_u16, |value, face| value * 6 + u16::from(face.get() - 1))
+}
+
+fn calculate_word_index(coin: CoinFlip, rank: u16) -> u16 {
+    if coin.get() == 1 { rank } else { 1_296 + rank }
 }
 
 #[must_use]
@@ -202,22 +208,18 @@ pub(crate) fn coin_four_d6_entropy(
         });
     }
 
-    let mut bytes = vec![0_u8; target.entropy_bytes()];
-    let mut bit_offset = 0;
-    for &index in &parsed.indices[..11] {
-        append_bits(&mut bytes, &mut bit_offset, index, 11);
-    }
-    append_bits(&mut bytes, &mut bit_offset, parsed.indices[11] >> 4, 7);
-    assert_eq!(bit_offset, 128);
-    Ok(Entropy::from_protocol_bytes(target, bytes))
+    Ok(calculate_entropy(target, &parsed.indices))
 }
 
-fn append_bits(bytes: &mut [u8], offset: &mut usize, value: u16, bits: usize) {
-    for shift in (0..bits).rev() {
-        let bit = (value >> shift).to_le_bytes()[0] & 1;
-        bytes[*offset / 8] |= bit << (7 - *offset % 8);
-        *offset += 1;
+fn calculate_entropy(target: EntropyTarget, indices: &[u16]) -> Entropy {
+    let mut bytes = vec![0_u8; target.entropy_bytes()];
+    let mut bit_offset = 0;
+    for &index in &indices[..11] {
+        append_bits(&mut bytes, &mut bit_offset, index, 11);
     }
+    append_bits(&mut bytes, &mut bit_offset, indices[11] >> 4, 7);
+    assert_eq!(bit_offset, 128);
+    Entropy::from_protocol_bytes(target, bytes)
 }
 
 #[cfg(test)]

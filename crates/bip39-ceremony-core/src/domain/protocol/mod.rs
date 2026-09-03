@@ -1,4 +1,5 @@
 mod base6;
+mod bit_packing;
 mod bitbox;
 mod bitcoinlib_base6;
 mod bluewallet_bitpack;
@@ -45,6 +46,7 @@ pub use word_exact::{
     WordExactProgress, WordExactTrace,
 };
 
+pub(crate) use bit_packing::append_bits;
 pub(crate) use bitbox::bitbox_entropy;
 pub(crate) use bitcoinlib_base6::{BitcoinLibBase6EntropyOutcome, bitcoinlib_base6_entropy};
 pub(crate) use bluewallet_bitpack::{bluewallet_bitpack_entropy, packed_bits};
@@ -61,5 +63,5 @@ pub(crate) use keystone_legacy::{
 };
 pub(crate) use krux_d20::{ascii_rolls as krux_d20_ascii_rolls, krux_d20_entropy};
 pub(crate) use seedsigner_coins::seedsigner_coins_entropy;
-pub(crate) use sha256::{sha256_digest, sha256_prefix_entropy};
+pub(crate) use sha256::sha256_prefix_entropy;
 pub(crate) use word_exact::{parse_word_exact, word_exact_entropy};
