@@ -33,7 +33,7 @@ pub(super) const MIN_WIDTH: u16 = 44;
 pub(super) const MIN_HEIGHT: u16 = 22;
 const REVEAL_MIN_WIDTH: u16 = 52;
 const REVEAL_MIN_HEIGHT: u16 = 40;
-const MAX_CONTENT_WIDTH: usize = 140;
+const MAX_RENDER_CELLS: usize = 4_000_000;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum WorkspaceLayout {
@@ -81,8 +81,7 @@ pub fn render(app: &App, width: u16, height: u16) -> Zeroizing<String> {
         ));
     }
 
-    let width = usize::from(width).min(MAX_CONTENT_WIDTH);
-    let height = usize::from(height);
+    let (width, height) = render_size(width, height);
     if app.inspector().is_none() && app.ceremony().state().phase() == Phase::Revealed {
         compose_reveal_workspace(app, width, height)
     } else {
@@ -98,16 +97,15 @@ pub(super) fn workspace_pane_at(
     row: u16,
 ) -> Option<WorkspacePane> {
     let (minimum_width, minimum_height) = minimum_size(app);
-    if width < minimum_width
-        || height < minimum_height
-        || column == 0
-        || row == 0
-        || row > height.saturating_sub(2)
-    {
+    if width < minimum_width || height < minimum_height || column == 0 || row == 0 {
         return None;
     }
-    let width = usize::from(width).min(MAX_CONTENT_WIDTH);
+    let (width, height) = render_size(width, height);
     let column = usize::from(column);
+    let row = usize::from(row);
+    if row > height.saturating_sub(2) {
+        return None;
+    }
     let layout = WorkspaceLayout::for_width(width);
     if app.workspace_zoomed() {
         return (row >= 3).then_some(app.focused_pane());
@@ -148,8 +146,7 @@ pub(super) fn scroll_limit(app: &App, width: u16, height: u16) -> usize {
     if width < minimum_width || height < minimum_height {
         return 0;
     }
-    let width = usize::from(width).min(MAX_CONTENT_WIDTH);
-    let height = usize::from(height);
+    let (width, height) = render_size(width, height);
     let rows = workspace_body_rows(app, height, WorkspaceLayout::for_width(width));
     let body_width = focused_body_width(app, width).saturating_sub(4);
 
@@ -163,6 +160,12 @@ pub(super) fn scroll_limit(app: &App, width: u16, height: u16) -> usize {
         WorkspacePane::Preview => render_preview(app, body_width),
     };
     body.len().saturating_sub(rows.saturating_sub(1))
+}
+
+fn render_size(width: u16, height: u16) -> (usize, usize) {
+    let width = usize::from(width);
+    let height = usize::from(height).min(MAX_RENDER_CELLS / width.max(1));
+    (width, height)
 }
 
 fn compose_workspace(app: &App, width: usize, height: usize) -> Zeroizing<String> {
@@ -1121,6 +1124,30 @@ mod tests {
         assert!(output.contains("┌─ PREVIEW · FOCUS"));
         assert!(output.contains("You are choosing the BIP-39 entropy"));
         assert_eq!(output.lines().count(), 30);
+    }
+
+    #[test]
+    fn pathological_terminal_dimensions_bound_render_area() {
+        let (width, height) = render_size(u16::MAX, u16::MAX);
+
+        assert_eq!(width, usize::from(u16::MAX));
+        assert!(width * height <= MAX_RENDER_CELLS);
+    }
+
+    #[test]
+    fn desktop_workspace_uses_the_available_width() {
+        let app = App::default();
+        let output = render(&app, 200, 50);
+        let pane_header = output
+            .lines()
+            .find(|line| line.contains("STAGES") && line.contains("PREVIEW"))
+            .unwrap();
+
+        assert_eq!(pane_header.chars().count(), 200);
+        assert_eq!(
+            workspace_pane_at(&app, 200, 50, 190, 4),
+            Some(WorkspacePane::Preview)
+        );
     }
 
     #[test]
