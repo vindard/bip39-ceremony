@@ -3,7 +3,10 @@ use zeroize::Zeroizing;
 use crate::domain::{
     bip39::{Entropy, EntropyTarget},
     dice::{DieFace, RollSequence},
-    protocol::ProtocolError,
+    protocol::{
+        ConversionProtocol, ProtocolError, hash_entropy, keystone_legacy::ascii_rolls,
+        require_complete_capture,
+    },
 };
 
 /// Bits a face contributes under the base-6 table, after the 6-to-0 rewrite.
@@ -77,6 +80,16 @@ pub fn iancoleman_raw_progress(
         bits,
         required_bits: target.entropy_bits(),
     }
+}
+
+/// The web tool's fixed-length path, which uses the legacy Keystone mapping.
+pub(crate) fn iancoleman_dice_entropy(
+    target: EntropyTarget,
+    rolls: &RollSequence,
+) -> Result<Entropy, ProtocolError> {
+    require_complete_capture(ConversionProtocol::IanColemanDiceV1, target, rolls)?;
+    let ascii = ascii_rolls(rolls);
+    Ok(hash_entropy(target, &[ascii.as_slice()]))
 }
 
 /// Converts an ordered D6 sequence the way iancoleman's raw mode does.

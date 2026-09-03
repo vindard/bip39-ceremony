@@ -1,7 +1,6 @@
 use core::fmt;
 
 use bip39::{Language, Mnemonic};
-use bitcoin_hashes::{Hash, HashEngine, sha256};
 use zeroize::Zeroize;
 
 use crate::domain::{
@@ -13,11 +12,11 @@ use crate::domain::{
     dice::RollSequence,
     jade::JadeCapture,
     protocol::{
-        Base6Outcome, CanonicalInput, ConversionProtocol, ExactOutcome, ProtocolError,
-        bitbox_entropy, bitcoinlib_base6_entropy, bluewallet_bitpack_entropy, coin_four_d6_entropy,
-        coldcard_ascii_rolls, coldcard_distribution_rejected, exact_entropy,
-        iancoleman_raw_entropy, jade_entropy, keystone_legacy_ascii_rolls, krux_d20_ascii_rolls,
-        word_exact_entropy,
+        Base6Outcome, CanonicalInput, ColdcardOutcome, ConversionProtocol, ExactOutcome,
+        ProtocolError, bitbox_entropy, bitcoinlib_base6_entropy, bluewallet_bitpack_entropy,
+        coin_four_d6_entropy, coldcard_entropy, exact_entropy, iancoleman_dice_entropy,
+        iancoleman_raw_entropy, jade_entropy, keystone_legacy_entropy, krux_d20_entropy,
+        seedsigner_coin_entropy, sha256, word_exact_entropy,
     },
 };
 
@@ -272,12 +271,12 @@ pub fn calculate(
             word_exact_entropy(target, rolls)?
         }
         (ConversionProtocol::ColdcardV1, Capture::Dice(rolls)) => {
-            require_complete_capture(ConversionProtocol::ColdcardV1, target, rolls)?;
-            if coldcard_distribution_rejected(rolls) {
-                return Ok(CalculationOutcome::ColdcardDistributionRejected);
+            match coldcard_entropy(target, rolls)? {
+                ColdcardOutcome::Accepted(entropy) => entropy,
+                ColdcardOutcome::DistributionRejected => {
+                    return Ok(CalculationOutcome::ColdcardDistributionRejected);
+                }
             }
-            let ascii = coldcard_ascii_rolls(rolls);
-            hash_entropy(target, &[ascii.as_slice()])
         }
         (ConversionProtocol::KeystoneLegacyV1, Capture::Dice(rolls)) => {
             keystone_legacy_entropy(target, rolls)?
@@ -313,80 +312,6 @@ fn accepted_calculation(
         mnemonic,
         evidence,
     }))
-}
-
-/// The web tool's fixed-length path, which is the legacy Keystone mapping.
-fn iancoleman_dice_entropy(
-    target: EntropyTarget,
-    rolls: &RollSequence,
-) -> Result<Entropy, ProtocolError> {
-    require_complete_capture(ConversionProtocol::IanColemanDiceV1, target, rolls)?;
-    let ascii = keystone_legacy_ascii_rolls(rolls);
-    Ok(hash_entropy(target, &[ascii.as_slice()]))
-}
-
-fn keystone_legacy_entropy(
-    target: EntropyTarget,
-    rolls: &RollSequence,
-) -> Result<Entropy, ProtocolError> {
-    if !ConversionProtocol::KeystoneLegacyV1.supports_target(target) {
-        return Err(ProtocolError::UnsupportedTarget);
-    }
-    require_complete_capture(ConversionProtocol::KeystoneLegacyV1, target, rolls)?;
-    let ascii = keystone_legacy_ascii_rolls(rolls);
-    Ok(hash_entropy(target, &[ascii.as_slice()]))
-}
-
-fn krux_d20_entropy(
-    target: EntropyTarget,
-    rolls: &D20RollSequence,
-) -> Result<Entropy, ProtocolError> {
-    let protocol = ConversionProtocol::KruxD20V1;
-    if !protocol.assess_d20_capture(target, rolls).is_complete() {
-        return Err(ProtocolError::WrongObservationCount {
-            expected: protocol.minimum_observations(target),
-            actual: rolls.len(),
-        });
-    }
-    let ascii = krux_d20_ascii_rolls(rolls);
-    Ok(hash_entropy(target, &[ascii.as_slice()]))
-}
-
-fn seedsigner_coin_entropy(
-    target: EntropyTarget,
-    flips: &FlipSequence,
-) -> Result<Entropy, ProtocolError> {
-    let protocol = ConversionProtocol::SeedSignerCoinsV1;
-    if !protocol.assess_coin_capture(target, flips).is_complete() {
-        return Err(ProtocolError::WrongObservationCount {
-            expected: protocol.minimum_observations(target),
-            actual: flips.len(),
-        });
-    }
-    let ascii = flips.ascii_bytes();
-    Ok(hash_entropy(target, &[ascii.as_slice()]))
-}
-
-fn hash_entropy(target: EntropyTarget, chunks: &[&[u8]]) -> Entropy {
-    let mut digest = sha256(chunks);
-    let entropy = Entropy::from_protocol_bytes(target, digest[..target.entropy_bytes()].to_vec());
-    digest.zeroize();
-    entropy
-}
-
-fn require_complete_capture(
-    protocol: ConversionProtocol,
-    target: EntropyTarget,
-    rolls: &RollSequence,
-) -> Result<(), ProtocolError> {
-    if protocol.assess_capture(target, rolls).is_complete() {
-        Ok(())
-    } else {
-        Err(ProtocolError::WrongObservationCount {
-            expected: protocol.minimum_observations(target),
-            actual: rolls.len(),
-        })
-    }
 }
 
 fn encode_english(entropy: &Entropy) -> Result<EnglishMnemonic, Bip39Error> {
@@ -453,14 +378,6 @@ fn push_bits(value: u8, count: u8, accumulator: &mut u16, bits: &mut u8, indices
             *bits = 0;
         }
     }
-}
-
-fn sha256(chunks: &[&[u8]]) -> [u8; 32] {
-    let mut engine = sha256::Hash::engine();
-    for chunk in chunks {
-        engine.input(chunk);
-    }
-    sha256::Hash::from_engine(engine).to_byte_array()
 }
 
 #[cfg(test)]

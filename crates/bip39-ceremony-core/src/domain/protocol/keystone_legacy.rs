@@ -1,6 +1,10 @@
 use zeroize::Zeroizing;
 
-use crate::domain::dice::RollSequence;
+use crate::domain::{
+    bip39::{Entropy, EntropyTarget},
+    dice::RollSequence,
+    protocol::{ConversionProtocol, ProtocolError, hash_entropy, require_complete_capture},
+};
 
 /// Legacy Keystone's documented Ian Coleman-compatible D6 text mapping.
 #[must_use]
@@ -12,6 +16,19 @@ pub fn ascii_rolls(rolls: &RollSequence) -> Zeroizing<Vec<u8>> {
             .map(|face| if face.get() == 6 { b'0' } else { face.ascii() })
             .collect(),
     )
+}
+
+pub(crate) fn keystone_legacy_entropy(
+    target: EntropyTarget,
+    rolls: &RollSequence,
+) -> Result<Entropy, ProtocolError> {
+    let protocol = ConversionProtocol::KeystoneLegacyV1;
+    if !protocol.supports_target(target) {
+        return Err(ProtocolError::UnsupportedTarget);
+    }
+    require_complete_capture(protocol, target, rolls)?;
+    let ascii = ascii_rolls(rolls);
+    Ok(hash_entropy(target, &[ascii.as_slice()]))
 }
 
 #[cfg(test)]

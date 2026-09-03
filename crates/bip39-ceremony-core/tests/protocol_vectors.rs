@@ -625,11 +625,16 @@ fn bitbox_direct_words_cross_rejection_table_and_bip39_boundaries() {
 
 #[test]
 fn bitbox_asymmetric_vectors_fix_word_and_tail_bit_order() {
-    for (target, entropy) in [
-        (EntropyTarget::Words12, "1b2588f5a745fae1a07c98a436ab19d5"),
+    for (target, entropy, final_word_index) in [
+        (
+            EntropyTarget::Words12,
+            "1b2588f5a745fae1a07c98a436ab19d5",
+            1364,
+        ),
         (
             EntropyTarget::Words24,
             "1b2588f5a745fae1a07c98a436ab19ebce8bf382b8e02d27c93db0471b05a4fd",
+            1412,
         ),
     ] {
         let capture = bitbox_asymmetric(target);
@@ -641,6 +646,10 @@ fn bitbox_asymmetric_vectors_fix_word_and_tail_bit_order() {
         assert_eq!(entropy_hex(calculation.entropy()), entropy);
         assert_eq!(calculation.evidence().word_indices()[0], 217);
         assert_eq!(calculation.evidence().word_indices()[1], 354);
+        assert_eq!(
+            calculation.evidence().word_indices().last(),
+            Some(&final_word_index)
+        );
     }
 }
 

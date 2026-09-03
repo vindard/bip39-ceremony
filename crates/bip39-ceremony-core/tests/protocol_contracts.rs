@@ -1,6 +1,6 @@
 use bip39_ceremony_core::{
-    CalculationError, CalculationOutcome, Capture, CoinFlip, ConversionProtocol, DieFace,
-    EntropyTarget, FlipSequence, ProtocolError, RollSequence, calculate,
+    CalculationError, CalculationOutcome, Capture, CoinFlip, ConversionProtocol, D20Face,
+    D20RollSequence, DieFace, EntropyTarget, FlipSequence, ProtocolError, RollSequence, calculate,
 };
 
 fn flips(value: &str) -> FlipSequence {
@@ -17,6 +17,29 @@ fn rolls(value: &str) -> RollSequence {
         rolls.push(DieFace::try_from(character).unwrap());
     }
     rolls
+}
+
+#[test]
+fn krux_requires_its_minimum_d20_roll_count() {
+    for (target, expected) in [(EntropyTarget::Words12, 30), (EntropyTarget::Words24, 60)] {
+        let mut rolls = D20RollSequence::new();
+        for _ in 1..expected {
+            rolls.push(D20Face::new(1).unwrap());
+        }
+        assert!(matches!(
+            calculate(
+                target,
+                ConversionProtocol::KruxD20V1,
+                Capture::D20(&rolls)
+            ),
+            Err(CalculationError::Protocol(
+                ProtocolError::WrongObservationCount {
+                    expected: error_expected,
+                    actual: error_actual,
+                }
+            )) if error_expected == expected && error_actual == expected - 1
+        ));
+    }
 }
 
 #[test]
