@@ -116,6 +116,10 @@ pub fn bluewallet_bitpack_entropy(
         });
     }
 
+    Ok(calculate_entropy(target, rolls))
+}
+
+fn calculate_entropy(target: EntropyTarget, rolls: &RollSequence) -> Entropy {
     let required_bits = target.entropy_bits();
     let mut bytes = Zeroizing::new(vec![0_u8; target.entropy_bytes()]);
     let mut placed = 0_usize;
@@ -131,7 +135,7 @@ pub fn bluewallet_bitpack_entropy(
         }
     }
 
-    Ok(Entropy::from_protocol_bytes(target, bytes.to_vec()))
+    Entropy::from_protocol_bytes(target, bytes.to_vec())
 }
 
 /// The packed bits as ASCII `0`/`1`, for inspection.

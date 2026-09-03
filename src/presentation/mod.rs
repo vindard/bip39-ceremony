@@ -7,6 +7,7 @@ mod readiness;
 mod recovery;
 mod safety;
 mod setup;
+mod source;
 
 pub use document::{ContentBlock, Document};
 pub use evidence::{reproduction_receipt, trust_boundary};
@@ -21,4 +22,8 @@ pub use recovery::{
 pub use safety::{SafetyContent, safety_content};
 pub use setup::{
     ChoiceContent, ProtocolMenuChoice, capture_protocol_context, protocol_choices, target_choices,
+};
+pub(crate) use source::{
+    BIP39_CHECKSUM, BIP39_VERSION, BITCOIN_HASHES_CHECKSUM, BITCOIN_HASHES_VERSION, SourceScope,
+    protocol_source_files,
 };

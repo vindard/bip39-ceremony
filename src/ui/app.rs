@@ -82,13 +82,14 @@ use crate::{
             bitbox_progress, coin_four_d6_progress, jade_expected_die,
         },
     },
-    presentation::ProtocolMenuChoice,
+    presentation::{ProtocolMenuChoice, protocol_source_files},
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum InspectorView {
     Derivation,
     ProtocolExplanation,
+    ProtocolSource,
     PhysicalEntropy,
     Help,
 }
@@ -97,6 +98,7 @@ pub enum InspectorView {
 pub struct Inspector {
     pub view: InspectorView,
     pub scroll: usize,
+    pub source_file: usize,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -361,6 +363,16 @@ impl App {
     }
 
     #[must_use]
+    pub(super) fn inspected_protocol(&self) -> Option<ConversionProtocol> {
+        self.ceremony().state().protocol().or_else(|| {
+            self.ceremony()
+                .state()
+                .target()
+                .map(|_| self.selected_protocol_choice().protocol())
+        })
+    }
+
+    #[must_use]
     pub const fn roll_scroll(&self) -> usize {
         self.roll_scroll
     }
@@ -570,6 +582,13 @@ impl App {
                 ProtocolMenuChoice::ALL.len(),
                 direction,
             );
+            if let Some(mut inspector) = self.inspector
+                && inspector.view == InspectorView::ProtocolSource
+            {
+                inspector.source_file = 0;
+                inspector.scroll = 0;
+                self.inspector = Some(inspector);
+            }
             return;
         }
         match key {
@@ -1201,31 +1220,11 @@ impl App {
             return;
         };
         inspector.scroll = inspector.scroll.min(self.scroll_limit);
-        if inspector.view == InspectorView::ProtocolExplanation {
-            match key {
-                Key::Char('q') | Key::Ctrl('c') => {
-                    self.inspector = None;
-                    self.quit_pending = true;
-                }
-                Key::Esc | Key::Char('e') => {
-                    self.inspector = None;
-                    self.workspace.focus(WorkspacePane::Task);
-                }
-                Key::Up => inspector.scroll = inspector.scroll.saturating_sub(1),
-                Key::Down => {
-                    inspector.scroll = inspector.scroll.saturating_add(1).min(self.scroll_limit);
-                    self.inspector = Some(inspector);
-                }
-                Key::PageUp => inspector.scroll = inspector.scroll.saturating_sub(8),
-                Key::PageDown => {
-                    inspector.scroll = inspector.scroll.saturating_add(8).min(self.scroll_limit);
-                    self.inspector = Some(inspector);
-                }
-                _ => self.inspector = Some(inspector),
-            }
-            if self.inspector.is_some() {
-                self.inspector = Some(inspector);
-            }
+        if matches!(
+            inspector.view,
+            InspectorView::ProtocolExplanation | InspectorView::ProtocolSource
+        ) {
+            self.update_protocol_inspector(inspector, key);
             return;
         }
         match key {
@@ -1270,8 +1269,58 @@ impl App {
         }
     }
 
+    fn update_protocol_inspector(&mut self, mut inspector: Inspector, key: Key) {
+        match key {
+            Key::Char('q') | Key::Ctrl('c') => {
+                self.inspector = None;
+                self.quit_pending = true;
+                return;
+            }
+            Key::Esc | Key::Char('e') => {
+                self.inspector = None;
+                self.workspace.focus(WorkspacePane::Task);
+                return;
+            }
+            Key::Char('s') => {
+                inspector.view = match inspector.view {
+                    InspectorView::ProtocolExplanation => InspectorView::ProtocolSource,
+                    InspectorView::ProtocolSource => InspectorView::ProtocolExplanation,
+                    _ => unreachable!("only protocol inspector views reach this branch"),
+                };
+                inspector.source_file = 0;
+                inspector.scroll = 0;
+            }
+            Key::Left if inspector.view == InspectorView::ProtocolSource => {
+                inspector.source_file = inspector.source_file.saturating_sub(1);
+                inspector.scroll = 0;
+            }
+            Key::Right if inspector.view == InspectorView::ProtocolSource => {
+                let last = self
+                    .inspected_protocol()
+                    .map(protocol_source_files)
+                    .map_or(0, |files| files.len().saturating_sub(1));
+                inspector.source_file = inspector.source_file.saturating_add(1).min(last);
+                inspector.scroll = 0;
+            }
+            Key::Up => inspector.scroll = inspector.scroll.saturating_sub(1),
+            Key::Down => {
+                inspector.scroll = inspector.scroll.saturating_add(1).min(self.scroll_limit);
+            }
+            Key::PageUp => inspector.scroll = inspector.scroll.saturating_sub(8),
+            Key::PageDown => {
+                inspector.scroll = inspector.scroll.saturating_add(8).min(self.scroll_limit);
+            }
+            _ => {}
+        }
+        self.inspector = Some(inspector);
+    }
+
     fn open_inspector(&mut self, view: InspectorView) {
-        self.inspector = Some(Inspector { view, scroll: 0 });
+        self.inspector = Some(Inspector {
+            view,
+            scroll: 0,
+            source_file: 0,
+        });
         self.workspace.focus(WorkspacePane::Preview);
     }
 
@@ -1739,6 +1788,71 @@ mod tests {
         assert_eq!(app.focused_pane(), WorkspacePane::Stages);
         assert_eq!(app.update(Key::Esc), UpdateOutcome::Changed);
         assert!(app.inspector().is_none());
+    }
+
+    #[test]
+    fn protocol_source_toggles_and_navigates_related_files() {
+        let mut app = App::default();
+        app.update(Key::Char('\n'));
+        app.update(Key::Char('e'));
+        let events = app.ceremony().events().len();
+
+        app.update(Key::Char('s'));
+        assert_eq!(
+            app.inspector().map(|inspector| inspector.view),
+            Some(InspectorView::ProtocolSource)
+        );
+        app.update(Key::Right);
+        assert_eq!(
+            app.inspector().map(|inspector| inspector.source_file),
+            Some(1)
+        );
+        assert_eq!(app.inspector().map(|inspector| inspector.scroll), Some(0));
+        app.update(Key::Down);
+        assert_eq!(app.inspector().map(|inspector| inspector.scroll), Some(1));
+        app.update(Key::Left);
+        assert_eq!(
+            app.inspector().map(|inspector| inspector.source_file),
+            Some(0)
+        );
+        app.update(Key::Char('s'));
+        assert_eq!(
+            app.inspector().map(|inspector| inspector.view),
+            Some(InspectorView::ProtocolExplanation)
+        );
+        assert_eq!(app.ceremony().events().len(), events);
+    }
+
+    #[test]
+    fn protocol_source_retargets_and_clamps_file_navigation() {
+        let mut app = App::default();
+        app.update(Key::Char('\n'));
+        app.update(Key::Char('e'));
+        app.update(Key::Char('s'));
+        app.update(Key::Right);
+
+        app.update(Key::Char('\t'));
+        app.update(Key::Char('\t'));
+        app.update(Key::Down);
+        assert_eq!(
+            app.inspector().map(|inspector| inspector.source_file),
+            Some(0)
+        );
+
+        app.update(Key::Char('\t'));
+        app.update(Key::Right);
+        app.update(Key::Right);
+        app.update(Key::Right);
+        app.update(Key::Right);
+        assert_eq!(
+            app.inspector().map(|inspector| inspector.source_file),
+            Some(3)
+        );
+        app.update(Key::Left);
+        assert_eq!(
+            app.inspector().map(|inspector| inspector.source_file),
+            Some(2)
+        );
     }
 
     #[test]

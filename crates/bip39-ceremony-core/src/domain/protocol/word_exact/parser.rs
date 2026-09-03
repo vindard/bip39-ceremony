@@ -3,7 +3,7 @@ use zeroize::Zeroizing;
 use crate::domain::{
     bip39::{Entropy, EntropyTarget},
     dice::{DieFace, RollSequence},
-    protocol::ProtocolError,
+    protocol::{ProtocolError, append_bits},
 };
 
 use super::{
@@ -89,7 +89,7 @@ fn analyze_word_exact(target: EntropyTarget, rolls: &RollSequence) -> WordExactA
         ));
         offset += WORD_CANDIDATE_ROLLS;
         if accepted {
-            indices.push(lower_u16(*value % 2_048));
+            indices.push(accepted_word_index(*value));
         } else {
             rejected_candidates += 1;
         }
@@ -154,7 +154,7 @@ fn analyze_entropy_tail(
         ));
         accepted.offset += tail_rolls;
         if is_accepted {
-            let tail = lower_u16(*value % tail_space);
+            let tail = accepted_entropy_tail(*value, tail_space);
             let entropy = assemble_entropy(target, &accepted.indices, tail, tail_bits);
             return WordExactAnalysis {
                 parse: WordExactParse::Complete(CompletedWordExact::new(
@@ -219,6 +219,14 @@ fn base6_value(faces: &[DieFace]) -> u32 {
         .fold(0, |value, face| value * 6 + u32::from(face.base6_digit()))
 }
 
+fn accepted_word_index(value: u32) -> u16 {
+    lower_u16(value % 2_048)
+}
+
+fn accepted_entropy_tail(value: u32, tail_space: u32) -> u16 {
+    lower_u16(value % tail_space)
+}
+
 fn assemble_entropy(
     target: EntropyTarget,
     indices: &[u16],
@@ -238,14 +246,6 @@ fn assemble_entropy(
 fn lower_u16(value: u32) -> u16 {
     let bytes = value.to_be_bytes();
     u16::from_be_bytes([bytes[2], bytes[3]])
-}
-
-fn append_bits(bytes: &mut [u8], offset: &mut usize, value: u16, bits: usize) {
-    for shift in (0..bits).rev() {
-        let bit = (value >> shift).to_le_bytes()[0] & 1;
-        bytes[*offset / 8] |= bit << (7 - *offset % 8);
-        *offset += 1;
-    }
 }
 
 #[cfg(test)]

@@ -19,6 +19,19 @@ struct Palette {
     secret: u8,
     progress: u8,
     white: u8,
+    code_text: u8,
+    code_gutter: u8,
+    code_comment: u8,
+    code_keyword: u8,
+    code_keyword_function: u8,
+    code_function: u8,
+    code_type: u8,
+    code_string: u8,
+    code_number: u8,
+    code_member: u8,
+    code_parameter: u8,
+    code_operator: u8,
+    code_bracket: u8,
 }
 
 #[derive(Clone, Copy, Eq, PartialEq)]
@@ -85,6 +98,19 @@ impl Theme {
                 secret: 203,
                 progress: 214,
                 white: 231,
+                code_text: 189,
+                code_gutter: 60,
+                code_comment: 61,
+                code_keyword: 183,
+                code_keyword_function: 219,
+                code_function: 111,
+                code_type: 75,
+                code_string: 150,
+                code_number: 209,
+                code_member: 79,
+                code_parameter: 221,
+                code_operator: 117,
+                code_bracket: 103,
             }),
             Self::Plain => None,
         }
@@ -403,7 +429,9 @@ fn write_card_line(
     let focused = left_border == '┃';
     write_card_border(output, focused, palette)?;
     write!(output, "{left_border}\x1b[0m")?;
-    if !write_roll_ledger_line(output, inner, palette)? {
+    if !write_rust_source_line(output, inner, palette)?
+        && !write_roll_ledger_line(output, inner, palette)?
+    {
         write_styled_line(
             output,
             inner,
@@ -413,6 +441,279 @@ fn write_card_line(
     }
     write_card_border(output, focused, palette)?;
     write!(output, "{right_border}")
+}
+
+#[derive(Clone, Copy)]
+enum CodeStyle {
+    Text,
+    Gutter,
+    Comment,
+    Keyword,
+    KeywordFunction,
+    Function,
+    Type,
+    String,
+    Number,
+    Member,
+    Parameter,
+    Operator,
+    Bracket,
+}
+
+fn write_rust_source_line(
+    output: &mut impl Write,
+    inner: &str,
+    palette: Palette,
+) -> io::Result<bool> {
+    let trimmed = inner.trim_start();
+    let leading = &inner[..inner.len() - trimmed.len()];
+    let Some((line_number, code)) = trimmed.split_once(" │ ") else {
+        return Ok(false);
+    };
+    if line_number.len() != 4 || !line_number.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Ok(false);
+    }
+
+    write!(output, "{leading}")?;
+    write_code_token(output, line_number, CodeStyle::Gutter, palette)?;
+    write_code_token(output, " │ ", CodeStyle::Bracket, palette)?;
+    write_rust_code(output, code, palette)?;
+    Ok(true)
+}
+
+fn write_rust_code(output: &mut impl Write, code: &str, palette: Palette) -> io::Result<()> {
+    let mut offset = 0;
+    while offset < code.len() {
+        let token = next_rust_token(&code[..offset], &code[offset..]);
+        let end = offset + token.length;
+        if let Some(style) = token.style {
+            write_code_token(output, &code[offset..end], style, palette)?;
+        } else {
+            write!(output, "{}", &code[offset..end])?;
+        }
+        offset = end;
+    }
+    Ok(())
+}
+
+struct RustToken {
+    length: usize,
+    style: Option<CodeStyle>,
+}
+
+fn next_rust_token(before: &str, remaining: &str) -> RustToken {
+    let character = remaining.chars().next().expect("source token is non-empty");
+    match character {
+        '/' if remaining.starts_with("//") => styled_token(remaining.len(), CodeStyle::Comment),
+        '"' => styled_token(quoted_length(remaining, '"'), CodeStyle::String),
+        '\'' => rust_apostrophe_token(remaining),
+        value if value.is_ascii_digit() => {
+            styled_token(number_length(remaining), CodeStyle::Number)
+        }
+        value if value.is_ascii_alphabetic() || value == '_' => {
+            let length = identifier_length(remaining);
+            styled_token(
+                length,
+                classify_rust_identifier(before, &remaining[..length], &remaining[length..]),
+            )
+        }
+        value if value.is_whitespace() => RustToken {
+            length: value.len_utf8(),
+            style: None,
+        },
+        '(' | ')' | '[' | ']' | '{' | '}' => styled_token(character.len_utf8(), CodeStyle::Bracket),
+        _ => styled_token(character.len_utf8(), CodeStyle::Operator),
+    }
+}
+
+const fn styled_token(length: usize, style: CodeStyle) -> RustToken {
+    RustToken {
+        length,
+        style: Some(style),
+    }
+}
+
+fn rust_apostrophe_token(remaining: &str) -> RustToken {
+    char_literal_length(remaining).map_or_else(
+        || styled_token(1 + identifier_length(&remaining[1..]), CodeStyle::Keyword),
+        |length| styled_token(length, CodeStyle::String),
+    )
+}
+
+fn char_literal_length(value: &str) -> Option<usize> {
+    let mut characters = value.char_indices();
+    characters.next()?;
+    let (_, first) = characters.next()?;
+    if first == '\\' {
+        characters.next()?;
+    }
+    let (offset, closing) = characters.next()?;
+    (closing == '\'').then_some(offset + closing.len_utf8())
+}
+
+fn quoted_length(value: &str, quote: char) -> usize {
+    let mut escaped = false;
+    for (offset, character) in value.char_indices().skip(1) {
+        if character == quote && !escaped {
+            return offset + character.len_utf8();
+        }
+        escaped = character == '\\' && !escaped;
+        if character != '\\' {
+            escaped = false;
+        }
+    }
+    value.len()
+}
+
+fn identifier_length(value: &str) -> usize {
+    value
+        .char_indices()
+        .take_while(|(_, character)| character.is_ascii_alphanumeric() || *character == '_')
+        .last()
+        .map_or(0, |(offset, character)| offset + character.len_utf8())
+}
+
+fn number_length(value: &str) -> usize {
+    let bytes = value.as_bytes();
+    let mut length = 0;
+    while let Some(&byte) = bytes.get(length) {
+        let decimal_point = byte == b'.' && bytes.get(length + 1) != Some(&b'.');
+        if byte.is_ascii_alphanumeric() || byte == b'_' || decimal_point {
+            length += 1;
+        } else {
+            break;
+        }
+    }
+    length
+}
+
+fn classify_rust_identifier(before: &str, identifier: &str, after: &str) -> CodeStyle {
+    let following = after.trim_start();
+    if identifier == "fn" {
+        return CodeStyle::KeywordFunction;
+    }
+    if is_rust_keyword(identifier) {
+        return CodeStyle::Keyword;
+    }
+    if matches!(
+        identifier,
+        "None" | "Some" | "Ok" | "Err" | "true" | "false"
+    ) {
+        return CodeStyle::Number;
+    }
+    if identifier.starts_with(char::is_uppercase) && before.trim_end().ends_with("::") {
+        return CodeStyle::Number;
+    }
+    if is_rust_primitive(identifier) || identifier.starts_with(char::is_uppercase) {
+        return CodeStyle::Type;
+    }
+    if following.starts_with('!') || following.starts_with('(') {
+        return CodeStyle::Function;
+    }
+    let before = before.trim_end();
+    if before.ends_with('.') && !before.ends_with("..") {
+        return CodeStyle::Member;
+    }
+    if following.starts_with(':') && !following.starts_with("::") {
+        return if before.rfind('(') > before.rfind(')') {
+            CodeStyle::Parameter
+        } else {
+            CodeStyle::Member
+        };
+    }
+    if following.starts_with("::") {
+        return CodeStyle::Keyword;
+    }
+    CodeStyle::Text
+}
+
+fn is_rust_keyword(value: &str) -> bool {
+    matches!(
+        value,
+        "as" | "async"
+            | "await"
+            | "break"
+            | "const"
+            | "continue"
+            | "crate"
+            | "dyn"
+            | "else"
+            | "enum"
+            | "extern"
+            | "for"
+            | "if"
+            | "impl"
+            | "in"
+            | "let"
+            | "loop"
+            | "match"
+            | "mod"
+            | "move"
+            | "mut"
+            | "pub"
+            | "ref"
+            | "return"
+            | "self"
+            | "static"
+            | "struct"
+            | "super"
+            | "trait"
+            | "type"
+            | "union"
+            | "unsafe"
+            | "use"
+            | "where"
+            | "while"
+            | "yield"
+    )
+}
+
+fn is_rust_primitive(value: &str) -> bool {
+    matches!(
+        value,
+        "bool"
+            | "char"
+            | "f32"
+            | "f64"
+            | "i8"
+            | "i16"
+            | "i32"
+            | "i64"
+            | "i128"
+            | "isize"
+            | "str"
+            | "u8"
+            | "u16"
+            | "u32"
+            | "u64"
+            | "u128"
+            | "usize"
+    )
+}
+
+fn write_code_token(
+    output: &mut impl Write,
+    token: &str,
+    style: CodeStyle,
+    palette: Palette,
+) -> io::Result<()> {
+    let (color, italic) = match style {
+        CodeStyle::Text => (palette.code_text, false),
+        CodeStyle::Gutter => (palette.code_gutter, false),
+        CodeStyle::Comment => (palette.code_comment, true),
+        CodeStyle::Keyword => (palette.code_keyword, true),
+        CodeStyle::KeywordFunction => (palette.code_keyword_function, false),
+        CodeStyle::Function => (palette.code_function, false),
+        CodeStyle::Type => (palette.code_type, false),
+        CodeStyle::String => (palette.code_string, false),
+        CodeStyle::Number => (palette.code_number, false),
+        CodeStyle::Member => (palette.code_member, false),
+        CodeStyle::Parameter => (palette.code_parameter, false),
+        CodeStyle::Operator => (palette.code_operator, false),
+        CodeStyle::Bracket => (palette.code_bracket, false),
+    };
+    let slant = if italic { 3 } else { 23 };
+    write!(output, "\x1b[{slant};22;38;5;{color}m{token}\x1b[0m")
 }
 
 fn write_roll_ledger_line(
@@ -732,6 +1033,81 @@ mod tests {
         assert!(rendered.contains("1;38;5;203m● REVEALED"));
         assert!(rendered.contains("1;38;5;220mabandon"));
         assert!(rendered.matches("1;38;5;203m║").count() >= 2);
+    }
+
+    #[test]
+    fn rust_source_uses_editor_style_semantic_colors() {
+        let mut output = Vec::new();
+        Theme::Ember
+            .write(
+                &mut output,
+                "BIP-39 CEREMONY\n┏━ SOURCE · FOCUS ━┓\n┃ 0009 │     mnemonic: EnglishMnemonic, ┃\n┃ 0015 │ pub(crate) fn from_entropy(entropy: &Entropy) -> Result<Self, Bip39Error> { ┃\n┃ 0016 │     return Err(\"mismatch\"); // rejected ┃\n┃ 0036 │     let checksum_bits = (0..checksum_width); ┃\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛",
+            )
+            .unwrap();
+        let rendered = String::from_utf8(output).unwrap();
+
+        for expected in [
+            "23;22;38;5;60m0015",
+            "3;22;38;5;183mpub",
+            "23;22;38;5;219mfn",
+            "23;22;38;5;111mfrom_entropy",
+            "23;22;38;5;221mentropy",
+            "23;22;38;5;79mmnemonic",
+            "23;22;38;5;75mEntropy",
+            "23;22;38;5;209mErr",
+            "23;22;38;5;150m\"mismatch\"",
+            "3;22;38;5;61m// rejected",
+            "23;22;38;5;117m&",
+            "23;22;38;5;103m(",
+            "23;22;38;5;209m0",
+            "23;22;38;5;117m.",
+            "23;22;38;5;189mchecksum_width",
+        ] {
+            assert!(rendered.contains(expected), "missing style for {expected}");
+        }
+        assert!(rendered.contains("1;38;5;214m┃"));
+    }
+
+    #[test]
+    fn rust_styling_preserves_every_source_character() {
+        for source in [
+            " 0002 │                                                                ",
+            " 0021 │ pub(super) fn from_encoded(value: &'static str) -> Result<u16, Error> { // exact  ",
+            " 0036 │     let checksum_bits = (0..checksum_width);                    ",
+        ] {
+            let mut output = Vec::new();
+            assert!(
+                write_rust_source_line(&mut output, source, Theme::Ember.palette().unwrap())
+                    .unwrap()
+            );
+            let rendered = String::from_utf8(output).unwrap();
+            assert_eq!(without_sgr(&rendered), source);
+        }
+    }
+
+    #[test]
+    fn rust_source_activation_requires_a_four_digit_gutter() {
+        let mut output = Vec::new();
+
+        assert!(
+            !write_rust_source_line(
+                &mut output,
+                " label │ value ",
+                Theme::Ember.palette().unwrap()
+            )
+            .unwrap()
+        );
+        assert!(output.is_empty());
+    }
+
+    fn without_sgr(value: &str) -> String {
+        let mut segments = value.split('\x1b');
+        let mut plain = segments.next().unwrap_or_default().to_owned();
+        for segment in segments {
+            let (_, text) = segment.split_once('m').expect("theme emits SGR escapes");
+            plain.push_str(text);
+        }
+        plain
     }
 
     #[test]

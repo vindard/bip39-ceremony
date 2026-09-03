@@ -23,7 +23,7 @@ use crate::{
     application::SafetyAttestation,
     presentation::{
         ChoiceContent, attempt_rejection, concealed_generation, finish_confirmation,
-        protocol_choices, safety_content, target_choices,
+        protocol_choices, protocol_source_files, safety_content, target_choices,
     },
 };
 
@@ -225,28 +225,32 @@ fn render_workspace_pane(app: &App, pane: WorkspacePane, width: usize, rows: usi
     let body_width = width.saturating_sub(4);
     let (title, body, scroll) = if let Some(session) = app.group() {
         match pane {
-            WorkspacePane::Stages => ("ENTROPY SETS", group_stage_lines(app, session), 0),
+            WorkspacePane::Stages => (
+                "ENTROPY SETS".to_owned(),
+                group_stage_lines(app, session),
+                0,
+            ),
             WorkspacePane::Task => (
-                group::card_title(app),
+                group::card_title(app).to_owned(),
                 group::group_task_body(app, session, body_width),
                 app.roll_scroll(),
             ),
             WorkspacePane::Preview => (
-                group_preview_title(app),
+                group_preview_title(app).to_owned(),
                 group::group_preview_body(app, session, body_width),
                 app.roll_scroll(),
             ),
         }
     } else {
         match pane {
-            WorkspacePane::Stages => ("STAGES", stage_lines(app), 0),
+            WorkspacePane::Stages => ("STAGES".to_owned(), stage_lines(app), 0),
             WorkspacePane::Task => {
                 let body = if app.quit_pending() {
                     render_quit(app.ceremony().state().phase(), body_width)
                 } else {
                     render_live(app, body_width)
                 };
-                (task_title(app), body, app.roll_scroll())
+                (task_title(app).to_owned(), body, app.roll_scroll())
             }
             WorkspacePane::Preview => {
                 let body = if app.quit_pending() {
@@ -262,7 +266,7 @@ fn render_workspace_pane(app: &App, pane: WorkspacePane, width: usize, rows: usi
         }
     };
     render_card_lines(
-        title,
+        &title,
         &body,
         rows,
         scroll,
@@ -397,13 +401,29 @@ fn task_title(app: &App) -> &'static str {
     }
 }
 
-fn preview_title(app: &App) -> &'static str {
-    match app.inspector().map(|value| value.view) {
-        Some(InspectorView::Derivation) => "DERIVATION · ALL VALUES SECRET · FOCUS",
-        Some(InspectorView::ProtocolExplanation) => "PROTOCOL DETAILS · FOCUS",
-        Some(InspectorView::PhysicalEntropy) => "PHYSICAL ENTROPY · FOCUS",
-        Some(InspectorView::Help) => "HELP · FOCUS",
-        None => "PREVIEW · FOCUS",
+fn preview_title(app: &App) -> String {
+    match app.inspector() {
+        Some(inspector) if inspector.view == InspectorView::ProtocolSource => {
+            let Some(protocol) = app.inspected_protocol() else {
+                return "PROTOCOL SOURCE · FOCUS".to_owned();
+            };
+            let files = protocol_source_files(protocol);
+            let selected = inspector.source_file.min(files.len().saturating_sub(1));
+            let path = files[selected]
+                .path()
+                .strip_prefix("crates/bip39-ceremony-core/")
+                .unwrap_or(files[selected].path());
+            format!("SOURCE {}/{} · {path} · FOCUS", selected + 1, files.len())
+        }
+        Some(inspector) => match inspector.view {
+            InspectorView::Derivation => "DERIVATION · ALL VALUES SECRET · FOCUS",
+            InspectorView::ProtocolExplanation => "PROTOCOL DETAILS · FOCUS",
+            InspectorView::PhysicalEntropy => "PHYSICAL ENTROPY · FOCUS",
+            InspectorView::Help => "HELP · FOCUS",
+            InspectorView::ProtocolSource => unreachable!("source handled above"),
+        }
+        .to_owned(),
+        None => "PREVIEW · FOCUS".to_owned(),
     }
 }
 
@@ -421,6 +441,9 @@ fn workspace_footer(app: &App, width: usize) -> String {
     }
     if width >= 120 {
         return format!("{contextual}   [Tab] pane  [p] preview  [z] zoom");
+    }
+    if app.inspector().is_some() {
+        return contextual;
     }
     if app.focused_pane() == WorkspacePane::Preview {
         return "[↑/↓] scroll  [Tab] pane  [p] preview  [z] zoom  [Esc] close  [q] cancel"
@@ -735,13 +758,21 @@ fn inspector_footer(view: InspectorView, derivation_available: bool, phase: Phas
     if view == InspectorView::PhysicalEntropy {
         return format!("{quit}  [↑/↓] scroll  [t/Esc] close  [Tab] pane");
     }
-    if view == InspectorView::ProtocolExplanation {
+    if matches!(
+        view,
+        InspectorView::ProtocolExplanation | InspectorView::ProtocolSource
+    ) {
         let destination = if phase == Phase::ChooseProtocol {
             "protocols"
         } else {
             "roll capture"
         };
-        return format!("{quit}  [↑/↓] scroll  [e/Esc] {destination}  [Tab] pane");
+        let toggle = if view == InspectorView::ProtocolSource {
+            "[s] explanation  [←/→] stage"
+        } else {
+            "[s] source"
+        };
+        return format!("{toggle}  [e/Esc] {destination}  [↑/↓] scroll  {quit}");
     }
     let derivation = if derivation_available {
         "   [d] derivation"
@@ -1360,6 +1391,10 @@ mod tests {
         assert!(details.contains("available only for 24-word output"));
         app.update(Key::PageDown);
         assert!(render(&app, 80, 40).contains("cannot be selected for a ceremony"));
+        app.update(Key::Char('s'));
+        let source = render(&app, 80, 40);
+        assert!(source.contains("STAGE 1 OF 3 · COMMON ENTROPY → MNEMONIC"));
+        assert!(source.contains("pub(crate) fn from_entropy("));
     }
 
     #[test]
@@ -1966,6 +2001,49 @@ mod tests {
         let capture = render(&app, 80, 40);
         assert!(capture.contains("┏━ ROLL CAPTURE · FOCUS"));
         assert!(capture.contains("LATEST RECORDED · #001"));
+    }
+
+    #[test]
+    fn protocol_source_leads_with_complete_mnemonic_path_then_method_difference() {
+        let mut app = roll_entry_app(2, 1);
+        app.update(Key::Char('e'));
+        app.update(Key::Char('s'));
+
+        let common = render(&app, 140, 40);
+        assert_output_contains(
+            &common,
+            &[
+                "STAGE 1 OF 3 · COMMON ENTROPY → MNEMONIC",
+                "Complete local module embedded verbatim",
+                "Mnemonic::from_entropy_in",
+                "bip39 2.2.2",
+                "[s] explanation",
+                "[←/→] stage",
+            ],
+        );
+
+        app.update(Key::Right);
+        let method = render(&app, 140, 40);
+        assert_output_contains(
+            &method,
+            &["STAGE 2 OF 3 · METHOD-SPECIFIC", "fn calculate_entropy("],
+        );
+
+        app.update(Key::Right);
+        let shared = render(&app, 140, 40);
+        assert_output_contains(
+            &shared,
+            &[
+                "STAGE 3 OF 3 · SHARED BASE-6 INTEGER",
+                "pub(super) fn accumulate(",
+            ],
+        );
+    }
+
+    fn assert_output_contains(output: &str, expected: &[&str]) {
+        for text in expected {
+            assert!(output.contains(text), "missing {text}");
+        }
     }
 
     #[test]

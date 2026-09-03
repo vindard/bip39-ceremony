@@ -3,7 +3,7 @@ use crate::domain::{
     jade::{D8Face, D16Face, JadeCapture, JadeObservation},
 };
 
-use super::ProtocolError;
+use super::{ProtocolError, append_bits};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum JadeDieKind {
@@ -165,19 +165,27 @@ pub(crate) fn jade_entropy(
             else {
                 return Err(ProtocolError::WrongObservationKind);
             };
-            (
-                u16::from(first.zero_based()) * 8 + u16::from(second.zero_based()),
-                7,
-            )
+            words12_entropy_tail(*first, *second)
         }
         EntropyTarget::Words24 => {
             let [JadeObservation::D8(face)] = &capture.observations()[tail_start..] else {
                 return Err(ProtocolError::WrongObservationKind);
             };
-            (u16::from(face.zero_based()), 3)
+            words24_entropy_tail(*face)
         }
     };
     Ok(assemble_entropy(target, &indices, tail, tail_bits))
+}
+
+fn words12_entropy_tail(first: D16Face, second: D8Face) -> (u16, usize) {
+    (
+        u16::from(first.zero_based()) * 8 + u16::from(second.zero_based()),
+        7,
+    )
+}
+
+fn words24_entropy_tail(face: D8Face) -> (u16, usize) {
+    (u16::from(face.zero_based()), 3)
 }
 
 fn assemble_entropy(
@@ -194,14 +202,6 @@ fn assemble_entropy(
     append_bits(&mut bytes, &mut bit_offset, tail, tail_bits);
     assert_eq!(bit_offset, target.entropy_bits());
     Entropy::from_protocol_bytes(target, bytes)
-}
-
-fn append_bits(bytes: &mut [u8], offset: &mut usize, value: u16, bits: usize) {
-    for shift in (0..bits).rev() {
-        let bit = (value >> shift).to_le_bytes()[0] & 1;
-        bytes[*offset / 8] |= bit << (7 - *offset % 8);
-        *offset += 1;
-    }
 }
 
 #[cfg(test)]

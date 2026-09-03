@@ -78,26 +78,31 @@ impl ProtocolMenuChoice {
     ];
 
     #[must_use]
-    pub const fn implemented_protocol(self, target: EntropyTarget) -> Option<ConversionProtocol> {
+    pub const fn protocol(self) -> ConversionProtocol {
         match self {
-            Self::Coldcard => Some(ConversionProtocol::ColdcardV1),
-            Self::WordExact => Some(ConversionProtocol::WordExactV1),
-            Self::Exact => Some(ConversionProtocol::ExactV1),
-            Self::KeystoneLegacyDice if matches!(target, EntropyTarget::Words24) => {
-                Some(ConversionProtocol::KeystoneLegacyV1)
-            }
-            Self::JadeDirectWords => Some(ConversionProtocol::JadeDirectV1),
-            Self::BitBoxDiceware => Some(ConversionProtocol::BitBox02DirectV1),
-            Self::KruxD20 => Some(ConversionProtocol::KruxD20V1),
-            Self::CoinFourD6Direct if matches!(target, EntropyTarget::Words12) => {
-                Some(ConversionProtocol::CoinFourD6DirectV1)
-            }
-            Self::SeedSignerCoins => Some(ConversionProtocol::SeedSignerCoinsV1),
-            Self::BitcoinLibBase6 => Some(ConversionProtocol::BitcoinLibBase6V1),
-            Self::BlueWalletBitPack => Some(ConversionProtocol::BlueWalletBitPackV1),
-            Self::IanColemanDice => Some(ConversionProtocol::IanColemanDiceV1),
-            Self::IanColemanRaw => Some(ConversionProtocol::IanColemanRawV1),
-            Self::KeystoneLegacyDice | Self::CoinFourD6Direct => None,
+            Self::Coldcard => ConversionProtocol::ColdcardV1,
+            Self::WordExact => ConversionProtocol::WordExactV1,
+            Self::Exact => ConversionProtocol::ExactV1,
+            Self::KeystoneLegacyDice => ConversionProtocol::KeystoneLegacyV1,
+            Self::JadeDirectWords => ConversionProtocol::JadeDirectV1,
+            Self::BitBoxDiceware => ConversionProtocol::BitBox02DirectV1,
+            Self::KruxD20 => ConversionProtocol::KruxD20V1,
+            Self::CoinFourD6Direct => ConversionProtocol::CoinFourD6DirectV1,
+            Self::SeedSignerCoins => ConversionProtocol::SeedSignerCoinsV1,
+            Self::BitcoinLibBase6 => ConversionProtocol::BitcoinLibBase6V1,
+            Self::BlueWalletBitPack => ConversionProtocol::BlueWalletBitPackV1,
+            Self::IanColemanDice => ConversionProtocol::IanColemanDiceV1,
+            Self::IanColemanRaw => ConversionProtocol::IanColemanRawV1,
+        }
+    }
+
+    #[must_use]
+    pub const fn implemented_protocol(self, target: EntropyTarget) -> Option<ConversionProtocol> {
+        let protocol = self.protocol();
+        if protocol.supports_target(target) {
+            Some(protocol)
+        } else {
+            None
         }
     }
 

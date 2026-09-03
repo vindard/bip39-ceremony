@@ -88,8 +88,12 @@ pub(crate) fn iancoleman_dice_entropy(
     rolls: &RollSequence,
 ) -> Result<Entropy, ProtocolError> {
     require_complete_dice_capture(ConversionProtocol::IanColemanDiceV1, target, rolls)?;
+    Ok(calculate_dice_entropy(target, rolls))
+}
+
+fn calculate_dice_entropy(target: EntropyTarget, rolls: &RollSequence) -> Entropy {
     let ascii = ascii_rolls(rolls);
-    Ok(sha256_prefix_entropy(target, &[ascii.as_slice()]))
+    sha256_prefix_entropy(target, &[ascii.as_slice()])
 }
 
 /// Converts an ordered D6 sequence the way iancoleman's raw mode does.
@@ -116,7 +120,21 @@ pub fn iancoleman_raw_entropy(
         });
     }
 
-    let mut packed = Zeroizing::new(Vec::with_capacity(progress.bits()));
+    Ok(calculate_raw_entropy(
+        target,
+        rolls,
+        progress.bits(),
+        progress.required_bits(),
+    ))
+}
+
+fn calculate_raw_entropy(
+    target: EntropyTarget,
+    rolls: &RollSequence,
+    packed_bits: usize,
+    required_bits: usize,
+) -> Entropy {
+    let mut packed = Zeroizing::new(Vec::with_capacity(packed_bits));
     for face in rolls.faces() {
         let (value, width) = raw_face_bits(*face);
         for shift in (0..width).rev() {
@@ -124,13 +142,13 @@ pub fn iancoleman_raw_entropy(
         }
     }
 
-    let start = packed.len() - progress.required_bits();
+    let start = packed.len() - required_bits;
     let mut bytes = Zeroizing::new(vec![0_u8; target.entropy_bytes()]);
     for (index, bit) in packed[start..].iter().enumerate() {
         bytes[index / 8] |= bit << (7 - (index % 8));
     }
 
-    Ok(Entropy::from_protocol_bytes(target, bytes.to_vec()))
+    Entropy::from_protocol_bytes(target, bytes.to_vec())
 }
 
 /// The packed bits actually used, as ASCII `0`/`1`, for inspection.

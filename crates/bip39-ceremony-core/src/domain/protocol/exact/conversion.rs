@@ -40,8 +40,13 @@ pub fn exact_entropy(
         return Ok(ExactEntropyOutcome::Rejected);
     }
 
-    let entropy = Entropy::from_protocol_bytes(target, value[1..].to_vec());
-    Ok(ExactEntropyOutcome::Accepted(entropy))
+    Ok(ExactEntropyOutcome::Accepted(calculate_entropy(
+        target, &value,
+    )))
+}
+
+fn calculate_entropy(target: EntropyTarget, value: &[u8]) -> Entropy {
+    Entropy::from_protocol_bytes(target, value[1..].to_vec())
 }
 
 fn require_roll_count(expected: usize, actual: usize) -> Result<(), ProtocolError> {

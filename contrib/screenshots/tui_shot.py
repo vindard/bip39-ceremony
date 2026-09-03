@@ -218,11 +218,17 @@ def animate(binary, rows, cols, steps, out, scale=2, fontsize=14, target_w=820,
     bold = ImageFont.truetype(BOLD, fontsize * scale)
     cw = reg.getlength("M"); ch = int((fontsize * scale) * 1.30); pad = 10 * scale
     frames, durations = [], []
+    terminal_colors = {DEFAULT_FG, DEFAULT_BG}
     pump(0.4)
     for keys, settle, hold_ms in steps:
         if keys: os.write(master, keys.encode())
         pump(settle)
         screen = pyte.Screen(cols, rows); pyte.ByteStream(screen).feed(bytes(buf))
+        for y in range(rows):
+            for x in range(cols):
+                cell = screen.buffer[y][x]
+                terminal_colors.add(resolve(cell.fg, False))
+                terminal_colors.add(resolve(cell.bg, True))
         frames.append(render_fixed(screen, rows, cols, reg, bold, cw, ch, pad))
         durations.append(hold_ms)
     try:
@@ -249,8 +255,15 @@ def animate(binary, rows, cols, steps, out, scale=2, fontsize=14, target_w=820,
     column = Image.new("RGB", (w0, h0 * len(frames)))
     for i, f in enumerate(frames):
         column.paste(f, (0, i * h0))
-    master = column.quantize(colors=128, method=Image.MEDIANCUT)
-    pal = [f.quantize(palette=master, dither=Image.NONE) for f in frames]
+    anchors = [
+        tuple(bytes.fromhex(color.removeprefix("#"))) for color in sorted(terminal_colors)
+    ]
+    adaptive_count = 256 - len(anchors)
+    adaptive = column.quantize(colors=adaptive_count, method=Image.MEDIANCUT)
+    adaptive_palette = adaptive.getpalette()[:adaptive_count * 3]
+    palette = Image.new("P", (1, 1))
+    palette.putpalette([channel for color in anchors for channel in color] + adaptive_palette)
+    pal = [f.quantize(palette=palette, dither=Image.NONE) for f in frames]
     pal[0].save(out, save_all=True, append_images=pal[1:], duration=durations,
                 loop=0, optimize=False, disposal=1)
     print(f"wrote {out} ({frames[0].width}x{frames[0].height}, {len(frames)} frames)")
